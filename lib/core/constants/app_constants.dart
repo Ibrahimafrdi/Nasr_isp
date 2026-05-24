@@ -1,0 +1,147 @@
+/// App constants
+class AppConstants {
+  // App info
+  static const String appName = 'NASR ISP Management';
+  static const String appVersion = '1.0.0';
+
+  // Pagination
+  static const int itemsPerPage = 10;
+  static const int maxCachedPages = 5;
+
+  // Timeouts
+  static const Duration apiTimeout = Duration(seconds: 30);
+  static const Duration debounceDelay = Duration(milliseconds: 500);
+  static const Duration animationDuration = Duration(milliseconds: 300);
+
+  // Spacing
+  static const double paddingXSmall = 4;
+  static const double paddingSmall = 8;
+  static const double paddingMedium = 16;
+  static const double paddingLarge = 24;
+  static const double paddingXLarge = 32;
+
+  // Border radius
+  static const double radiusSmall = 4;
+  static const double radiusMedium = 8;
+  static const double radiusLarge = 16;
+
+  // Icon sizes
+  static const double iconSizeSmall = 16;
+  static const double iconSizeMedium = 24;
+  static const double iconSizeLarge = 32;
+  static const double iconSizeXLarge = 48;
+
+  // Breakpoints for responsive design
+  static const double mobileBreakpoint = 600;
+  static const double tabletBreakpoint = 1024;
+  static const double desktopBreakpoint = 1440;
+
+  // Sidebar
+  static const double sidebarWidthExpanded = 280;
+  static const double sidebarWidthCollapsed = 80;
+
+  // Max content width
+  static const double maxContentWidth = 1920;
+}
+
+/// Route paths
+class RoutePaths {
+  static const String root = '/';
+  static const String login = '/login';
+  static const String dashboard = '/dashboard';
+  static const String customers = '/customers';
+  static const String customerDetails = '/customers/:id';
+  static const String addCustomer = '/customers/add';
+  static const String editCustomer = '/customers/:id/edit';
+  static const String payments = '/payments';
+  static const String expenses = '/expenses';
+  static const String reports = '/reports';
+  static const String employees = '/employees';
+  static const String installations = '/installations';
+  static const String settings = '/settings';
+  static const String inventory = '/inventory';
+  static const String khataa = '/khataa';
+}
+
+/// User roles
+enum UserRole {
+  admin,
+  employee;
+
+  bool get isAdmin => this == UserRole.admin;
+  bool get isEmployee => this == UserRole.employee;
+}
+
+/// Customer status
+enum CustomerStatus {
+  active,
+  expiringSoon,
+  expired,
+  inactive;
+
+  String get label {
+    switch (this) {
+      case CustomerStatus.active:
+        return 'Active';
+      case CustomerStatus.expiringSoon:
+        return 'Expiring Soon';
+      case CustomerStatus.expired:
+        return 'Expired';
+      case CustomerStatus.inactive:
+        return 'Inactive';
+    }
+  }
+
+  String get displayName => label;
+}
+
+/// Payment status
+enum PaymentStatus {
+  pending,
+  completed,
+  failed,
+  partial;
+
+  String get label {
+    switch (this) {
+      case PaymentStatus.pending:
+        return 'Pending';
+      case PaymentStatus.completed:
+        return 'Completed';
+      case PaymentStatus.failed:
+        return 'Failed';
+      case PaymentStatus.partial:
+        return 'Partial';
+    }
+  }
+}
+
+/// Expense category
+enum ExpenseCategory {
+  rent,
+  electricity,
+  fuel,
+  internetUpstream,
+  salaries,
+  repairs,
+  equipment;
+
+  String get label {
+    switch (this) {
+      case ExpenseCategory.rent:
+        return 'Rent';
+      case ExpenseCategory.electricity:
+        return 'Electricity';
+      case ExpenseCategory.fuel:
+        return 'Fuel';
+      case ExpenseCategory.internetUpstream:
+        return 'Internet Upstream';
+      case ExpenseCategory.salaries:
+        return 'Salaries';
+      case ExpenseCategory.repairs:
+        return 'Repairs';
+      case ExpenseCategory.equipment:
+        return 'Equipment';
+    }
+  }
+}
