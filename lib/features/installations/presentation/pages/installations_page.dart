@@ -196,106 +196,84 @@ class _InstallationsPageState extends State<InstallationsPage> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         if (authState is! AuthAuthenticated) {
-          return const Scaffold(body: Center(child: Text('Not authenticated')));
+          return const Center(child: Text('Not authenticated'));
         }
 
-        return Scaffold(
-          appBar: DashboardTopBar(
-            title: 'Fiber & Copper Installations Profitability',
-            currentUser: authState.user,
-            actions: [
-              if (authState.user.role.isAdmin)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Center(
-                    child: ElevatedButton.icon(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppConstants.paddingLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Breadcrumb(
+                    items: [
+                      BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
+                      BreadcrumbItem(label: 'Installations'),
+                    ],
+                  ),
+                  if (authState.user.role.isAdmin)
+                    ElevatedButton.icon(
                       onPressed: () => _showAddInstallationDialog(context),
                       icon: const Icon(Icons.construction, size: 18),
                       label: const Text('Log Installation'),
                     ),
-                  ),
-                ),
-            ],
-          ),
-          body: Row(
-            children: [
-              DashboardSidebar(
-                currentUser: authState.user,
-                currentRoute: RoutePaths.installations,
-                onLogout: () {
-                  context.read<AuthBloc>().add(const LogoutEvent());
-                  context.go(RoutePaths.login);
-                },
+                ],
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              const SizedBox(height: 16),
+
+              // Metric Summary Cards
+              Row(
+                children: [
+                  Expanded(
+                    child: DashboardCard(
+                      label: 'Gross Installation Fees',
+                      value: DateTimeUtils.formatCurrency(totalFee),
+                      icon: Icons.payments,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DashboardCard(
+                      label: 'Total Material & Cable Costs',
+                      value: DateTimeUtils.formatCurrency(totalCost),
+                      icon: Icons.shopping_bag_outlined,
+                      backgroundColor: AppTheme.errorColor.withOpacity(0.04),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DashboardCard(
+                      label: 'Net Installation Profit',
+                      value: DateTimeUtils.formatCurrency(netMargin),
+                      icon: Icons.account_balance_wallet,
+                      backgroundColor: AppTheme.successColor.withOpacity(0.05),
+                      subtitle: '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
+              // Installations table
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Breadcrumb(
-                        items: [
-                          BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
-                          BreadcrumbItem(label: 'Installations'),
-                        ],
+                      Text(
+                        'Installation Operations Log',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
-
-                      // Metric Summary Cards
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DashboardCard(
-                              label: 'Gross Installation Fees',
-                              value: DateTimeUtils.formatCurrency(totalFee),
-                              icon: Icons.payments,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DashboardCard(
-                              label: 'Total Material & Cable Costs',
-                              value: DateTimeUtils.formatCurrency(totalCost),
-                              icon: Icons.shopping_bag_outlined,
-                              backgroundColor: AppTheme.errorColor.withOpacity(0.04),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DashboardCard(
-                              label: 'Net Installation Profit',
-                              value: DateTimeUtils.formatCurrency(netMargin),
-                              icon: Icons.account_balance_wallet,
-                              backgroundColor: AppTheme.successColor.withOpacity(0.05),
-                              subtitle: '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Installations table
-                      Card(
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Installation Operations Log',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 16),
-                              _buildInstallationsTable(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      _buildInstallationsTable(),
                     ],
                   ),
                 ),

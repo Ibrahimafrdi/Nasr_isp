@@ -217,7 +217,7 @@ class _DashboardPageState extends State<DashboardPage> {
         if (isAdmin)
           KPICard(
             title: 'Monthly Revenue',
-            value: 'EGP 450K',
+            value: '450K PKR',
             subtitle: 'Current month',
             trend: '+15.3%',
             isTrendPositive: true,
@@ -227,7 +227,7 @@ class _DashboardPageState extends State<DashboardPage> {
         if (isAdmin)
           KPICard(
             title: 'Total Expenses',
-            value: 'EGP 125K',
+            value: '125K PKR',
             subtitle: 'Month to date',
             trend: '+5.1%',
             isTrendPositive: false,
@@ -237,7 +237,7 @@ class _DashboardPageState extends State<DashboardPage> {
         if (isAdmin)
           KPICard(
             title: 'Net Profit',
-            value: 'EGP 325K',
+            value: '325K PKR',
             subtitle: 'This month',
             trend: '+22.4%',
             isTrendPositive: true,
@@ -247,7 +247,7 @@ class _DashboardPageState extends State<DashboardPage> {
         if (isAdmin)
           KPICard(
             title: 'Pending Payments',
-            value: 'EGP 85K',
+            value: '85K PKR',
             subtitle: '24 invoices',
             trend: '-3.2%',
             isTrendPositive: true,
@@ -374,7 +374,7 @@ class _DashboardPageState extends State<DashboardPage> {
           cells: [
             'Ahmed Hassan',
             'Bank Transfer',
-            'EGP 500',
+            '500 PKR',
             'Completed',
             '2024-05-21',
           ],
@@ -383,13 +383,13 @@ class _DashboardPageState extends State<DashboardPage> {
           cells: [
             'Fatima Mohamed',
             'Cash',
-            'EGP 1,000',
+            '1,000 PKR',
             'Completed',
             '2024-05-21',
           ],
         ),
         PremiumDataRow(
-          cells: ['Mohammed Ali', 'Card', 'EGP 250', 'Pending', '2024-05-21'],
+          cells: ['Mohammed Ali', 'Card', '250 PKR', 'Pending', '2024-05-21'],
         ),
       ],
     );

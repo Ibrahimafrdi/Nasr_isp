@@ -6,3 +6,7 @@ export 'quick_action_card.dart';
 // premium sidebar/topbar removed — use AppShell with DashboardSidebar/TopBar
 export 'premium_data_table.dart';
 export 'mini_card.dart';
+export 'stat_card.dart';
+export 'dashboard_stat_card.dart';
+export 'analytics_chart_card.dart';
+export 'breadcrumbs.dart';

@@ -137,125 +137,103 @@ class _ExpensesPageState extends State<ExpensesPage> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         if (authState is! AuthAuthenticated) {
-          return const Scaffold(body: Center(child: Text('Not authenticated')));
+          return const Center(child: Text('Not authenticated'));
         }
 
-        return Scaffold(
-          appBar: DashboardTopBar(
-            title: 'Expense Audit & General Ledger',
-            currentUser: authState.user,
-            actions: [
-              if (authState.user.role.isAdmin)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Center(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showAddExpenseDialog(context),
-                      icon: const Icon(Icons.add_shopping_cart, size: 18),
-                      label: const Text('Add Expense'),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          body: Row(
-            children: [
-              DashboardSidebar(
-                currentUser: authState.user,
-                currentRoute: RoutePaths.expenses,
-                onLogout: () {
-                  context.read<AuthBloc>().add(const LogoutEvent());
-                  context.go(RoutePaths.login);
-                },
-              ),
-              Expanded(
-                child: BlocBuilder<ExpensesBloc, ExpensesState>(
-                  builder: (context, state) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.all(AppConstants.paddingLarge),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Breadcrumb(
-                            items: [
-                              BreadcrumbItem(
-                                label: 'Home',
-                                onTap: () => context.go(RoutePaths.dashboard),
-                              ),
-                              BreadcrumbItem(label: 'Expenses'),
-                            ],
+        return BlocBuilder<ExpensesBloc, ExpensesState>(
+          builder: (context, state) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Breadcrumb(
+                        items: [
+                          BreadcrumbItem(
+                            label: 'Home',
+                            onTap: () => context.go(RoutePaths.dashboard),
                           ),
-                          const SizedBox(height: 16),
-
-                          if (state is ExpensesLoaded) ...[
-                            // Expense Summary Row
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                final isDesktop = constraints.maxWidth > 800;
-                                return isDesktop
-                                    ? Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(flex: 3, child: _buildExpenseSummaryCards(state.totalExpenses)),
-                                          const SizedBox(width: 24),
-                                          Expanded(flex: 2, child: _buildExpensePieChart(state.expenses)),
-                                        ],
-                                      )
-                                    : Column(
-                                        children: [
-                                          _buildExpenseSummaryCards(state.totalExpenses),
-                                          const SizedBox(height: 24),
-                                          _buildExpensePieChart(state.expenses),
-                                        ],
-                                      );
-                              },
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Expenses Table
-                            Card(
-                              elevation: 1,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Expense Registry',
-                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildExpensesTable(state.expenses),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            if (state.totalPages > 1) ...[
-                              const SizedBox(height: 24),
-                              PaginationBar(
-                                currentPage: state.currentPage,
-                                totalPages: state.totalPages,
-                                onPageChanged: (page) {
-                                  context.read<ExpensesBloc>().add(
-                                        LoadExpensesEvent(page: page),
-                                      );
-                                },
-                              ),
-                            ],
-                          ] else if (state is ExpensesLoading)
-                            const LoadingWidget(message: 'Loading business cost logs...'),
+                          BreadcrumbItem(label: 'Expenses'),
                         ],
                       ),
-                    );
-                  },
-                ),
+                      if (authState.user.role.isAdmin)
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddExpenseDialog(context),
+                          icon: const Icon(Icons.add_shopping_cart, size: 18),
+                          label: const Text('Add Expense'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (state is ExpensesLoaded) ...[
+                    // Expense Summary Row
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isDesktop = constraints.maxWidth > 800;
+                        return isDesktop
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(flex: 3, child: _buildExpenseSummaryCards(state.totalExpenses)),
+                                  const SizedBox(width: 24),
+                                  Expanded(flex: 2, child: _buildExpensePieChart(state.expenses)),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  _buildExpenseSummaryCards(state.totalExpenses),
+                                  const SizedBox(height: 24),
+                                  _buildExpensePieChart(state.expenses),
+                                ],
+                              );
+                      },
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Expenses Table
+                    Card(
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Expense Registry',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildExpensesTable(state.expenses),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (state.totalPages > 1) ...[
+                      const SizedBox(height: 24),
+                      PaginationBar(
+                        currentPage: state.currentPage,
+                        totalPages: state.totalPages,
+                        onPageChanged: (page) {
+                          context.read<ExpensesBloc>().add(
+                                LoadExpensesEvent(page: page),
+                              );
+                        },
+                      ),
+                    ],
+                  ] else if (state is ExpensesLoading)
+                    const LoadingWidget(message: 'Loading business cost logs...'),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

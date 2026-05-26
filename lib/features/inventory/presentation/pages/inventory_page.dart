@@ -209,7 +209,7 @@ class _InventoryPageState extends State<InventoryPage> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         if (authState is! AuthAuthenticated) {
-          return const Scaffold(body: Center(child: Text('Not authenticated')));
+          return const Center(child: Text('Not authenticated'));
         }
 
         final filteredItems = _inventoryItems.where((item) {
@@ -225,275 +225,255 @@ class _InventoryPageState extends State<InventoryPage> {
 
         final int lowStockCount = _inventoryItems.where((i) => (i['available'] as int) <= (i['minThreshold'] as int)).length;
 
-        return Scaffold(
-          appBar: DashboardTopBar(
-            title: 'Stock & Inventory Control',
-            currentUser: authState.user,
-          ),
-          body: Row(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppConstants.paddingLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DashboardSidebar(
-                currentUser: authState.user,
-                currentRoute: RoutePaths.inventory,
-                onLogout: () {
-                  context.read<AuthBloc>().add(const LogoutEvent());
-                  context.go(RoutePaths.login);
+              // Breadcrumb
+              Breadcrumb(
+                items: [
+                  BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
+                  BreadcrumbItem(label: 'Inventory'),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Header Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Hardware & Device Inventory',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Track equipment distribution, ONU routers stock, and technician issues.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _showAddStockDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Stock'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // KPI Stock metrics summary cards
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isDesktop = constraints.maxWidth > 800;
+                  return GridView.count(
+                    crossAxisCount: isDesktop ? 4 : 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    childAspectRatio: isDesktop ? 1.8 : 1.3,
+                    children: [
+                      _buildMetricCard(
+                        'Total Devices Available',
+                        '$totalDevices',
+                        'ONUs & Routers',
+                        Icons.router,
+                        AppTheme.primaryColor,
+                      ),
+                      _buildMetricCard(
+                        'Low Stock Alerts',
+                        '$lowStockCount Items',
+                        'Below minimum warning limit',
+                        Icons.warning_amber_rounded,
+                        lowStockCount > 0 ? AppTheme.errorColor : AppTheme.successColor,
+                      ),
+                      _buildMetricCard(
+                        'Active Switches',
+                        '${_inventoryItems.firstWhere((i) => i['category'] == 'Switches')['available']}',
+                        'Ready in office storage',
+                        Icons.settings_input_component,
+                        Colors.purple,
+                      ),
+                      _buildMetricCard(
+                        'Cables Stock (Meters)',
+                        '${_inventoryItems.firstWhere((i) => i['category'] == 'Cables')['available']}m',
+                        'Available for field installation',
+                        Icons.cable,
+                        Colors.teal,
+                      ),
+                    ],
+                  );
                 },
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              const SizedBox(height: 24),
+
+              // Filter chips and search bar
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Search equipment by name...',
+                                prefixIcon: const Icon(Icons.search, size: 20),
+                                fillColor: AppTheme.veryLightGray,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onChanged: (val) {
+                                setState(() => _searchQuery = val);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: ['All', 'ONU Devices', 'Routers', 'Switches', 'Cables', 'Connectors']
+                              .map((cat) => Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      label: Text(cat),
+                                      selected: _selectedCategory == cat,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() => _selectedCategory = cat);
+                                        }
+                                      },
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Main Inventory List Card
+              Card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Office Stock Inventory Directory',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                    const Divider(),
+                    DataTableWrapper(
+                      columns: const [
+                        DataColumn(label: Text('Equipment Name')),
+                        DataColumn(label: Text('Category')),
+                        DataColumn(label: Text('Total Ledger')),
+                        DataColumn(label: Text('Available Stock')),
+                        DataColumn(label: Text('Used/Issued')),
+                        DataColumn(label: Text('Status')),
+                      ],
+                      rows: filteredItems.map((item) {
+                        final avail = item['available'] as int;
+                        final min = item['minThreshold'] as int;
+                        final total = item['total'] as int;
+                        final used = item['used'] as int;
+
+                        String statusText = 'Available';
+                        Color statusColor = AppTheme.successColor;
+                        if (avail == 0) {
+                          statusText = 'Out of Stock';
+                          statusColor = AppTheme.errorColor;
+                        } else if (avail <= min) {
+                          statusText = 'Low Stock';
+                          statusColor = AppTheme.warningColor;
+                        }
+
+                        return DataRow(cells: [
+                          DataCell(Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold))),
+                          DataCell(Text(item['category'] as String)),
+                          DataCell(Text('$total')),
+                          DataCell(Text('$avail', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor))),
+                          DataCell(Text('$used')),
+                          DataCell(
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                statusText,
+                                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+                              ),
+                            ),
+                          ),
+                        ]);
+                      }).toList(),
+                    ),
+                    if (filteredItems.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: Text('No matching items found.')),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Restock & Logs timeline
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Breadcrumb
-                      Breadcrumb(
-                        items: [
-                          BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
-                          BreadcrumbItem(label: 'Inventory'),
-                        ],
+                      Text(
+                        'Recent Stock Activities',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 16),
-
-                      // Header Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Hardware & Device Inventory',
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                      const Divider(height: 24),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _historyLogs.length,
+                        itemBuilder: (context, index) {
+                          final log = _historyLogs[index];
+                          final isAdd = log['qty'].toString().contains('+');
+                          return ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              backgroundColor: isAdd ? AppTheme.successColor.withOpacity(0.1) : AppTheme.errorColor.withOpacity(0.1),
+                              child: Icon(
+                                isAdd ? Icons.arrow_downward : Icons.arrow_upward,
+                                color: isAdd ? AppTheme.successColor : AppTheme.errorColor,
+                                size: 16,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Track equipment distribution, ONU routers stock, and technician issues.',
-                                style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            title: Text(log['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text('Logged by ${log['operator']} on ${log['date']}'),
+                            trailing: Text(
+                              log['qty'] as String,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isAdd ? AppTheme.successColor : AppTheme.errorColor,
+                                fontSize: 14,
                               ),
-                            ],
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _showAddStockDialog,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Stock'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // KPI Stock metrics summary cards
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isDesktop = constraints.maxWidth > 800;
-                          return GridView.count(
-                            crossAxisCount: isDesktop ? 4 : 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            childAspectRatio: isDesktop ? 1.8 : 1.3,
-                            children: [
-                              _buildMetricCard(
-                                'Total Devices Available',
-                                '$totalDevices',
-                                'ONUs & Routers',
-                                Icons.router,
-                                AppTheme.primaryColor,
-                              ),
-                              _buildMetricCard(
-                                'Low Stock Alerts',
-                                '$lowStockCount Items',
-                                'Below minimum warning limit',
-                                Icons.warning_amber_rounded,
-                                lowStockCount > 0 ? AppTheme.errorColor : AppTheme.successColor,
-                              ),
-                              _buildMetricCard(
-                                'Active Switches',
-                                '${_inventoryItems.firstWhere((i) => i['category'] == 'Switches')['available']}',
-                                'Ready in office storage',
-                                Icons.settings_input_component,
-                                Colors.purple,
-                              ),
-                              _buildMetricCard(
-                                'Cables Stock (Meters)',
-                                '${_inventoryItems.firstWhere((i) => i['category'] == 'Cables')['available']}m',
-                                'Available for field installation',
-                                Icons.cable,
-                                Colors.teal,
-                              ),
-                            ],
+                            ),
                           );
                         },
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Filter chips and search bar
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      decoration: InputDecoration(
-                                        hintText: 'Search equipment by name...',
-                                        prefixIcon: const Icon(Icons.search, size: 20),
-                                        fillColor: AppTheme.veryLightGray,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      onChanged: (val) {
-                                        setState(() => _searchQuery = val);
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: ['All', 'ONU Devices', 'Routers', 'Switches', 'Cables', 'Connectors']
-                                      .map((cat) => Padding(
-                                            padding: const EdgeInsets.only(right: 8),
-                                            child: ChoiceChip(
-                                              label: Text(cat),
-                                              selected: _selectedCategory == cat,
-                                              onSelected: (selected) {
-                                                if (selected) {
-                                                  setState(() => _selectedCategory = cat);
-                                                }
-                                              },
-                                            ),
-                                          ))
-                                      .toList(),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Main Inventory List Card
-                      Card(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text(
-                                'Office Stock Inventory Directory',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                            ),
-                            const Divider(),
-                            DataTableWrapper(
-                              columns: const [
-                                DataColumn(label: Text('Equipment Name')),
-                                DataColumn(label: Text('Category')),
-                                DataColumn(label: Text('Total Ledger')),
-                                DataColumn(label: Text('Available Stock')),
-                                DataColumn(label: Text('Used/Issued')),
-                                DataColumn(label: Text('Status')),
-                              ],
-                              rows: filteredItems.map((item) {
-                                final avail = item['available'] as int;
-                                final min = item['minThreshold'] as int;
-                                final total = item['total'] as int;
-                                final used = item['used'] as int;
-
-                                String statusText = 'Available';
-                                Color statusColor = AppTheme.successColor;
-                                if (avail == 0) {
-                                  statusText = 'Out of Stock';
-                                  statusColor = AppTheme.errorColor;
-                                } else if (avail <= min) {
-                                  statusText = 'Low Stock';
-                                  statusColor = AppTheme.warningColor;
-                                }
-
-                                return DataRow(cells: [
-                                  DataCell(Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold))),
-                                  DataCell(Text(item['category'] as String)),
-                                  DataCell(Text('$total')),
-                                  DataCell(Text('$avail', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor))),
-                                  DataCell(Text('$used')),
-                                  DataCell(
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: statusColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        statusText,
-                                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
-                                      ),
-                                    ),
-                                  ),
-                                ]);
-                              }).toList(),
-                            ),
-                            if (filteredItems.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Center(child: Text('No matching items found.')),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Restock & Logs timeline
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Recent Stock Activities',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const Divider(height: 24),
-                              ListView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: _historyLogs.length,
-                                itemBuilder: (context, index) {
-                                  final log = _historyLogs[index];
-                                  final isAdd = log['qty'].toString().contains('+');
-                                  return ListTile(
-                                    dense: true,
-                                    leading: CircleAvatar(
-                                      backgroundColor: isAdd ? AppTheme.successColor.withOpacity(0.1) : AppTheme.errorColor.withOpacity(0.1),
-                                      child: Icon(
-                                        isAdd ? Icons.arrow_downward : Icons.arrow_upward,
-                                        color: isAdd ? AppTheme.successColor : AppTheme.errorColor,
-                                        size: 16,
-                                      ),
-                                    ),
-                                    title: Text(log['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                    subtitle: Text('Logged by ${log['operator']} on ${log['date']}'),
-                                    trailing: Text(
-                                      log['qty'] as String,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: isAdd ? AppTheme.successColor : AppTheme.errorColor,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
+                      )
                     ],
                   ),
                 ),

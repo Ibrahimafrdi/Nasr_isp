@@ -77,84 +77,64 @@ class _ReportsPageState extends State<ReportsPage> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         if (authState is! AuthAuthenticated) {
-          return const Scaffold(body: Center(child: Text('Not authenticated')));
+          return const Center(child: Text('Not authenticated'));
         }
 
-        return Scaffold(
-          appBar: DashboardTopBar(
-            title: 'Audit & Financial Intelligence Reports',
-            currentUser: authState.user,
-          ),
-          body: Row(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppConstants.paddingLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DashboardSidebar(
-                currentUser: authState.user,
-                currentRoute: RoutePaths.reports,
-                onLogout: () {
-                  context.read<AuthBloc>().add(const LogoutEvent());
-                  context.go(RoutePaths.login);
+              Breadcrumb(
+                items: [
+                  BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
+                  BreadcrumbItem(label: 'Reports'),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Layout: Config form on left, visual preview on right
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isDesktop = constraints.maxWidth > 800;
+                  return isDesktop
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: _buildGeneratorPanel()),
+                            const SizedBox(width: 24),
+                            Expanded(flex: 2, child: _buildFinancialTrendsCard()),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            _buildGeneratorPanel(),
+                            const SizedBox(height: 24),
+                            _buildFinancialTrendsCard(),
+                          ],
+                        );
                 },
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              const SizedBox(height: 32),
+
+              // Download table
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Breadcrumb(
-                        items: [
-                          BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
-                          BreadcrumbItem(label: 'Reports'),
-                        ],
+                      Text(
+                        'Archived Compiled Reports Registry',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
-
-                      // Layout: Config form on left, visual preview on right
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isDesktop = constraints.maxWidth > 800;
-                          return isDesktop
-                              ? Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(flex: 3, child: _buildGeneratorPanel()),
-                                    const SizedBox(width: 24),
-                                    Expanded(flex: 2, child: _buildFinancialTrendsCard()),
-                                  ],
-                                )
-                              : Column(
-                                  children: [
-                                    _buildGeneratorPanel(),
-                                    const SizedBox(height: 24),
-                                    _buildFinancialTrendsCard(),
-                                  ],
-                                );
-                        },
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Download table
-                      Card(
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Archived Compiled Reports Registry',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 16),
-                              _buildDownloadsTable(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      _buildDownloadsTable(),
                     ],
                   ),
                 ),

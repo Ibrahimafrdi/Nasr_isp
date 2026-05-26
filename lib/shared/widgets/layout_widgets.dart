@@ -2,7 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/core/theme/app_fonts.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'breadcrumbs.dart';
+
+class SidebarSubItem {
+  final String label;
+  final String route;
+
+  const SidebarSubItem({required this.label, required this.route});
+}
+
+class SidebarItem {
+  final IconData icon;
+  final String label;
+  final String route;
+  final List<SidebarSubItem> subItems;
+
+  const SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.route,
+    this.subItems = const [],
+  });
+}
 
 class DashboardSidebar extends StatefulWidget {
   final UserModel currentUser;
@@ -22,71 +46,78 @@ class DashboardSidebar extends StatefulWidget {
 
 class _DashboardSidebarState extends State<DashboardSidebar> {
   bool isExpanded = true;
+  final Set<int> expandedItems = <int>{};
 
   List<SidebarItem> _getMenuItems() {
-    final items = <SidebarItem>[
+    final isAdmin = widget.currentUser.role.isAdmin;
+
+    return [
       SidebarItem(
         icon: Icons.dashboard,
         label: 'Dashboard',
         route: RoutePaths.dashboard,
       ),
       SidebarItem(
-        icon: Icons.people,
-        label: 'Customers',
+        icon: Icons.alt_route,
+        label: 'Operations',
         route: RoutePaths.customers,
-      ),
-      SidebarItem(
-        icon: Icons.payments,
-        label: 'Payments',
-        route: RoutePaths.payments,
+        subItems: [
+          const SidebarSubItem(label: 'Customers', route: RoutePaths.customers),
+          const SidebarSubItem(label: 'Installations', route: RoutePaths.installations),
+          const SidebarSubItem(label: 'Inventory', route: RoutePaths.inventory),
+        ],
       ),
       SidebarItem(
         icon: Icons.account_balance_wallet,
-        label: 'Khataa Ledger',
-        route: RoutePaths.khataa,
+        label: 'Financials',
+        route: RoutePaths.payments,
+        subItems: [
+          const SidebarSubItem(label: 'Payments', route: RoutePaths.payments),
+          const SidebarSubItem(label: 'Khataa Ledger', route: RoutePaths.khataa),
+          if (isAdmin)
+            const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
+        ],
       ),
       SidebarItem(
-        icon: Icons.inventory_2,
-        label: 'Inventory',
-        route: RoutePaths.inventory,
+        icon: Icons.admin_panel_settings,
+        label: 'Management',
+        route: RoutePaths.settings,
+        subItems: [
+          if (isAdmin)
+            const SidebarSubItem(label: 'Reports', route: RoutePaths.reports),
+          if (isAdmin)
+            const SidebarSubItem(label: 'Employees', route: RoutePaths.employees),
+          const SidebarSubItem(label: 'Settings', route: RoutePaths.settings),
+        ],
       ),
     ];
+  }
 
-    // Admin only items
-    if (widget.currentUser.role.isAdmin) {
-      items.addAll([
-        SidebarItem(
-          icon: Icons.receipt,
-          label: 'Expenses',
-          route: RoutePaths.expenses,
-        ),
-        SidebarItem(
-          icon: Icons.assessment,
-          label: 'Reports',
-          route: RoutePaths.reports,
-        ),
-        SidebarItem(
-          icon: Icons.groups,
-          label: 'Employees',
-          route: RoutePaths.employees,
-        ),
-        SidebarItem(
-          icon: Icons.build,
-          label: 'Installations',
-          route: RoutePaths.installations,
-        ),
-      ]);
+  @override
+  void initState() {
+    super.initState();
+    _expandActiveGroup();
+  }
+
+  @override
+  void didUpdateWidget(DashboardSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _expandActiveGroup();
+  }
+
+  void _expandActiveGroup() {
+    final items = _getMenuItems();
+    for (int i = 0; i < items.length; i++) {
+      final item = items[i];
+      if (widget.currentRoute.startsWith(item.route)) {
+        expandedItems.add(i);
+      }
+      for (final sub in item.subItems) {
+        if (widget.currentRoute.startsWith(sub.route)) {
+          expandedItems.add(i);
+        }
+      }
     }
-
-    items.add(
-      SidebarItem(
-        icon: Icons.settings,
-        label: 'Settings',
-        route: RoutePaths.settings,
-      ),
-    );
-
-    return items;
   }
 
   @override
@@ -94,144 +125,232 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
     final menuItems = _getMenuItems();
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: isExpanded
-          ? AppConstants.sidebarWidthExpanded
-          : AppConstants.sidebarWidthCollapsed,
-      color: AppTheme.whiteColor,
+      duration: const Duration(milliseconds: 250),
+      width: isExpanded ? 260 : 80,
+      decoration: const BoxDecoration(
+        color: AppColors.navyDark, // Consistent premium dark navy color
+      ),
       child: Column(
         children: [
-          // Header
+          // Logo & Branding Header
           Container(
-            padding: const EdgeInsets.all(AppConstants.paddingMedium),
+            height: 80,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppTheme.lightGray)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (isExpanded)
-                      Expanded(
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Image.asset(
-                                'assets/logo.jpg',
-                                width: 36,
-                                height: 36,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'NASR ISP',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.primaryDark,
-                                      fontSize: 15,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const Text(
-                                    'Connecting Better',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.mediumGray,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.asset(
-                            'assets/logo.jpg',
-                            width: 28,
-                            height: 28,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    IconButton(
-                      icon: Icon(
-                        isExpanded ? Icons.chevron_left : Icons.chevron_right,
-                      ),
-                      onPressed: () {
-                        setState(() => isExpanded = !isExpanded);
-                      },
-                      tooltip: isExpanded ? 'Collapse' : 'Expand',
-                    ),
-                  ],
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.white.withOpacity(0.08),
+                  width: 1,
                 ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: isExpanded
+                  ? MainAxisAlignment.spaceBetween
+                  : MainAxisAlignment.center,
+              children: [
+                if (isExpanded)
+                  Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.asset(
+                          'assets/logo.jpg',
+                          width: 38,
+                          height: 38,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          RichText(
+                            text: TextSpan(
+                              text: 'NASR',
+                              style: AppFonts.bodyLarge.copyWith(
+                                color: AppColors.white,
+                                fontWeight: AppFonts.extraBold,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: ' ISP',
+                                  style: AppFonts.bodyLarge.copyWith(
+                                    color: AppColors.primaryBlue,
+                                    fontWeight: AppFonts.extraBold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            'Connecting Better',
+                            style: AppFonts.labelSmall.copyWith(
+                              color: AppColors.mediumGray,
+                              fontSize: 9,
+                              fontWeight: AppFonts.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                else
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.asset(
+                      'assets/logo.jpg',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                if (isExpanded)
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, color: AppColors.mediumGray),
+                    onPressed: () => setState(() => isExpanded = false),
+                  ),
               ],
             ),
           ),
-          // Menu items
+
+          if (!isExpanded) ...[
+            const SizedBox(height: 12),
+            IconButton(
+              icon: const Icon(Icons.menu, color: AppColors.mediumGray),
+              onPressed: () => setState(() => isExpanded = true),
+              tooltip: 'Expand Sidebar',
+            ),
+          ],
+
+          // Navigation Menu Items
           Expanded(
             child: ListView.builder(
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(vertical: 12),
               itemCount: menuItems.length,
-              itemBuilder: (context, index) {
-                final item = menuItems[index];
-                final isActive = widget.currentRoute.startsWith(item.route);
-                return _SidebarMenuItem(
+              itemBuilder: (context, i) {
+                final item = menuItems[i];
+                final hasSubItems = item.subItems.isNotEmpty;
+                
+                // Determine if this item or any of its sub-items is active
+                bool isGroupActive = widget.currentRoute.startsWith(item.route);
+                int selectedSubIndex = -1;
+                for (int s = 0; s < item.subItems.length; s++) {
+                  if (widget.currentRoute.startsWith(item.subItems[s].route)) {
+                    isGroupActive = true;
+                    selectedSubIndex = s;
+                  }
+                }
+
+                final isExpandedGroup = expandedItems.contains(i);
+
+                return _SidebarGroupTile(
                   item: item,
-                  isActive: isActive,
-                  isExpanded: isExpanded,
-                  onTap: () {
-                    context.go(item.route);
+                  isExpandedSidebar: isExpanded,
+                  isGroupActive: isGroupActive,
+                  isGroupExpanded: isExpandedGroup,
+                  selectedSubIndex: selectedSubIndex >= 0 ? selectedSubIndex : null,
+                  onGroupTap: () {
+                    if (hasSubItems) {
+                      setState(() {
+                        if (isExpandedGroup) {
+                          expandedItems.remove(i);
+                        } else {
+                          expandedItems.add(i);
+                        }
+                      });
+                      if (!isExpanded) {
+                        setState(() => isExpanded = true);
+                      }
+                    } else {
+                      context.go(item.route);
+                    }
+                  },
+                  onSubTap: (subIndex) {
+                    context.go(item.subItems[subIndex].route);
                   },
                 );
               },
             ),
           ),
-          // Footer - User info
+
+          // User Info & Logout Footer
           Container(
-            padding: const EdgeInsets.all(AppConstants.paddingMedium),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: AppTheme.lightGray)),
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.08),
+                  width: 1,
+                ),
+              ),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (isExpanded)
-                  Text(
-                    widget.currentUser.name,
-                    style: Theme.of(context).textTheme.labelMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                if (isExpanded) const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        onPressed: widget.onLogout,
-                        icon: const Icon(Icons.logout, size: 18),
-                        label: isExpanded
-                            ? const Text('Logout')
-                            : const SizedBox.shrink(),
+                if (isExpanded) ...[
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: AppColors.primaryBlue.withOpacity(0.2),
+                        child: Text(
+                          widget.currentUser.name.characters.first.toUpperCase(),
+                          style: AppFonts.labelMedium.copyWith(
+                            color: AppColors.primaryBlue,
+                            fontWeight: AppFonts.bold,
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.currentUser.name,
+                              style: AppFonts.labelMedium.copyWith(
+                                color: AppColors.white,
+                                fontWeight: AppFonts.semiBold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              widget.currentUser.role.name.toUpperCase(),
+                              style: AppFonts.labelSmall.copyWith(
+                                color: AppColors.mediumGray,
+                                fontSize: 9,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: widget.onLogout,
+                    icon: const Icon(Icons.logout, size: 18, color: AppColors.errorRed),
+                    label: isExpanded
+                        ? Text(
+                            'Sign Out',
+                            style: AppFonts.bodySmall.copyWith(
+                              color: AppColors.errorRed,
+                              fontWeight: AppFonts.semiBold,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                    style: TextButton.styleFrom(
+                      alignment: isExpanded ? Alignment.centerLeft : Alignment.center,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -242,103 +361,158 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
   }
 }
 
-class _SidebarMenuItem extends StatefulWidget {
+class _SidebarGroupTile extends StatefulWidget {
   final SidebarItem item;
-  final bool isActive;
-  final bool isExpanded;
-  final VoidCallback onTap;
+  final bool isExpandedSidebar;
+  final bool isGroupActive;
+  final bool isGroupExpanded;
+  final int? selectedSubIndex;
+  final VoidCallback onGroupTap;
+  final Function(int) onSubTap;
 
-  const _SidebarMenuItem({
-    Key? key,
+  const _SidebarGroupTile({
     required this.item,
-    required this.isActive,
-    required this.isExpanded,
-    required this.onTap,
-  }) : super(key: key);
+    required this.isExpandedSidebar,
+    required this.isGroupActive,
+    required this.isGroupExpanded,
+    this.selectedSubIndex,
+    required this.onGroupTap,
+    required this.onSubTap,
+  });
 
   @override
-  State<_SidebarMenuItem> createState() => _SidebarMenuItemState();
+  State<_SidebarGroupTile> createState() => _SidebarGroupTileState();
 }
 
-class _SidebarMenuItemState extends State<_SidebarMenuItem> {
-  bool _isHovered = false;
+class _SidebarGroupTileState extends State<_SidebarGroupTile> {
+  bool isHovered = false;
+  int? hoveredSubIndex;
 
   @override
   Widget build(BuildContext context) {
-    final bool active = widget.isActive;
-    
-    Color getBgColor() {
-      if (active) return AppTheme.primaryColor.withOpacity(0.1);
-      if (_isHovered) return AppTheme.primaryColor.withOpacity(0.04);
-      return Colors.transparent;
-    }
+    final hasSubItems = widget.item.subItems.isNotEmpty;
 
-    Color getTextColor() {
-      if (active) return AppTheme.primaryColor;
-      if (_isHovered) return AppTheme.primaryColor.withOpacity(0.8);
-      return AppTheme.mediumGray;
-    }
+    final Color tileBgColor = widget.isGroupActive
+        ? Colors.white.withOpacity(0.08)
+        : (isHovered ? Colors.white.withOpacity(0.04) : Colors.transparent);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          decoration: BoxDecoration(
-            color: getBgColor(),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: ListTile(
-            dense: true,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: widget.isExpanded ? 16 : 12,
-              vertical: 4,
-            ),
-            leading: AnimatedSlide(
-              offset: (_isHovered && !active && widget.isExpanded) 
-                  ? const Offset(0.08, 0) 
-                  : Offset.zero,
-              duration: const Duration(milliseconds: 150),
-              child: Icon(
-                widget.item.icon,
-                color: getTextColor(),
-                size: 20,
+    final Color iconAndTextColor = widget.isGroupActive
+        ? AppColors.primaryBlue
+        : (isHovered ? AppColors.white : AppColors.mediumGray);
+
+    return Column(
+      children: [
+        MouseRegion(
+          onEnter: (_) => setState(() => isHovered = true),
+          onExit: (_) => setState(() => isHovered = false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onGroupTap,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: tileBgColor,
               ),
-            ),
-            title: widget.isExpanded
-                ? AnimatedPadding(
-                    duration: const Duration(milliseconds: 150),
-                    padding: EdgeInsets.only(
-                      left: (_isHovered && !active) ? 4.0 : 0.0,
-                    ),
-                    child: Text(
-                      widget.item.label,
-                      style: TextStyle(
-                        color: active ? AppTheme.primaryColor : AppTheme.darkGray,
-                        fontWeight: active ? FontWeight.bold : FontWeight.w500,
-                        fontSize: 13,
+              child: Row(
+                mainAxisAlignment: widget.isExpandedSidebar
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.item.icon,
+                    color: iconAndTextColor,
+                    size: 20,
+                  ),
+                  if (widget.isExpandedSidebar) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.item.label,
+                        style: AppFonts.bodyMedium.copyWith(
+                          color: iconAndTextColor,
+                          fontWeight: widget.isGroupActive
+                              ? AppFonts.bold
+                              : AppFonts.medium,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
-                  )
-                : null,
-            onTap: widget.onTap,
+                    if (hasSubItems)
+                      Icon(
+                        widget.isGroupExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: iconAndTextColor,
+                        size: 16,
+                      ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+        
+        // Expandable Sub-items list
+        if (hasSubItems && widget.isGroupExpanded && widget.isExpandedSidebar)
+          ...widget.item.subItems.asMap().entries.map((entry) {
+            final int subIndex = entry.key;
+            final SidebarSubItem subItem = entry.value;
+
+            final bool subSelected = widget.selectedSubIndex == subIndex;
+            final bool subHovered = hoveredSubIndex == subIndex;
+
+            final Color subBgColor = subSelected
+                ? AppColors.primaryBlue.withOpacity(0.12)
+                : (subHovered ? Colors.white.withOpacity(0.04) : Colors.transparent);
+
+            final Color subTextColor = subSelected
+                ? AppColors.primaryBlue
+                : (subHovered ? AppColors.white : AppColors.mediumGray.withOpacity(0.8));
+
+            return MouseRegion(
+              onEnter: (_) => setState(() => hoveredSubIndex = subIndex),
+              onExit: (_) => setState(() => hoveredSubIndex = null),
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => widget.onSubTap(subIndex),
+                child: Container(
+                  margin: const EdgeInsets.only(left: 36, right: 16, bottom: 4, top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    color: subBgColor,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.circle,
+                        size: 6,
+                        color: subTextColor,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          subItem.label,
+                          style: AppFonts.bodySmall.copyWith(
+                            color: subTextColor,
+                            fontWeight: subSelected
+                                ? AppFonts.bold
+                                : AppFonts.normal,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
     );
   }
-}
-
-class SidebarItem {
-  final IconData icon;
-  final String label;
-  final String route;
-
-  SidebarItem({required this.icon, required this.label, required this.route});
 }
 
 class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
@@ -359,9 +533,14 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       elevation: 0,
-      backgroundColor: AppTheme.whiteColor,
-      foregroundColor: AppTheme.darkGray,
-      title: Text(title),
+      backgroundColor: AppColors.white,
+      foregroundColor: AppColors.black,
+      title: Text(
+        title,
+        style: AppFonts.headlineMedium.copyWith(
+          fontWeight: AppFonts.bold,
+        ),
+      ),
       actions: [
         if (actions != null) ...actions!,
         if (currentUser != null)
@@ -375,29 +554,32 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
+                      backgroundColor: AppColors.primaryBlue.withOpacity(0.12),
                       child: Text(
                         currentUser!.name.characters.first.toUpperCase(),
-                        style: const TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontWeight: FontWeight.bold,
+                        style: AppFonts.labelMedium.copyWith(
+                          color: AppColors.primaryBlue,
+                          fontWeight: AppFonts.bold,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           currentUser!.name,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                          style: AppFonts.labelMedium.copyWith(
+                            fontWeight: AppFonts.semiBold,
+                          ),
                         ),
                         Text(
                           currentUser!.role.name.toUpperCase(),
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: AppTheme.mediumGray),
+                          style: AppFonts.labelSmall.copyWith(
+                            color: AppColors.mediumGray,
+                            fontSize: 9,
+                          ),
                         ),
                       ],
                     ),
@@ -414,50 +596,69 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(56);
 }
 
-class Breadcrumb extends StatelessWidget {
-  final List<BreadcrumbItem> items;
+class BreadcrumbItem {
+  final String label;
+  final VoidCallback? onTap;
 
-  const Breadcrumb({Key? key, required this.items}) : super(key: key);
+  BreadcrumbItem({required this.label, this.onTap});
+}
+
+class Breadcrumb extends StatelessWidget {
+  final List<BreadcrumbItem>? items;
+
+  const Breadcrumb({Key? key, this.items}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    if (items == null || items!.isEmpty) {
+      return const Breadcrumbs(); // Dynamic auto-generation fallback
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final isLast = index == items.length - 1;
+          children: List.generate(items!.length, (index) {
+            final item = items![index];
+            final isLast = index == items!.length - 1;
 
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (item.onTap != null)
-                  TextButton(
-                    onPressed: item.onTap,
-                    child: Text(
-                      item.label,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.primaryColor,
+                  InkWell(
+                    onTap: item.onTap,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Text(
+                        item.label,
+                        style: AppFonts.bodySmall.copyWith(
+                          color: AppColors.primaryBlue,
+                          fontWeight: AppFonts.medium,
+                        ),
                       ),
                     ),
                   )
                 else
-                  Text(
-                    item.label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.darkGray,
-                      fontWeight: FontWeight.w600,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Text(
+                      item.label,
+                      style: AppFonts.bodySmall.copyWith(
+                        color: AppColors.charcoal,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 if (!isLast)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
                     child: Icon(
                       Icons.chevron_right,
                       size: 16,
-                      color: AppTheme.lightGray,
+                      color: AppColors.mediumGray,
                     ),
                   ),
               ],
@@ -467,11 +668,4 @@ class Breadcrumb extends StatelessWidget {
       ),
     );
   }
-}
-
-class BreadcrumbItem {
-  final String label;
-  final VoidCallback? onTap;
-
-  BreadcrumbItem({required this.label, this.onTap});
 }

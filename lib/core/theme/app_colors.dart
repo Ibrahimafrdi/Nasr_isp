@@ -67,4 +67,20 @@ class AppColors {
   // Overlay
   static const Color overlay25 = Color(0x40000000);
   static const Color overlay50 = Color(0x80000000);
+
+  // Premium Compatibility Aliases
+  static const Color primary = primaryBlue;
+  static const Color error = errorRed;
+  static const Color success = successGreen;
+  static const Color warning = warningOrange;
+  static const Color info = infoBlue;
+  static const Color lunch = successGreen;
+  static const Color grey = darkGray;
+  static const Color onBackground = charcoal;
+  static const Color surface = white;
+  static const Color primaryVariant = navyDark;
+  static const Color onPrimary = white;
+  static const Color secondary = blueAccent;
+  static const Color secondaryVariant = primaryBlue;
+  static const Color background = offWhite;
 }
