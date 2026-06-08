@@ -84,7 +84,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   static final Map<String, Map<String, dynamic>> _mockUsers = {
     'admin@nasr.com': {
       'password': 'admin123',
-      'name': 'Muhammad Zain',
+      'name': 'Nasr Ullah',
       'phone': '+923001234567',
       'role': 'admin',
     },

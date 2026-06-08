@@ -35,9 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
 
-    _companyController = TextEditingController(
-      text: 'NASR ISP Network Pvt Ltd',
-    );
+    _companyController = TextEditingController(text: 'NASR ISP Network Pvt Ltd');
     _helplineController = TextEditingController(text: '021-111-999-888');
     _emailController = TextEditingController(text: 'noc@nasr_isp.com');
     _dnsController = TextEditingController(text: '8.8.8.8, 1.1.1.1');
@@ -86,16 +84,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 label: 'Home',
                 onTap: () => context.go('/dashboard'),
               ),
-              BreadcrumbItem(label: 'Settings'),
+             BreadcrumbItem(label: 'Settings'),
             ],
           ),
+
           const SizedBox(height: 16),
 
           Text(
             'Administrative System Control Panel',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
 
           const SizedBox(height: 24),
@@ -110,16 +109,16 @@ class _SettingsPageState extends State<SettingsPage> {
                     ? Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(flex: 3, child: _buildLeftPanel()),
+                          Expanded(child: _buildLeft()),
                           const SizedBox(width: 24),
-                          Expanded(flex: 2, child: _buildPackagesPanel()),
+                          Expanded(child: _buildPackages()),
                         ],
                       )
                     : Column(
                         children: [
-                          _buildLeftPanel(),
+                          _buildLeft(),
                           const SizedBox(height: 24),
-                          _buildPackagesPanel(),
+                          _buildPackages(),
                         ],
                       );
               },
@@ -130,14 +129,27 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildLeftPanel() {
+  Widget _buildLeft() {
     return Column(
       children: [
         _buildCompanyCard(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         _buildNetworkCard(),
-        const SizedBox(height: 24),
-        _buildSaveButton(),
+        const SizedBox(height: 20),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _isSaving ? null : _saveSettings,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save),
+            label: Text(_isSaving ? "Saving..." : "Save Settings"),
+          ),
+        )
       ],
     );
   }
@@ -149,33 +161,14 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'ISP Company Information',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text("Company Info",
+                style: TextStyle(fontWeight: FontWeight.bold)),
             const Divider(),
-
-            AppFormField(
-              label: 'Company Name',
-              controller: _companyController,
-              isRequired: true,
-            ),
-
-            const SizedBox(height: 12),
-
-            AppFormField(
-              label: 'Helpline',
-              controller: _helplineController,
-              isRequired: true,
-            ),
-
-            const SizedBox(height: 12),
-
-            AppFormField(
-              label: 'Email',
-              controller: _emailController,
-              isRequired: true,
-            ),
+            AppFormField(label: "Company Name", controller: _companyController),
+            const SizedBox(height: 10),
+            AppFormField(label: "Helpline", controller: _helplineController),
+            const SizedBox(height: 10),
+            AppFormField(label: "Email", controller: _emailController),
           ],
         ),
       ),
@@ -189,74 +182,41 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Network Configuration',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text("Network Settings",
+                style: TextStyle(fontWeight: FontWeight.bold)),
             const Divider(),
-
-            AppFormField(
-              label: 'Gateway',
-              controller: _gatewayController,
-              isRequired: true,
-            ),
-
-            const SizedBox(height: 12),
-
-            AppFormField(
-              label: 'DNS Servers',
-              controller: _dnsController,
-              isRequired: true,
-            ),
+            AppFormField(label: "Gateway", controller: _gatewayController),
+            const SizedBox(height: 10),
+            AppFormField(label: "DNS", controller: _dnsController),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSaveButton() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ElevatedButton.icon(
-        onPressed: _isSaving ? null : _saveSettings,
-        icon: _isSaving
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.save),
-        label: Text(_isSaving ? 'Saving...' : 'Save Settings'),
-      ),
-    );
-  }
-
-  Widget _buildPackagesPanel() {
+  Widget _buildPackages() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Bandwidth Packages',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text("Packages",
+                style: TextStyle(fontWeight: FontWeight.bold)),
             const Divider(),
 
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _packages.length,
-              itemBuilder: (context, index) {
-                final pkg = _packages[index];
-
+              itemBuilder: (context, i) {
+                final p = _packages[i];
                 return ListTile(
                   leading: const Icon(Icons.speed),
-                  title: Text(pkg['name']),
-                  subtitle: Text('${pkg['speed']} Mbps'),
+                  title: Text(p['name']),
+                  subtitle: Text("${p['speed']} Mbps"),
                   trailing: Text(
-                    DateTimeUtils.formatCurrency(pkg['rate']),
+                    DateTimeUtils.formatCurrency(p['rate']),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 );
@@ -266,17 +226,17 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 10),
 
             OutlinedButton.icon(
-              onPressed: _showAddPackageDialog,
+              onPressed: _addPackage,
               icon: const Icon(Icons.add),
-              label: const Text('Add Package'),
-            ),
+              label: const Text("Add Package"),
+            )
           ],
         ),
       ),
     );
   }
 
-  void _showAddPackageDialog() {
+  void _addPackage() {
     final name = TextEditingController();
     final speed = TextEditingController();
     final rate = TextEditingController();
@@ -284,42 +244,32 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Add Package'),
+        title: const Text("Add Package"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            TextField(
-              controller: speed,
-              decoration: const InputDecoration(labelText: 'Speed'),
-            ),
-            TextField(
-              controller: rate,
-              decoration: const InputDecoration(labelText: 'Rate'),
-            ),
+            TextField(controller: name),
+            TextField(controller: speed),
+            TextField(controller: rate),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () {
               setState(() {
                 _packages.add({
-                  'name': name.text,
-                  'speed': int.parse(speed.text),
-                  'rate': double.parse(rate.text),
+                  "name": name.text,
+                  "speed": int.parse(speed.text),
+                  "rate": double.parse(rate.text),
                 });
               });
               Navigator.pop(context);
             },
-            child: const Text('Add'),
-          ),
+            child: const Text("Add"),
+          )
         ],
       ),
     );

@@ -79,21 +79,21 @@ class _KhataaPageState extends State<KhataaPage> {
       'customer': 'Kamran Khan Kyani',
       'amount': 1499.0,
       'notes': 'Cleared previous package remaining dues',
-      'operator': 'Muhammad Zain',
+      'operator': 'Nasr Ullah',
     },
     {
       'date': 'May 15, 2026',
       'customer': 'Mian Farooq Ahmed',
       'amount': 999.0,
       'notes': 'Full advance package payment',
-      'operator': 'Muhammad Zain',
+      'operator': 'Nasr Ullah',
     },
     {
       'date': 'May 12, 2026',
       'customer': 'Dr. Sajid Mehmood',
       'amount': 1000.0,
       'notes': 'Partial installment payment for router installation',
-      'operator': 'Muhammad Zain',
+      'operator': 'Nasr Ullah',
     },
   ];
 
@@ -169,7 +169,7 @@ class _KhataaPageState extends State<KhataaPage> {
                       'customer': customer['name'],
                       'amount': amt,
                       'notes': notesController.text.trim(),
-                      'operator': 'Muhammad Zain',
+                      'operator': 'Nasr Ullah',
                     });
                   });
                   Navigator.pop(context);

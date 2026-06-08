@@ -44,6 +44,24 @@ class FilterCustomersEvent extends CustomersEvent {
   List<Object?> get props => [status];
 }
 
+class CreateCustomerEvent extends CustomersEvent {
+  final CustomerModel customer;
+
+  const CreateCustomerEvent(this.customer);
+
+  @override
+  List<Object?> get props => [customer];
+}
+
+class UpdateCustomerEvent extends CustomersEvent {
+  final CustomerModel customer;
+
+  const UpdateCustomerEvent(this.customer);
+
+  @override
+  List<Object?> get props => [customer];
+}
+
 // Customers States
 abstract class CustomersState extends Equatable {
   const CustomersState();
@@ -102,6 +120,27 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     on<LoadCustomersEvent>(_onLoadCustomers);
     on<SearchCustomersEvent>(_onSearchCustomers);
     on<FilterCustomersEvent>(_onFilterCustomers);
+    on<CreateCustomerEvent>(_onCreateCustomer);
+    on<UpdateCustomerEvent>(_onUpdateCustomer);
+  }
+
+  Future<void> _onCreateCustomer(
+    CreateCustomerEvent event,
+    Emitter<CustomersState> emit,
+  ) async {
+    _allCustomers.insert(0, event.customer);
+    await _onLoadCustomers(const LoadCustomersEvent(), emit);
+  }
+
+  Future<void> _onUpdateCustomer(
+    UpdateCustomerEvent event,
+    Emitter<CustomersState> emit,
+  ) async {
+    final idx = _allCustomers.indexWhere((c) => c.id == event.customer.id);
+    if (idx != -1) {
+      _allCustomers[idx] = event.customer;
+    }
+    await _onLoadCustomers(const LoadCustomersEvent(), emit);
   }
 
   Future<void> _onLoadCustomers(

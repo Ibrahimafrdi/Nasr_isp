@@ -73,7 +73,7 @@ class _InventoryPageState extends State<InventoryPage> {
       'name': 'Tenda F3 Wireless Router',
       'qty': '+50',
       'action': 'Restock',
-      'operator': 'Muhammad Zain'
+      'operator': 'Nasr Ullah'
     },
     {
       'date': 'May 18, 2026',
@@ -87,7 +87,7 @@ class _InventoryPageState extends State<InventoryPage> {
       'name': 'Fiber Home GPON ONU',
       'qty': '+30',
       'action': 'Restock',
-      'operator': 'Muhammad Zain'
+      'operator': 'Nasr Ullah'
     },
   ];
 
@@ -185,7 +185,7 @@ class _InventoryPageState extends State<InventoryPage> {
                           'name': nameController.text.trim(),
                           'qty': '+$addedQty',
                           'action': 'Restock',
-                          'operator': 'Muhammad Zain',
+                          'operator': 'Nasr Ullah',
                         });
                       });
                       Navigator.pop(context);

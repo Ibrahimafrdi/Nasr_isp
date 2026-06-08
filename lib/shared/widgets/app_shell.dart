@@ -6,12 +6,7 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 
-/// AppShell - Centralized layout wrapper for all authenticated pages
-///
-/// Provides consistent:
-/// - DashboardSidebar with role-based menu items
-/// - DashboardTopBar with user info
-/// - Responsive layout for all screen sizes
+
 class AppShell extends StatelessWidget {
   final Widget child;
   final String currentRoute;

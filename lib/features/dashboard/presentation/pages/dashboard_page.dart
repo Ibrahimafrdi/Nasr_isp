@@ -11,6 +11,7 @@ import 'package:nasr_isp/shared/widgets/alert_panel.dart';
 import 'package:nasr_isp/shared/widgets/kpi_card.dart';
 import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
 import 'package:nasr_isp/shared/widgets/quick_action_card.dart';
+import 'package:nasr_isp/shared/widgets/status_badge.dart';
 
 /// Role-aware Dashboard Page
 ///
@@ -27,6 +28,9 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  bool _showExpiringAlert = true;
+  bool _showOverdueAlert = true;
+
   @override
   void initState() {
     super.initState();
@@ -98,27 +102,41 @@ class _DashboardPageState extends State<DashboardPage> {
                   SizedBox(height: AppSpacing.xxl),
 
                   // Alerts Section (Admin Only)
-                  if (isAdmin) ...[
+                  if (isAdmin && (_showExpiringAlert || _showOverdueAlert)) ...[
                     Column(
                       children: [
-                        AlertPanel(
-                          type: AlertType.warning,
-                          title: '5 Customers Expiring Soon',
-                          message:
-                              'Customer packages will expire in the next 7 days',
-                          icon: Icons.warning_amber,
-                          actionLabel: 'Review',
-                          onActionTap: () => context.go(RoutePaths.customers),
-                        ),
-                        SizedBox(height: AppSpacing.lg),
-                        AlertPanel(
-                          type: AlertType.error,
-                          title: 'Payment Overdue',
-                          message: '12 customers have unpaid invoices',
-                          icon: Icons.error_outline,
-                          actionLabel: 'Collect',
-                          onActionTap: () => context.go(RoutePaths.payments),
-                        ),
+                        if (_showExpiringAlert) ...[
+                          AlertPanel(
+                            type: AlertType.warning,
+                            title: '5 Customers Expiring Soon',
+                            message:
+                                'Customer packages will expire in the next 7 days',
+                            icon: Icons.warning_amber,
+                            actionLabel: 'Review',
+                            onActionTap: () => context.go(RoutePaths.customers),
+                            onDismiss: () {
+                              setState(() {
+                                _showExpiringAlert = false;
+                              });
+                            },
+                          ),
+                          if (_showOverdueAlert)
+                            SizedBox(height: AppSpacing.lg),
+                        ],
+                        if (_showOverdueAlert)
+                          AlertPanel(
+                            type: AlertType.error,
+                            title: 'Payment Overdue',
+                            message: '12 customers have unpaid invoices',
+                            icon: Icons.error_outline,
+                            actionLabel: 'Collect',
+                            onActionTap: () => context.go(RoutePaths.payments),
+                            onDismiss: () {
+                              setState(() {
+                                _showOverdueAlert = false;
+                              });
+                            },
+                          ),
                       ],
                     ),
                     SizedBox(height: AppSpacing.xxl),
@@ -194,7 +212,7 @@ class _DashboardPageState extends State<DashboardPage> {
       mainAxisSpacing: AppSpacing.lg,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: isAdmin ? 1.8 : 1.5, // Admin vs employee ratios
+      childAspectRatio: isAdmin ? 1.75 : 1.45, // Admin vs employee ratios
       children: [
         KPICard(
           title: 'Total Customers',
@@ -204,6 +222,18 @@ class _DashboardPageState extends State<DashboardPage> {
           isTrendPositive: true,
           icon: Icons.people,
           gradient: AppColors.blueGradient,
+          sparklineData: const [
+            2.0,
+            3.0,
+            5.0,
+            4.0,
+            7.0,
+            6.0,
+            8.0,
+            9.0,
+            8.0,
+            10.0,
+          ],
         ),
         KPICard(
           title: 'Active Subscribers',
@@ -213,6 +243,18 @@ class _DashboardPageState extends State<DashboardPage> {
           isTrendPositive: true,
           icon: Icons.check_circle,
           gradient: AppColors.greenGradient,
+          sparklineData: const [
+            4.0,
+            5.0,
+            4.0,
+            6.0,
+            5.0,
+            7.0,
+            8.0,
+            7.0,
+            9.0,
+            9.0,
+          ],
         ),
         if (isAdmin)
           KPICard(
@@ -223,6 +265,18 @@ class _DashboardPageState extends State<DashboardPage> {
             isTrendPositive: true,
             icon: Icons.trending_up,
             gradient: AppColors.purpleGradient,
+            sparklineData: const [
+              5.0,
+              4.0,
+              6.0,
+              7.0,
+              6.0,
+              8.0,
+              7.0,
+              9.0,
+              10.0,
+              11.0,
+            ],
           ),
         if (isAdmin)
           KPICard(
@@ -233,6 +287,18 @@ class _DashboardPageState extends State<DashboardPage> {
             isTrendPositive: false,
             icon: Icons.receipt,
             gradient: AppColors.orangeGradient,
+            sparklineData: const [
+              8.0,
+              7.0,
+              6.0,
+              5.0,
+              4.0,
+              3.0,
+              4.0,
+              5.0,
+              4.0,
+              3.0,
+            ],
           ),
         if (isAdmin)
           KPICard(
@@ -243,6 +309,18 @@ class _DashboardPageState extends State<DashboardPage> {
             isTrendPositive: true,
             icon: Icons.attach_money,
             gradient: AppColors.purpleGradient,
+            sparklineData: const [
+              2.0,
+              3.0,
+              2.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              6.0,
+              8.0,
+              10.0,
+            ],
           ),
         if (isAdmin)
           KPICard(
@@ -253,55 +331,88 @@ class _DashboardPageState extends State<DashboardPage> {
             isTrendPositive: true,
             icon: Icons.schedule,
             gradient: AppColors.redGradient,
+            sparklineData: const [
+              10.0,
+              9.0,
+              8.0,
+              9.0,
+              7.0,
+              6.0,
+              5.0,
+              6.0,
+              4.0,
+              2.0,
+            ],
           ),
       ],
     );
   }
 
   Widget _buildQuickActions(BuildContext context, bool isAdmin) {
-    final actionCount = isAdmin ? 5 : 3;
-    return GridView.count(
-      crossAxisCount: actionCount,
-      crossAxisSpacing: AppSpacing.lg,
-      mainAxisSpacing: AppSpacing.lg,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1,
-      children: [
-        QuickActionCard(
-          icon: Icons.person,
-          label: 'Add Customer',
-          iconColor: AppColors.primaryBlue,
-          onTap: () => context.go(RoutePaths.addCustomer),
-        ),
-        QuickActionCard(
-          icon: Icons.payments,
-          label: 'Record Payment',
-          iconColor: AppColors.successGreen,
-          onTap: () => context.go(RoutePaths.payments),
-        ),
-        if (isAdmin)
-          QuickActionCard(
-            icon: Icons.receipt_long,
-            label: 'Add Expense',
-            iconColor: AppColors.warningOrange,
-            onTap: () => context.go(RoutePaths.expenses),
-          ),
-        if (isAdmin)
-          QuickActionCard(
-            icon: Icons.inventory_2,
-            label: 'Add Inventory',
-            iconColor: AppColors.blueAccent,
-            onTap: () => context.go(RoutePaths.inventory),
-          ),
-        if (isAdmin)
-          QuickActionCard(
-            icon: Icons.assessment,
-            label: 'Generate Report',
-            iconColor: AppColors.primaryBlue,
-            onTap: () => context.go(RoutePaths.reports),
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int columns = isAdmin ? 6 : 5;
+        if (constraints.maxWidth < 600) {
+          columns = 2;
+        } else if (constraints.maxWidth < 1100) {
+          columns = 3;
+        }
+
+        return GridView.count(
+          crossAxisCount: columns,
+          crossAxisSpacing: AppSpacing.lg,
+          mainAxisSpacing: AppSpacing.lg,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio:
+              1.15, // Adjusted to fit gradients and description beautifully
+          children: [
+            QuickActionCard(
+              icon: Icons.person_add,
+              label: 'Add Customer',
+              description: 'Provision new internet user',
+              gradient: AppColors.blueGradient,
+              onTap: () => context.go(RoutePaths.addCustomer),
+            ),
+            QuickActionCard(
+              icon: Icons.payments,
+              label: 'Collect Payment',
+              description: 'Record subscriber dues cash',
+              gradient: AppColors.greenGradient,
+              onTap: () => context.go(RoutePaths.payments),
+            ),
+            // QuickActionCard(
+            //   icon: Icons.receipt_long,
+            //   label: 'Create Invoice',
+            //   description: 'Generate monthly service bills',
+            //   gradient: AppColors.purpleGradient,
+            //   onTap: () => context.go(RoutePaths.payments),
+            // ),
+            QuickActionCard(
+              icon: Icons.engineering,
+              label: 'Register Installation',
+              description: 'Provision fiber connection line',
+              gradient: AppColors.orangeGradient,
+              onTap: () => context.go(RoutePaths.installations),
+            ),
+            QuickActionCard(
+              icon: Icons.inventory_2,
+              label: 'Add Inventory Item',
+              description: 'Stock ONU devices & cabling',
+              gradient: const [Color(0xFF06B6D4), Color(0xFF0891B2)],
+              onTap: () => context.go(RoutePaths.inventory),
+            ),
+            if (isAdmin)
+              QuickActionCard(
+                icon: Icons.assessment,
+                label: 'View Reports',
+                description: 'Analyze net sales & costs',
+                gradient: AppColors.redGradient,
+                onTap: () => context.go(RoutePaths.reports),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -318,42 +429,158 @@ class _DashboardPageState extends State<DashboardPage> {
       rows: [
         PremiumDataRow(
           cells: [
-            'Ahmed Hassan',
-            'Premium 10Mbps',
-            '2024-05-25',
-            '4 days',
-            'Expiring',
-            'Renew',
+            const Text(
+              'Ahmed Hassan',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text(
+              'Premium 10Mbps',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const Text('2024-05-25'),
+            const Text(
+              '4 days',
+              style: TextStyle(
+                color: AppColors.errorRed,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const StatusBadge(
+              status: StatusType.expiring,
+              label: 'ExpiringSoon',
+            ),
+            TextButton(
+              onPressed: () => context.go(RoutePaths.customers),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Renew',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
         PremiumDataRow(
           cells: [
-            'Fatima Mohamed',
-            'Business 50Mbps',
-            '2024-05-26',
-            '5 days',
-            'Expiring',
-            'Renew',
+            const Text(
+              'Fatima Mohamed',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text(
+              'Business 50Mbps',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const Text('2024-05-26'),
+            const Text(
+              '5 days',
+              style: TextStyle(
+                color: AppColors.errorRed,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const StatusBadge(
+              status: StatusType.expiring,
+              label: 'ExpiringSoon',
+            ),
+            TextButton(
+              onPressed: () => context.go(RoutePaths.customers),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Renew',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
         PremiumDataRow(
           cells: [
-            'Mohammed Ali',
-            'Standard 5Mbps',
-            '2024-05-27',
-            '6 days',
-            'Expiring',
-            'Renew',
+            const Text(
+              'Mohammed Ali',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text(
+              'Standard 5Mbps',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const Text('2024-05-27'),
+            const Text(
+              '6 days',
+              style: TextStyle(
+                color: AppColors.errorRed,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const StatusBadge(
+              status: StatusType.expiring,
+              label: 'ExpiringSoon',
+            ),
+            TextButton(
+              onPressed: () => context.go(RoutePaths.customers),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Renew',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
         PremiumDataRow(
           cells: [
-            'Sara Ibrahim',
-            'Premium 10Mbps',
-            '2024-05-28',
-            '7 days',
-            'Expiring',
-            'Renew',
+            const Text(
+              'Sara Ibrahim',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text(
+              'Premium 10Mbps',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const Text('2024-05-28'),
+            const Text(
+              '7 days',
+              style: TextStyle(
+                color: AppColors.errorRed,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const StatusBadge(
+              status: StatusType.expiring,
+              label: 'ExpiringSoon',
+            ),
+            TextButton(
+              onPressed: () => context.go(RoutePaths.customers),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Renew',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
       ],
@@ -372,24 +599,66 @@ class _DashboardPageState extends State<DashboardPage> {
       rows: [
         PremiumDataRow(
           cells: [
-            'Ahmed Hassan',
-            'Bank Transfer',
-            '500 PKR',
-            'Completed',
-            '2024-05-21',
+            const Text(
+              'Ahmed Hassan',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text('Bank Transfer'),
+            const Text(
+              '500 PKR',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.successGreen,
+              ),
+            ),
+            const StatusBadge(status: StatusType.active, label: 'Completed'),
+            const Text('2024-05-21'),
           ],
         ),
         PremiumDataRow(
           cells: [
-            'Fatima Mohamed',
-            'Cash',
-            '1,000 PKR',
-            'Completed',
-            '2024-05-21',
+            const Text(
+              'Fatima Mohamed',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text('Cash'),
+            const Text(
+              '1,000 PKR',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.successGreen,
+              ),
+            ),
+            const StatusBadge(status: StatusType.active, label: 'Completed'),
+            const Text('2024-05-21'),
           ],
         ),
         PremiumDataRow(
-          cells: ['Mohammed Ali', 'Card', '250 PKR', 'Pending', '2024-05-21'],
+          cells: [
+            const Text(
+              'Mohammed Ali',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const Text('Card'),
+            const Text(
+              '250 PKR',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.warningOrange,
+              ),
+            ),
+            const StatusBadge(status: StatusType.pending, label: 'Pending'),
+            const Text('2024-05-21'),
+          ],
         ),
       ],
     );

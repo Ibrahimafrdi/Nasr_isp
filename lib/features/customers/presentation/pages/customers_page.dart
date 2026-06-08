@@ -9,6 +9,7 @@ import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dar
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
 
 class CustomersPage extends StatefulWidget {
   const CustomersPage({Key? key}) : super(key: key);
@@ -61,13 +62,37 @@ class _CustomersPageState extends State<CustomersPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Breadcrumb(
-                    items: [
-                      BreadcrumbItem(
-                        label: 'Home',
-                        onTap: () => context.go(RoutePaths.dashboard),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Breadcrumb(
+                          items: [
+                            BreadcrumbItem(
+                              label: 'Home',
+                              onTap: () => context.go(RoutePaths.dashboard),
+                            ),
+                            BreadcrumbItem(label: 'Customers'),
+                          ],
+                        ),
                       ),
-                      BreadcrumbItem(label: 'Customers'),
+                      ElevatedButton.icon(
+                        onPressed: () => context.go(RoutePaths.addCustomer),
+                        icon: const Icon(Icons.person_add, size: 18, color: Colors.white),
+                        label: const Text('Add Customer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -116,55 +141,111 @@ class _CustomersPageState extends State<CustomersPage> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              const Text(
-                                'Filter Status: ',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.mediumGray,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: const Text('All Statuses'),
-                                selected: _selectedStatus == null,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() => _selectedStatus = null);
-                                    context.read<CustomersBloc>().add(
-                                      LoadCustomersEvent(
-                                        searchQuery: _searchController.text,
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              ...CustomerStatus.values.map((status) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    label: Text(status.label),
-                                    selected: _selectedStatus == status,
-                                    onSelected: (selected) {
-                                      setState(() {
-                                        _selectedStatus = selected
-                                            ? status
-                                            : null;
-                                      });
-                                      context.read<CustomersBloc>().add(
-                                        LoadCustomersEvent(
-                                          searchQuery: _searchController.text,
-                                          filterStatus: _selectedStatus,
+                          Builder(
+                            builder: (context) {
+                              final int activeFilterCount = (_selectedStatus != null ? 1 : 0) +
+                                  (_searchController.text.isNotEmpty ? 1 : 0);
+
+                              return Wrap(
+                                alignment: WrapAlignment.start,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'Filter Status: ',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.charcoal,
                                         ),
-                                      );
+                                      ),
+                                      if (activeFilterCount > 0) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primaryBlue.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Text(
+                                            'Active: $activeFilterCount',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primaryBlue,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  HoverFilterChip(
+                                    label: 'All Statuses',
+                                    selected: _selectedStatus == null,
+                                    onSelected: (selected) {
+                                      if (selected) {
+                                        setState(() => _selectedStatus = null);
+                                        context.read<CustomersBloc>().add(
+                                          LoadCustomersEvent(
+                                            searchQuery: _searchController.text,
+                                          ),
+                                        );
+                                      }
                                     },
                                   ),
-                                );
-                              }).toList(),
-                            ],
+                                  ...CustomerStatus.values.map((status) {
+                                    return HoverFilterChip(
+                                      label: status.label,
+                                      selected: _selectedStatus == status,
+                                      onSelected: (selected) {
+                                        setState(() {
+                                          _selectedStatus = selected ? status : null;
+                                        });
+                                        context.read<CustomersBloc>().add(
+                                          LoadCustomersEvent(
+                                            searchQuery: _searchController.text,
+                                            filterStatus: _selectedStatus,
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }).toList(),
+                                  if (activeFilterCount > 0) ...[
+                                    const SizedBox(width: 4),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedStatus = null;
+                                          _searchController.clear();
+                                        });
+                                        context.read<CustomersBloc>().add(
+                                          const LoadCustomersEvent(),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.clear_all, size: 18, color: AppColors.errorRed),
+                                      label: const Text(
+                                        'Clear Filters',
+                                        style: TextStyle(
+                                          color: AppColors.errorRed,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -574,6 +655,91 @@ class _CustomersPageState extends State<CustomersPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class HoverFilterChip extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final ValueChanged<bool> onSelected;
+
+  const HoverFilterChip({
+    Key? key,
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  }) : super(key: key);
+
+  @override
+  State<HoverFilterChip> createState() => _HoverFilterChipState();
+}
+
+class _HoverFilterChipState extends State<HoverFilterChip> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color selectedBgColor = AppColors.primaryBlue;
+    final Color selectedTextColor = Colors.white;
+    final Color hoveredBgColor = AppColors.primaryBlue.withOpacity(0.08);
+    final Color normalBgColor = AppColors.offWhite;
+
+    final Color bgColor = widget.selected 
+        ? selectedBgColor 
+        : (_isHovered ? hoveredBgColor : normalBgColor);
+
+    final Color textColor = widget.selected 
+        ? selectedTextColor 
+        : (widget.selected || _isHovered ? AppColors.primaryBlue : AppColors.charcoal);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => widget.onSelected(!widget.selected),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: widget.selected 
+                  ? selectedBgColor 
+                  : (_isHovered ? AppColors.primaryBlue.withOpacity(0.3) : AppColors.lightGray),
+              width: 1.5,
+            ),
+            boxShadow: widget.selected 
+                ? [
+                    BoxShadow(
+                      color: AppColors.primaryBlue.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    )
+                  ]
+                : (_isHovered 
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : []),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: widget.selected || _isHovered ? FontWeight.bold : FontWeight.w500,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -6,6 +6,8 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 
 class AddCustomerPage extends StatefulWidget {
   final String? customerId;
@@ -88,9 +90,32 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   void _saveForm() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
-      // Simulate network save
+      // Simulate network save delay
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
+
+      final newCustomer = CustomerModel(
+        id: widget.customerId ?? 'cust_${DateTime.now().millisecondsSinceEpoch}',
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: _addressController.text.trim(),
+        email: _emailController.text.trim().isNotEmpty
+            ? _emailController.text.trim()
+            : null,
+        packageName: _selectedPackage,
+        monthlyRate: double.tryParse(_rateController.text) ?? 0.0,
+        expiryDate: DateTime.now().add(const Duration(days: 30)),
+        status: CustomerStatus.active,
+        assignedEmployeeId: _selectedEmployee,
+        createdAt: DateTime.now(),
+        balance: 0.0,
+      );
+
+      if (widget.customerId == null) {
+        context.read<CustomersBloc>().add(CreateCustomerEvent(newCustomer));
+      } else {
+        context.read<CustomersBloc>().add(UpdateCustomerEvent(newCustomer));
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
