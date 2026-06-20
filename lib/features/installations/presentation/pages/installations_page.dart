@@ -5,8 +5,12 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/core/theme/app_spacing.dart';
 
 class InstallationsPage extends StatefulWidget {
   const InstallationsPage({Key? key}) : super(key: key);
@@ -16,6 +20,16 @@ class InstallationsPage extends StatefulWidget {
 }
 
 class _InstallationsPageState extends State<InstallationsPage> {
+  late TextEditingController _searchController;
+
+  /// null = "All" is active (default). Otherwise holds the selected
+  /// status label, e.g. 'Scheduled', 'Completed', 'Pending', 'Cancelled'.
+  String? _selectedStatus;
+
+  late DateTime? _dateRangeStart;
+  late DateTime? _dateRangeEnd;
+  String? _selectedTechnician;
+
   final List<Map<String, dynamic>> _installations = [
     {
       'id': 'inst_1',
@@ -32,7 +46,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
       'customer': 'Customer 14',
       'technician': 'Technician Bilal',
       'date': '2026-05-17',
-      'materials': 'XPON ONT Router, 240m Drop Wire, Fast connectors, Patch cord',
+      'materials':
+          'XPON ONT Router, 240m Drop Wire, Fast connectors, Patch cord',
       'cost': 5300.0,
       'fee': 7000.0,
       'status': 'Completed',
@@ -59,6 +74,22 @@ class _InstallationsPageState extends State<InstallationsPage> {
     },
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _selectedStatus = null; // All
+    _dateRangeStart = null;
+    _dateRangeEnd = null;
+    _selectedTechnician = null;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _showAddInstallationDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final customerController = TextEditingController();
@@ -84,21 +115,40 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     children: [
                       TextFormField(
                         controller: customerController,
-                        decoration: const InputDecoration(labelText: 'Customer Account / Name'),
-                        validator: (v) => v == null || v.isEmpty ? 'Customer name is required' : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Customer Account / Name',
+                        ),
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'Customer name is required'
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: selectedTechnician,
-                        decoration: const InputDecoration(labelText: 'Assigned Installer / Technician'),
+                        decoration: const InputDecoration(
+                          labelText: 'Assigned Installer / Technician',
+                        ),
                         items: const [
-                          DropdownMenuItem(value: 'Technician Ali', child: Text('Technician Ali')),
-                          DropdownMenuItem(value: 'Technician Hamza', child: Text('Technician Hamza')),
-                          DropdownMenuItem(value: 'Technician Sana', child: Text('Technician Sana')),
-                          DropdownMenuItem(value: 'Technician Bilal', child: Text('Technician Bilal')),
+                          DropdownMenuItem(
+                            value: 'Technician Ali',
+                            child: Text('Technician Ali'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Technician Hamza',
+                            child: Text('Technician Hamza'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Technician Sana',
+                            child: Text('Technician Sana'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Technician Bilal',
+                            child: Text('Technician Bilal'),
+                          ),
                         ],
                         onChanged: (val) {
-                          if (val != null) setState(() => selectedTechnician = val);
+                          if (val != null)
+                            setState(() => selectedTechnician = val);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -108,7 +158,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           labelText: 'Bill of Materials (BOM)',
                           hintText: 'e.g. ONT Router, 150m cable, patch cord',
                         ),
-                        validator: (v) => v == null || v.isEmpty ? 'Materials list is required' : null,
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'Materials list is required'
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -116,18 +168,26 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           Expanded(
                             child: TextFormField(
                               controller: costController,
-                              decoration: const InputDecoration(labelText: 'Internal Material Cost (PKR)'),
+                              decoration: const InputDecoration(
+                                labelText: 'Internal Material Cost (PKR)',
+                              ),
                               keyboardType: TextInputType.number,
-                              validator: (v) => v == null || v.isEmpty ? 'Cost is required' : null,
+                              validator: (v) => v == null || v.isEmpty
+                                  ? 'Cost is required'
+                                  : null,
                             ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: TextFormField(
                               controller: feeController,
-                              decoration: const InputDecoration(labelText: 'Installation Fee Charged (PKR)'),
+                              decoration: const InputDecoration(
+                                labelText: 'Installation Fee Charged (PKR)',
+                              ),
                               keyboardType: TextInputType.number,
-                              validator: (v) => v == null || v.isEmpty ? 'Fee is required' : null,
+                              validator: (v) => v == null || v.isEmpty
+                                  ? 'Fee is required'
+                                  : null,
                             ),
                           ),
                         ],
@@ -147,12 +207,16 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       : () async {
                           if (formKey.currentState!.validate()) {
                             setState(() => isSaving = true);
-                            await Future.delayed(const Duration(milliseconds: 800));
+                            await Future.delayed(
+                              const Duration(milliseconds: 800),
+                            );
                             if (!mounted) return;
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Physical connection provisioned successfully!'),
+                                content: Text(
+                                  'Physical connection provisioned successfully!',
+                                ),
                                 backgroundColor: AppTheme.successColor,
                               ),
                             );
@@ -174,7 +238,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       ? const SizedBox(
                           width: 14,
                           height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.check, size: 16),
                   label: Text(isSaving ? 'Logging...' : 'Confirm Provision'),
@@ -187,10 +254,140 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedStatus = null;
+      _dateRangeStart = null;
+      _dateRangeEnd = null;
+      _selectedTechnician = null;
+    });
+  }
+
+  void _onStatusChanged(String? status) {
+    setState(() => _selectedStatus = status);
+    // TODO: once backend-wired, dispatch a LoadInstallationsEvent here
+    // with the selected status, mirroring the Customers page pattern.
+  }
+
+  /// Applies the active status filter to the static placeholder list.
+  /// Once this page is wired to a bloc, this local filtering will be
+  /// replaced by passing _selectedStatus into the load event instead.
+  List<Map<String, dynamic>> get _filteredInstallations {
+    if (_selectedStatus == null) return _installations;
+    return _installations
+        .where((inst) => inst['status'] == _selectedStatus)
+        .toList();
+  }
+
+  Widget _buildFilterPanel() {
+    final activeFilterCount =
+        (_selectedStatus != null ? 1 : 0) +
+        (_searchController.text.isNotEmpty ? 1 : 0) +
+        (_dateRangeStart != null ? 1 : 0) +
+        (_dateRangeEnd != null ? 1 : 0) +
+        (_selectedTechnician != null ? 1 : 0);
+
+    return AppFilterContainer(
+      title: 'Search & Filter Installations',
+      titleIcon: Icons.construction,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FilterPanelHeader(
+            searchController: _searchController,
+            onSearchChanged: (query) {
+              setState(() {});
+            },
+            onClearFilters: activeFilterCount > 0 ? _clearFilters : null,
+            activeFilterCount: activeFilterCount,
+            title: 'Active Filters',
+          ),
+          SizedBox(height: AppSpacing.xl),
+          DateRangePickerField(
+            startDate: _dateRangeStart,
+            endDate: _dateRangeEnd,
+            label: 'Installation Date Range',
+            onDateRangeChanged: (range) {
+              setState(() {
+                _dateRangeStart = range?.start;
+                _dateRangeEnd = range?.end;
+              });
+            },
+          ),
+          SizedBox(height: AppSpacing.lg),
+          const Text(
+            'Installation Status',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.charcoal,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          AppStatusChipGroup(
+            options: const ['Scheduled', 'Completed', 'Pending', 'Cancelled'],
+            selected: _selectedStatus,
+            onChanged: _onStatusChanged,
+          ),
+          SizedBox(height: AppSpacing.lg),
+          const Text(
+            'Assigned Technician',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.charcoal,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<String?>(
+            value: _selectedTechnician,
+            decoration: const InputDecoration(
+              labelText: 'Select Technician',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('All Technicians')),
+              DropdownMenuItem(
+                value: 'Technician Ali',
+                child: Text('Technician Ali'),
+              ),
+              DropdownMenuItem(
+                value: 'Technician Hamza',
+                child: Text('Technician Hamza'),
+              ),
+              DropdownMenuItem(
+                value: 'Technician Sana',
+                child: Text('Technician Sana'),
+              ),
+              DropdownMenuItem(
+                value: 'Technician Bilal',
+                child: Text('Technician Bilal'),
+              ),
+            ],
+            onChanged: (val) {
+              setState(() {
+                _selectedTechnician = val;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    double totalCost = _installations.fold(0.0, (s, i) => s + (i['cost'] as double));
-    double totalFee = _installations.fold(0.0, (s, i) => s + (i['fee'] as double));
+    final installations = _filteredInstallations;
+
+    double totalCost = installations.fold(
+      0.0,
+      (s, i) => s + (i['cost'] as double),
+    );
+    double totalFee = installations.fold(
+      0.0,
+      (s, i) => s + (i['fee'] as double),
+    );
     double netMargin = totalFee - totalCost;
 
     return BlocBuilder<AuthBloc, AuthState>(
@@ -209,7 +406,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 children: [
                   Breadcrumb(
                     items: [
-                      BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
+                      BreadcrumbItem(
+                        label: 'Home',
+                        onTap: () => context.go(RoutePaths.dashboard),
+                      ),
                       BreadcrumbItem(label: 'Installations'),
                     ],
                   ),
@@ -222,6 +422,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 ],
               ),
               const SizedBox(height: 16),
+
+              // Enhanced Filter Panel
+              _buildFilterPanel(),
+              const SizedBox(height: 24),
 
               // Metric Summary Cards
               Row(
@@ -249,7 +453,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       value: DateTimeUtils.formatCurrency(netMargin),
                       icon: Icons.account_balance_wallet,
                       backgroundColor: AppTheme.successColor.withOpacity(0.05),
-                      subtitle: '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin',
+                      subtitle: totalFee > 0
+                          ? '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin'
+                          : 'No data for current filter',
                     ),
                   ),
                 ],
@@ -270,10 +476,18 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     children: [
                       Text(
                         'Installation Operations Log',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
-                      _buildInstallationsTable(),
+                      installations.isEmpty
+                          ? const EmptyStateWidget(
+                              icon: Icons.construction_outlined,
+                              title: 'No Installations Found',
+                              subtitle:
+                                  'Adjust your filters or log a new installation to begin.',
+                            )
+                          : _buildInstallationsTable(installations),
                     ],
                   ),
                 ),
@@ -285,7 +499,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
-  Widget _buildInstallationsTable() {
+  Widget _buildInstallationsTable(List<Map<String, dynamic>> installations) {
     return DataTableWrapper(
       columns: const [
         DataColumn(label: Text('Customer')),
@@ -297,7 +511,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
         DataColumn(label: Text('Net Return')),
         DataColumn(label: Text('Status')),
       ],
-      rows: _installations.map((inst) {
+      rows: installations.map((inst) {
         double cost = inst['cost'] as double;
         double fee = inst['fee'] as double;
         double profit = fee - cost;
@@ -305,15 +519,33 @@ class _InstallationsPageState extends State<InstallationsPage> {
 
         return DataRow(
           cells: [
-            DataCell(Text(inst['customer'] as String, style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.primaryColor))),
+            DataCell(
+              Text(
+                inst['customer'] as String,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
             DataCell(Text(inst['technician'] as String)),
-            DataCell(Text(DateTimeUtils.formatDate(DateTime.parse(inst['date'] as String)))),
+            DataCell(
+              Text(
+                DateTimeUtils.formatDate(
+                  DateTime.parse(inst['date'] as String),
+                ),
+              ),
+            ),
             DataCell(
               Tooltip(
                 message: inst['materials'] as String,
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 220),
-                  child: Text(inst['materials'] as String, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                  child: Text(
+                    inst['materials'] as String,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
               ),
             ),
@@ -323,7 +555,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
               Text(
                 DateTimeUtils.formatCurrency(profit),
                 style: TextStyle(
-                  color: profit > 0 ? AppTheme.successColor : AppTheme.errorColor,
+                  color: profit > 0
+                      ? AppTheme.successColor
+                      : AppTheme.errorColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -332,7 +566,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isScheduled ? AppTheme.warningColor.withOpacity(0.1) : AppTheme.successColor.withOpacity(0.1),
+                  color: isScheduled
+                      ? AppTheme.warningColor.withOpacity(0.1)
+                      : AppTheme.successColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -340,7 +576,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: isScheduled ? AppTheme.warningColor : AppTheme.successColor,
+                    color: isScheduled
+                        ? AppTheme.warningColor
+                        : AppTheme.successColor,
                   ),
                 ),
               ),

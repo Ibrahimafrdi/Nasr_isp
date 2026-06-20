@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
-import 'package:nasr_isp/core/theme/app_typography.dart';
-import 'package:nasr_isp/core/theme/app_shadows.dart';
-
-/// KPICard - Modern dashboard KPI statistics card with animated counters, wavy sparkline charts, and hover glows.
+import 'package:google_fonts/google_fonts.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
+/// KPICard - Redesigned modern SaaS-style KPI statistic card.
+/// Features:
+/// - Minimal white background with subtle border
+/// - Sleek hover scale up and color-tinted glow
+/// - Smooth counting numeric value animation
+/// - Custom Bezier wavy sparkline chart
+/// - Fully responsive constraints preventing overflow
 class KPICard extends StatefulWidget {
   final String title;
   final String value;
@@ -48,7 +52,7 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
     );
     _scaleAnimation = Tween<double>(
       begin: 1.0,
-      end: 1.03,
+      end: 1.025,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
   }
 
@@ -61,6 +65,11 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final List<double> chartPoints = widget.sparklineData ?? [5, 6, 5, 7, 6, 8, 9, 8, 10];
+    
+    // Extract accent color from the first color in the gradient, defaulting to primary blue
+    final Color accentColor = widget.gradient.isNotEmpty 
+        ? widget.gradient.first 
+        : AppColors.primaryBlue;
 
     return MouseRegion(
       onEnter: (_) {
@@ -71,7 +80,7 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
         setState(() => _isHovered = false);
         _controller.reverse();
       },
-      cursor: SystemMouseCursors.click,
+      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: widget.onTap,
         child: ScaleTransition(
@@ -79,39 +88,33 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: widget.gradient,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isHovered
+                    ? accentColor.withOpacity(0.4)
+                    : AppColors.lightGray.withOpacity(0.6),
+                width: 1.5,
               ),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
               boxShadow: [
                 BoxShadow(
-                  color: widget.gradient.first.withOpacity(_isHovered ? 0.35 : 0.15),
-                  blurRadius: _isHovered ? 20 : 10,
-                  offset: Offset(0, _isHovered ? 10 : 5),
+                  color: _isHovered
+                      ? accentColor.withOpacity(0.08)
+                      : Colors.black.withOpacity(0.03),
+                  blurRadius: _isHovered ? 16 : 8,
+                  offset: Offset(0, _isHovered ? 6 : 3),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.12),
-                      Colors.white.withOpacity(0.04),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-                padding: EdgeInsets.all(AppSpacing.xl),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Header Area: Title & Subtitle + Floating Icon
+                    // Header Area: Title & Subtitle + Styled Icon Container
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,44 +125,48 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
                             children: [
                               Text(
                                 widget.title,
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: Colors.white.withOpacity(0.9),
+                                style: GoogleFonts.inter(
+                                  color: AppColors.darkGray,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12,
-                                  letterSpacing: 0.5,
+                                  letterSpacing: 0.3,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               if (widget.subtitle != null) ...[
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 2),
                                 Text(
                                   widget.subtitle!,
-                                  style: AppTypography.captionSmall.copyWith(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: 10.5,
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.mediumGray,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: EdgeInsets.all(AppSpacing.md),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(_isHovered ? 0.25 : 0.15),
-                            borderRadius: BorderRadius.circular(
-                              AppSpacing.radiusLg,
-                            ),
+                            color: accentColor.withOpacity(_isHovered ? 0.14 : 0.08),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             widget.icon,
-                            color: Colors.white,
-                            size: 20,
+                            color: accentColor,
+                            size: 18,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     // Value, Trend Pill & Custom Painted Wavy Sparkline Chart
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -172,20 +179,20 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
                             children: [
                               AnimatedCounter(
                                 value: widget.value,
-                                style: AppTypography.displaySmall.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 24,
+                                style: GoogleFonts.inter(
+                                  color: AppColors.black,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 22,
                                   letterSpacing: -0.5,
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               widget.trendWidget ?? (widget.trend != null
                                   ? Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(12),
+                                        color: (widget.isTrendPositive ? AppColors.successGreen : AppColors.errorRed).withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -195,17 +202,19 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
                                                 ? Icons.trending_up
                                                 : Icons.trending_down,
                                             color: widget.isTrendPositive
-                                                ? Colors.white
-                                                : Colors.white.withOpacity(0.8),
-                                            size: 13,
+                                                ? AppColors.successGreen
+                                                : AppColors.errorRed,
+                                            size: 12,
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 3),
                                           Text(
                                             widget.trend!,
-                                            style: AppTypography.bodySmall.copyWith(
-                                              color: Colors.white,
+                                            style: GoogleFonts.inter(
+                                              color: widget.isTrendPositive
+                                                  ? AppColors.successGreen
+                                                  : AppColors.errorRed,
                                               fontSize: 10,
-                                              fontWeight: FontWeight.bold,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ],
@@ -217,14 +226,14 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
                         ),
                         // Right: Wavy dynamic Sparkline Line Chart
                         Container(
-                          width: 80,
-                          height: 38,
-                          margin: const EdgeInsets.only(bottom: 4),
+                          width: 70,
+                          height: 32,
+                          margin: const EdgeInsets.only(bottom: 2),
                           child: CustomPaint(
                             painter: SparklinePainter(
                               dataPoints: chartPoints,
-                              lineColor: Colors.white.withOpacity(0.85),
-                              fillColor: Colors.white.withOpacity(0.2),
+                              lineColor: accentColor,
+                              fillColor: accentColor.withOpacity(0.08),
                             ),
                           ),
                         ),

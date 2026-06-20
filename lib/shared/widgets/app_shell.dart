@@ -44,61 +44,59 @@ class AppShell extends StatelessWidget {
           return 'Dashboard';
         }
 
-        return Scaffold(
-          backgroundColor: AppTheme.veryLightGray,
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              // Mobile layout
-              if (constraints.maxWidth < 768) {
-                if (childIsScaffold) {
-                  // Let the child scaffold render itself on small screens
-                  return child;
-                }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 768;
 
-                return Column(
-                  children: [
-                    DashboardTopBar(
+            return Scaffold(
+              backgroundColor: AppTheme.veryLightGray,
+              appBar: isMobile
+                  ? DashboardTopBar(
                       title: resolveTitle(currentRoute),
                       currentUser: user,
-                    ),
-                    Expanded(child: SingleChildScrollView(child: child)),
-                  ],
-                );
-              }
-
-              // Desktop/Tablet layout
-              if (childIsScaffold) {
-                // If the page provides its own scaffold (with topbar/sidebar), render it directly
-                return child;
-              }
-
-              return Row(
-                children: [
-                  // Sidebar
-                  DashboardSidebar(
-                    currentUser: user,
-                    currentRoute: currentRoute,
-                    onLogout: () {
-                      context.read<AuthBloc>().add(const LogoutEvent());
-                      context.go(RoutePaths.login);
-                    },
-                  ),
-                  // Main content area
-                  Expanded(
-                    child: Column(
+                    )
+                  : null,
+              drawer: isMobile
+                  ? Drawer(
+                      child: DashboardSidebar(
+                        currentUser: user,
+                        currentRoute: currentRoute,
+                        onLogout: () {
+                          context.read<AuthBloc>().add(const LogoutEvent());
+                          context.go(RoutePaths.login);
+                        },
+                      ),
+                    )
+                  : null,
+              body: isMobile
+                  ? (childIsScaffold ? child : SafeArea(child: child))
+                  : Row(
                       children: [
-                        DashboardTopBar(
-                          title: resolveTitle(currentRoute),
+                        // Sidebar
+                        DashboardSidebar(
                           currentUser: user,
+                          currentRoute: currentRoute,
+                          onLogout: () {
+                            context.read<AuthBloc>().add(const LogoutEvent());
+                            context.go(RoutePaths.login);
+                          },
                         ),
-                        Expanded(child: SingleChildScrollView(child: child)),
+                        // Main content area
+                        Expanded(
+                          child: Column(
+                            children: [
+                              DashboardTopBar(
+                                title: resolveTitle(currentRoute),
+                                currentUser: user,
+                              ),
+                              Expanded(child: child),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
+            );
+          },
         );
       },
     );

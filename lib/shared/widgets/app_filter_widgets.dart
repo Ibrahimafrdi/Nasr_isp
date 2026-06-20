@@ -202,6 +202,62 @@ class _AppFilterChipState extends State<AppFilterChip>
 }
 
 // ============================================================================
+// AppStatusChipGroup — Reusable "All + status options" single-select group
+//
+// USAGE (shared across Customers, Payments, Installations, Inventory, etc.):
+//
+//   AppStatusChipGroup(
+//     options: const ['Active', 'Expiring Soon', 'Expired', 'Inactive'],
+//     selected: _selectedStatus,        // null/empty => "All" is active
+//     onChanged: (value) {
+//       setState(() => _selectedStatus = value); // value is null when "All" tapped
+//       // re-trigger bloc load with new filter here
+//     },
+//   ),
+//
+// "All" is always the first chip and is shown as active whenever `selected`
+// is null. Tapping any other chip switches single-select to that status;
+// tapping "All" clears the filter back to null.
+// ============================================================================
+
+class AppStatusChipGroup extends StatelessWidget {
+  final List<String> options;
+  final String? selected;
+  final ValueChanged<String?> onChanged;
+  final String allLabel;
+
+  const AppStatusChipGroup({
+    Key? key,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+    this.allLabel = 'All',
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        AppFilterChip(
+          label: allLabel,
+          selected: selected == null,
+          onSelected: (_) => onChanged(null),
+        ),
+        ...options.map(
+          (option) => AppFilterChip(
+            label: option,
+            selected: selected == option,
+            onSelected: (_) => onChanged(option),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
 // AppSearchField — Enhanced search text field with animations
 // ============================================================================
 

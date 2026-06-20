@@ -7,6 +7,7 @@ import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
+import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 class CustomerDetailsPage extends StatefulWidget {
@@ -66,36 +67,76 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           return const Scaffold(body: Center(child: Text('Not authenticated')));
         }
 
-        return _isLoading
-            ? const LoadingWidget(
-                message: 'Compiling subscriber audit trail...',
-              )
-            : Padding(
-                padding: const EdgeInsets.all(AppConstants.paddingLarge),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Breadcrumb(
-                      items: [
-                        BreadcrumbItem(
-                          label: 'Home',
-                          onTap: () => context.go(RoutePaths.dashboard),
-                        ),
-                        BreadcrumbItem(
-                          label: 'Customers',
-                          onTap: () => context.go(RoutePaths.customers),
-                        ),
-                        BreadcrumbItem(label: _customer.name),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        if (_isLoading) {
+          return const LoadingWidget(
+            message: 'Compiling subscriber audit trail...',
+          );
+        }
+
+        final isMobile = ResponsiveDashboard.isMobile(context);
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(
+            isMobile ? AppConstants.paddingMedium : AppConstants.paddingLarge,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─── Header Row ───────────────────────────────────────────
+              Breadcrumb(
+                items: [
+                  BreadcrumbItem(
+                    label: 'Home',
+                    onTap: () => context.go(RoutePaths.dashboard),
+                  ),
+                  BreadcrumbItem(
+                    label: 'Customers',
+                    onTap: () => context.go(RoutePaths.customers),
+                  ),
+                  BreadcrumbItem(label: _customer.name),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Title + action button — stacks on mobile
+              isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Subscriber Ledger: ${_customer.name}',
+                          'Subscriber Ledger',
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          _customer.name,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleMedium?.copyWith(
+                            color: AppTheme.mediumGray,
+                          ),
+                        ),
+                        if (authState.user.role.isAdmin) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => context.go(
+                              '${RoutePaths.customers}/${_customer.id}/edit',
+                            ),
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: const Text('Edit Account'),
+                          ),
+                        ],
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Subscriber Ledger: ${_customer.name}',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
                         ),
                         if (authState.user.role.isAdmin)
                           OutlinedButton.icon(
@@ -107,201 +148,167 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
 
-                    // Main detail layouts
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isDesktop = constraints.maxWidth > 800;
-                        return isDesktop
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 3,
-                                    child: _buildPrimaryInfoCol(),
-                                  ),
-                                  const SizedBox(width: 24),
-                                  Expanded(
-                                    flex: 2,
-                                    child: _buildTimelineSidebarCol(),
-                                  ),
-                                ],
-                              )
-                            : Column(
-                                children: [
-                                  _buildPrimaryInfoCol(),
-                                  const SizedBox(height: 24),
-                                  _buildTimelineSidebarCol(),
-                                ],
-                              );
-                      },
-                    ),
+              const SizedBox(height: 20),
+
+              // ─── Main Body ───────────────────────────────────────────
+              ResponsiveDashboard(
+                mobile: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPrimaryInfoCol(),
+                    const SizedBox(height: 24),
+                    _buildTimelineSidebarCol(),
                   ],
                 ),
-              );
+                desktop: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: _buildPrimaryInfoCol()),
+                    const SizedBox(width: 24),
+                    Expanded(flex: 2, child: _buildTimelineSidebarCol()),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
       },
     );
   }
+
+  // ─── Overview Section ─────────────────────────────────────────────────────
 
   Widget _buildPrimaryInfoCol() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top overview row
-        Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _customer.name,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'ID: ${_customer.id.toUpperCase()} • Registered since ${DateTimeUtils.formatDate(_customer.createdAt)}',
-                          style: const TextStyle(
-                            color: AppTheme.mediumGray,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                    StatusBadge(status: _customer.status),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _buildOverviewStat(
-                      'Active Package',
-                      _customer.packageName,
-                      Icons.speed,
-                      AppTheme.primaryColor,
-                    ),
-                    _buildOverviewStat(
-                      'Monthly Cost',
-                      DateTimeUtils.formatCurrency(_customer.monthlyRate),
-                      Icons.monetization_on,
-                      AppTheme.successColor,
-                    ),
-                    _buildOverviewStat(
-                      'Plan Expiry',
-                      DateTimeUtils.formatDate(_customer.expiryDate),
-                      Icons.date_range,
-                      AppTheme.warningColor,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+        _buildOverviewCard(),
         const SizedBox(height: 24),
-
-        // Detail Fields
-        Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Physical and Contact Details',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                const Divider(height: 24),
-                _buildInfoRow('Contact Phone', _customer.phone),
-                _buildInfoRow('Email Address', _customer.email ?? 'N/A'),
-                _buildInfoRow('Physical Address', _customer.address),
-                _buildInfoRow(
-                  'Assigned Field tech ID',
-                  _customer.assignedEmployeeId ?? 'Unassigned',
-                ),
-              ],
-            ),
-          ),
-        ),
+        _buildContactDetailsCard(),
         const SizedBox(height: 24),
-
-        // Payment history table
-        Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Transaction History',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildPaymentHistoryTable(),
-              ],
-            ),
-          ),
-        ),
+        _buildPaymentHistoryCard(),
       ],
     );
   }
 
-  Widget _buildOverviewStat(
+  Widget _buildOverviewCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _customer.name,
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'ID: ${_customer.id.toUpperCase()} · Since ${DateTimeUtils.formatDate(_customer.createdAt)}',
+                        style: const TextStyle(
+                          color: AppTheme.mediumGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                StatusBadge(status: _customer.status),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 16),
+            // Stat icons wrap on small screens
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 480;
+                final stats = [
+                  _overviewStatData(
+                    'Active Package',
+                    _customer.packageName,
+                    Icons.speed,
+                    AppTheme.primaryColor,
+                  ),
+                  _overviewStatData(
+                    'Monthly Cost',
+                    DateTimeUtils.formatCurrency(_customer.monthlyRate),
+                    Icons.monetization_on,
+                    AppTheme.successColor,
+                  ),
+                  _overviewStatData(
+                    'Plan Expiry',
+                    DateTimeUtils.formatDate(_customer.expiryDate),
+                    Icons.date_range,
+                    AppTheme.warningColor,
+                  ),
+                ];
+
+                if (isNarrow) {
+                  return Column(
+                    children: stats
+                        .map(
+                          (s) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildOverviewStatWidget(s),
+                          ),
+                        )
+                        .toList(),
+                  );
+                }
+                return Row(children: stats.map(_buildOverviewStatWidget).toList());
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic> _overviewStatData(
     String label,
     String value,
     IconData icon,
     Color color,
-  ) {
+  ) => {'label': label, 'value': value, 'icon': icon, 'color': color};
+
+  Widget _buildOverviewStatWidget(Map<String, dynamic> s) {
     return Expanded(
       child: Row(
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 12),
+          Icon(s['icon'] as IconData, color: s['color'] as Color, size: 26),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
+                  s['label'] as String,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: AppTheme.mediumGray,
                   ),
                 ),
                 Text(
-                  value,
+                  s['value'] as String,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.darkGray,
                   ),
@@ -316,14 +323,60 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  // ─── Contact / Details Card ───────────────────────────────────────────────
+
+  Widget _buildContactDetailsCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Physical & Contact Details',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const Divider(height: 24),
+            _buildInfoRow('Contact Phone', _customer.phone, Icons.phone),
+            _buildInfoRow(
+              'Email Address',
+              _customer.email ?? 'N/A',
+              Icons.email,
+            ),
+            _buildInfoRow(
+              'Physical Address',
+              _customer.address,
+              Icons.location_on,
+            ),
+            _buildInfoRow(
+              'Assigned Field Tech',
+              _customer.assignedEmployeeId ?? 'Unassigned',
+              Icons.engineering,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 150,
+          Icon(icon, size: 15, color: AppTheme.mediumGray),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
             child: Text(
               label,
               style: const TextStyle(
@@ -334,6 +387,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
             ),
           ),
           Expanded(
+            flex: 3,
             child: Text(
               value,
               style: const TextStyle(
@@ -341,9 +395,38 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
+              textAlign: TextAlign.end,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── Payment History Card ─────────────────────────────────────────────────
+
+  Widget _buildPaymentHistoryCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Transaction History',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildPaymentHistoryTable(),
+          ],
+        ),
       ),
     );
   }
@@ -373,11 +456,71 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
       },
     ];
 
+    final isMobile = ResponsiveDashboard.isMobile(context);
+
+    if (isMobile) {
+      // Card-list layout for mobile
+      return Column(
+        children: mockPayments.map((pay) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.veryLightGray,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pay['id'] as String,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: AppTheme.darkGray,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${pay['method']}  ·  ${DateTimeUtils.formatDate(DateTime.parse(pay['date'] as String))}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.mediumGray,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      DateTimeUtils.formatCurrency(pay['amount'] as double),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    PaymentStatusBadge(status: pay['status'] as PaymentStatus),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    }
+
     return DataTableWrapper(
       columns: const [
         DataColumn(label: Text('Transaction ID')),
         DataColumn(label: Text('Collection Date')),
-        DataColumn(label: Text('Amount paid')),
+        DataColumn(label: Text('Amount')),
         DataColumn(label: Text('Method')),
         DataColumn(label: Text('Status')),
       ],
@@ -392,7 +535,9 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
             ),
             DataCell(
               Text(
-                DateTimeUtils.formatDate(DateTime.parse(pay['date'] as String)),
+                DateTimeUtils.formatDate(
+                  DateTime.parse(pay['date'] as String),
+                ),
               ),
             ),
             DataCell(
@@ -407,6 +552,8 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
       }).toList(),
     );
   }
+
+  // ─── Timeline / Audit Log Sidebar ─────────────────────────────────────────
 
   Widget _buildTimelineSidebarCol() {
     final timelineEvents = [
@@ -440,11 +587,11 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -461,30 +608,35 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
               itemCount: timelineEvents.length,
               itemBuilder: (context, index) {
                 final ev = timelineEvents[index];
+                final isLast = index == timelineEvents.length - 1;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        children: [
-                          Container(
-                            width: 12,
-                            height: 12,
-                            decoration: const BoxDecoration(
-                              color: AppTheme.primaryColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          if (index != timelineEvents.length - 1)
+                      // Dot + line column
+                      SizedBox(
+                        width: 20,
+                        child: Column(
+                          children: [
                             Container(
-                              width: 2,
-                              height: 40,
-                              color: AppTheme.lightGray,
+                              width: 12,
+                              height: 12,
+                              decoration: const BoxDecoration(
+                                color: AppTheme.primaryColor,
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                        ],
+                            if (!isLast)
+                              Container(
+                                width: 2,
+                                height: 42,
+                                color: AppTheme.lightGray,
+                              ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

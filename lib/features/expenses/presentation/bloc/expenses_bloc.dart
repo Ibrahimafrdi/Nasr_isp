@@ -12,10 +12,17 @@ abstract class ExpensesEvent extends Equatable {
 
 class LoadExpensesEvent extends ExpensesEvent {
   final int page;
-  const LoadExpensesEvent({this.page = 1});
+  final String searchQuery;
+  final List<String> filterCategories;
+
+  const LoadExpensesEvent({
+    this.page = 1,
+    this.searchQuery = '',
+    this.filterCategories = const [],
+  });
 
   @override
-  List<Object?> get props => [page];
+  List<Object?> get props => [page, searchQuery, filterCategories];
 }
 
 abstract class ExpensesState extends Equatable {
@@ -62,13 +69,32 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
     emit(const ExpensesLoading());
     await Future.delayed(const Duration(milliseconds: 500));
 
-    final allExpenses = _generateMockExpenses();
-    final totalPages = (allExpenses.length / AppConstants.itemsPerPage).ceil();
+    var allExpenses = _generateMockExpenses();
+
+    if (event.searchQuery.isNotEmpty) {
+      final q = event.searchQuery.toLowerCase();
+      allExpenses = allExpenses
+          .where((e) => e.description.toLowerCase().contains(q))
+          .toList();
+    }
+
+    if (event.filterCategories.isNotEmpty) {
+      allExpenses = allExpenses
+          .where((e) => event.filterCategories.contains(e.category.label))
+          .toList();
+    }
+
+    final totalPages = allExpenses.isEmpty
+        ? 1
+        : (allExpenses.length / AppConstants.itemsPerPage).ceil();
+
     final start = (event.page - 1) * AppConstants.itemsPerPage;
     final end = (start + AppConstants.itemsPerPage)
         .clamp(0, allExpenses.length)
         .toInt();
-    final paginated = allExpenses.sublist(start, end);
+    final paginated = start < allExpenses.length
+        ? allExpenses.sublist(start, end)
+        : <ExpenseModel>[];
 
     final totalExpenses = allExpenses.fold<double>(
       0,

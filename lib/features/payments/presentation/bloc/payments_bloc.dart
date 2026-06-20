@@ -18,11 +18,28 @@ class LoadPaymentsEvent extends PaymentsEvent {
   final int page;
   final String? searchQuery;
   final PaymentStatus? filterStatus;
+  final List<String>? filterStatuses;
+  final DateTime? dateRangeStart;
+  final DateTime? dateRangeEnd;
 
-  const LoadPaymentsEvent({this.page = 1, this.searchQuery, this.filterStatus});
+  const LoadPaymentsEvent({
+    this.page = 1,
+    this.searchQuery,
+    this.filterStatus,
+    this.filterStatuses,
+    this.dateRangeStart,
+    this.dateRangeEnd,
+  });
 
   @override
-  List<Object?> get props => [page, searchQuery, filterStatus];
+  List<Object?> get props => [
+    page,
+    searchQuery,
+    filterStatus,
+    filterStatuses,
+    dateRangeStart,
+    dateRangeEnd,
+  ];
 }
 
 // ──────────────────────────────────────────────
@@ -69,7 +86,6 @@ class PaymentsLoaded extends PaymentsState {
   ];
 }
 
-// ✅ Added missing error state
 class PaymentsError extends PaymentsState {
   final String message;
 
@@ -99,7 +115,7 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
 
       var payments = _generateMockPayments();
 
-      // ✅ Apply search filter (was silently ignored before)
+      // Apply search filter
       final query = event.searchQuery?.trim().toLowerCase();
       if (query != null && query.isNotEmpty) {
         payments = payments
@@ -107,7 +123,14 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
             .toList();
       }
 
-      // ✅ Apply status filter (was silently ignored before)
+      // ✅ FIX: Apply multi-status filter (this is what the UI chips actually send)
+      if (event.filterStatuses != null && event.filterStatuses!.isNotEmpty) {
+        payments = payments
+            .where((p) => event.filterStatuses!.contains(p.status.label))
+            .toList();
+      }
+
+      // Keep single-status filter too, in case it's used elsewhere
       if (event.filterStatus != null) {
         payments = payments
             .where((p) => p.status == event.filterStatus)
@@ -143,7 +166,6 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
         ),
       );
     } catch (e) {
-      // ✅ Emit proper error state instead of crashing cast
       emit(PaymentsError(message: 'Failed to load payments: $e'));
     }
   }

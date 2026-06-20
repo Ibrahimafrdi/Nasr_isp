@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
+import 'package:nasr_isp/shared/widgets/status_badge.dart' as sb;
 
 class StatusBadge extends StatelessWidget {
   final CustomerStatus status;
@@ -9,47 +11,11 @@ class StatusBadge extends StatelessWidget {
   const StatusBadge({Key? key, required this.status, this.label})
     : super(key: key);
 
-  Color get backgroundColor {
-    switch (status) {
-      case CustomerStatus.active:
-        return AppTheme.successColor.withOpacity(0.1);
-      case CustomerStatus.expiringSoon:
-        return AppTheme.warningColor.withOpacity(0.1);
-      case CustomerStatus.expired:
-        return AppTheme.errorColor.withOpacity(0.1);
-      case CustomerStatus.inactive:
-        return AppTheme.lightGray.withOpacity(0.5);
-    }
-  }
-
-  Color get textColor {
-    switch (status) {
-      case CustomerStatus.active:
-        return AppTheme.successColor;
-      case CustomerStatus.expiringSoon:
-        return AppTheme.warningColor;
-      case CustomerStatus.expired:
-        return AppTheme.errorColor;
-      case CustomerStatus.inactive:
-        return AppTheme.mediumGray;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        label ?? status.label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: textColor,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+    return sb.StatusBadge(
+      status: status,
+      label: label,
     );
   }
 }
@@ -59,52 +25,15 @@ class PaymentStatusBadge extends StatelessWidget {
 
   const PaymentStatusBadge({Key? key, required this.status}) : super(key: key);
 
-  Color get backgroundColor {
-    switch (status) {
-      case PaymentStatus.completed:
-        return AppTheme.successColor.withOpacity(0.1);
-      case PaymentStatus.pending:
-        return AppTheme.warningColor.withOpacity(0.1);
-      case PaymentStatus.failed:
-        return AppTheme.errorColor.withOpacity(0.1);
-      case PaymentStatus.partial:
-        return AppTheme.infoColor.withOpacity(0.1);
-    }
-  }
-
-  Color get textColor {
-    switch (status) {
-      case PaymentStatus.completed:
-        return AppTheme.successColor;
-      case PaymentStatus.pending:
-        return AppTheme.warningColor;
-      case PaymentStatus.failed:
-        return AppTheme.errorColor;
-      case PaymentStatus.partial:
-        return AppTheme.infoColor;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        status.label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: textColor,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+    return sb.StatusBadge(
+      status: status,
     );
   }
 }
 
-class DashboardCard extends StatelessWidget {
+class DashboardCard extends StatefulWidget {
   final String label;
   final String value;
   final String? subtitle;
@@ -123,40 +52,103 @@ class DashboardCard extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<DashboardCard> createState() => _DashboardCardState();
+}
+
+class _DashboardCardState extends State<DashboardCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      color: backgroundColor ?? AppTheme.whiteColor,
-      child: Container(
-        padding: const EdgeInsets.all(AppConstants.paddingLarge),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (icon != null)
-                  Icon(
-                    icon,
-                    color: AppTheme.primaryColor.withOpacity(0.3),
-                    size: 24,
-                  ),
-              ],
+    final theme = Theme.of(context);
+    final primaryColor = theme.primaryColor;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          decoration: BoxDecoration(
+            color: widget.backgroundColor ?? Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _isHovered
+                  ? primaryColor.withOpacity(0.4)
+                  : Colors.grey.withOpacity(0.15),
+              width: 1.5,
             ),
-            const SizedBox(height: AppConstants.paddingMedium),
-            Text(value, style: Theme.of(context).textTheme.displaySmall),
-            if (subtitle != null) ...[
-              const SizedBox(height: AppConstants.paddingSmall),
-              Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+            boxShadow: [
+              BoxShadow(
+                color: _isHovered
+                    ? primaryColor.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.03),
+                blurRadius: _isHovered ? 16 : 8,
+                offset: Offset(0, _isHovered ? 6 : 3),
+              ),
             ],
-          ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (widget.icon != null)
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        color: primaryColor,
+                        size: 16,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                widget.value,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+              if (widget.subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.subtitle!,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[500],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

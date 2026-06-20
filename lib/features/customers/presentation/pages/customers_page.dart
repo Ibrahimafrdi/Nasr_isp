@@ -7,9 +7,13 @@ import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
+import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/core/theme/app_spacing.dart';
 
 class CustomersPage extends StatefulWidget {
   const CustomersPage({Key? key}) : super(key: key);
@@ -20,13 +24,22 @@ class CustomersPage extends StatefulWidget {
 
 class _CustomersPageState extends State<CustomersPage> {
   late TextEditingController _searchController;
-  CustomerStatus? _selectedStatus;
+
+  /// null = "All" is active (default). Otherwise holds the selected
+  /// status label, e.g. 'Active', 'Expiring Soon', 'Expired', 'Inactive'.
+  String? _selectedStatus;
+
+  late DateTime? _dateRangeStart;
+  late DateTime? _dateRangeEnd;
   CustomerModel? _selectedCustomerForDetail;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _selectedStatus = null; // All
+    _dateRangeStart = null;
+    _dateRangeEnd = null;
     context.read<CustomersBloc>().add(const LoadCustomersEvent());
   }
 
@@ -43,6 +56,99 @@ class _CustomersPageState extends State<CustomersPage> {
           'WhatsApp reminder message sent to ${customer.name} (${customer.phone}) successfully!',
         ),
         backgroundColor: AppTheme.successColor,
+      ),
+    );
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedStatus = null;
+      _dateRangeStart = null;
+      _dateRangeEnd = null;
+    });
+    context.read<CustomersBloc>().add(const LoadCustomersEvent());
+  }
+
+  void _onStatusChanged(String? status) {
+    setState(() => _selectedStatus = status);
+    final filterStatus = status == null
+        ? null
+        : CustomerStatus.values.firstWhere((s) => s.label == status);
+    context.read<CustomersBloc>().add(
+      LoadCustomersEvent(
+        searchQuery: _searchController.text,
+        filterStatus: filterStatus,
+      ),
+    );
+  }
+
+  Widget _buildFilterPanel() {
+    final activeFilterCount =
+        (_selectedStatus != null ? 1 : 0) +
+        (_searchController.text.isNotEmpty ? 1 : 0) +
+        (_dateRangeStart != null ? 1 : 0) +
+        (_dateRangeEnd != null ? 1 : 0);
+
+    return AppFilterContainer(
+      title: 'Search & Filter Customers',
+      titleIcon: Icons.filter_list,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search field with header
+          FilterPanelHeader(
+            searchController: _searchController,
+            onSearchChanged: (query) {
+              setState(() {});
+              final filterStatus = _selectedStatus == null
+                  ? null
+                  : CustomerStatus.values.firstWhere(
+                      (s) => s.label == _selectedStatus,
+                    );
+              context.read<CustomersBloc>().add(
+                LoadCustomersEvent(
+                  searchQuery: query,
+                  filterStatus: filterStatus,
+                ),
+              );
+            },
+            onClearFilters: activeFilterCount > 0 ? _clearFilters : null,
+            activeFilterCount: activeFilterCount,
+            title: 'Active Filters',
+          ),
+          SizedBox(height: AppSpacing.xl),
+
+          // Date Range Filter
+          DateRangePickerField(
+            startDate: _dateRangeStart,
+            endDate: _dateRangeEnd,
+            label: 'Expiry Date Range',
+            onDateRangeChanged: (range) {
+              setState(() {
+                _dateRangeStart = range?.start;
+                _dateRangeEnd = range?.end;
+              });
+            },
+          ),
+          SizedBox(height: AppSpacing.lg),
+
+          // Status Filter Chips (All + statuses, single-select, reusable)
+          const Text(
+            'Subscription Status',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.charcoal,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          AppStatusChipGroup(
+            options: CustomerStatus.values.map((s) => s.label).toList(),
+            selected: _selectedStatus,
+            onChanged: _onStatusChanged,
+          ),
+        ],
       ),
     );
   }
@@ -78,7 +184,11 @@ class _CustomersPageState extends State<CustomersPage> {
                       ),
                       ElevatedButton.icon(
                         onPressed: () => context.go(RoutePaths.addCustomer),
-                        icon: const Icon(Icons.person_add, size: 18, color: Colors.white),
+                        icon: const Icon(
+                          Icons.person_add,
+                          size: 18,
+                          color: Colors.white,
+                        ),
                         label: const Text('Add Customer'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryBlue,
@@ -97,160 +207,8 @@ class _CustomersPageState extends State<CustomersPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Search and Filters header card
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  decoration: InputDecoration(
-                                    hintText:
-                                        'Filter by subscriber name, cell phone number, or package speed...',
-                                    prefixIcon: const Icon(Icons.search),
-                                    suffixIcon:
-                                        _searchController.text.isNotEmpty
-                                        ? IconButton(
-                                            icon: const Icon(Icons.clear),
-                                            onPressed: () {
-                                              _searchController.clear();
-                                              context.read<CustomersBloc>().add(
-                                                LoadCustomersEvent(
-                                                  filterStatus: _selectedStatus,
-                                                ),
-                                              );
-                                            },
-                                          )
-                                        : null,
-                                  ),
-                                  onChanged: (query) {
-                                    context.read<CustomersBloc>().add(
-                                      LoadCustomersEvent(
-                                        searchQuery: query,
-                                        filterStatus: _selectedStatus,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Builder(
-                            builder: (context) {
-                              final int activeFilterCount = (_selectedStatus != null ? 1 : 0) +
-                                  (_searchController.text.isNotEmpty ? 1 : 0);
-
-                              return Wrap(
-                                alignment: WrapAlignment.start,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text(
-                                        'Filter Status: ',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.charcoal,
-                                        ),
-                                      ),
-                                      if (activeFilterCount > 0) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primaryBlue.withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            'Active: $activeFilterCount',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.primaryBlue,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  HoverFilterChip(
-                                    label: 'All Statuses',
-                                    selected: _selectedStatus == null,
-                                    onSelected: (selected) {
-                                      if (selected) {
-                                        setState(() => _selectedStatus = null);
-                                        context.read<CustomersBloc>().add(
-                                          LoadCustomersEvent(
-                                            searchQuery: _searchController.text,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  ...CustomerStatus.values.map((status) {
-                                    return HoverFilterChip(
-                                      label: status.label,
-                                      selected: _selectedStatus == status,
-                                      onSelected: (selected) {
-                                        setState(() {
-                                          _selectedStatus = selected ? status : null;
-                                        });
-                                        context.read<CustomersBloc>().add(
-                                          LoadCustomersEvent(
-                                            searchQuery: _searchController.text,
-                                            filterStatus: _selectedStatus,
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  }).toList(),
-                                  if (activeFilterCount > 0) ...[
-                                    const SizedBox(width: 4),
-                                    TextButton.icon(
-                                      onPressed: () {
-                                        setState(() {
-                                          _selectedStatus = null;
-                                          _searchController.clear();
-                                        });
-                                        context.read<CustomersBloc>().add(
-                                          const LoadCustomersEvent(),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.clear_all, size: 18, color: AppColors.errorRed),
-                                      label: const Text(
-                                        'Clear Filters',
-                                        style: TextStyle(
-                                          color: AppColors.errorRed,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // Premium Filter Panel
+                  _buildFilterPanel(),
                   const SizedBox(height: 24),
 
                   // Main Directory Table
@@ -288,22 +246,48 @@ class _CustomersPageState extends State<CustomersPage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: state.customers.isEmpty
-                                ? const EmptyStateWidget(
+                        state.customers.isEmpty
+                            ? Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: const EmptyStateWidget(
                                     icon: Icons.people_outline,
                                     title: 'No Customers Found',
                                     subtitle:
                                         'Adjust your filters or add a new record to begin.',
-                                  )
-                                : _buildCustomersTable(
-                                    state.customers,
-                                    authState.user,
                                   ),
-                          ),
-                        ),
+                                ),
+                              )
+                            : ResponsiveDashboard(
+                                mobile: _buildCustomerCardList(
+                                  state.customers,
+                                  authState.user,
+                                ),
+                                desktop: Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: _buildCustomersTable(
+                                            state.customers,
+                                            authState.user,
+                                          ),
+                                        ),
+                                        if (_selectedCustomerForDetail !=
+                                            null) ...[
+                                          const SizedBox(width: 16),
+                                          _buildDetailsSideSheet(
+                                            _selectedCustomerForDetail!,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                         if (state.totalPages > 1) ...[
                           const SizedBox(height: 24),
                           PaginationBar(
@@ -438,6 +422,118 @@ class _CustomersPageState extends State<CustomersPage> {
     );
   }
 
+  /// Mobile: compact card-per-customer list
+  Widget _buildCustomerCardList(
+    List<CustomerModel> customers,
+    UserModel currentUser,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: customers.map((customer) {
+        final outstanding = customer.balance ?? 0.0;
+        final hasDebt = outstanding > 0;
+        return GestureDetector(
+          onTap: () => context.go('${RoutePaths.customers}/${customer.id}'),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.lightGray.withOpacity(0.6)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            customer.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                          Text(
+                            customer.id.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppTheme.mediumGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    StatusBadge(status: customer.status),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Info row
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
+                  children: [
+                    _mobileInfoChip(Icons.speed, customer.packageName),
+                    _mobileInfoChip(
+                      Icons.monetization_on,
+                      DateTimeUtils.formatCurrency(customer.monthlyRate),
+                    ),
+                    _mobileInfoChip(
+                      Icons.date_range,
+                      '${customer.daysUntilExpiry}d left',
+                      color: customer.daysUntilExpiry <= 7
+                          ? AppTheme.errorColor
+                          : AppTheme.mediumGray,
+                    ),
+                    _mobileInfoChip(
+                      Icons.account_balance_wallet,
+                      DateTimeUtils.formatCurrency(outstanding),
+                      color: hasDebt
+                          ? AppTheme.errorColor
+                          : AppTheme.successColor,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _mobileInfoChip(IconData icon, String label, {Color? color}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color ?? AppTheme.mediumGray),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: color ?? AppTheme.mediumGray,
+            fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDetailsSideSheet(CustomerModel customer) {
     final outstanding = customer.balance ?? 0.0;
     return Container(
@@ -530,7 +626,9 @@ class _CustomersPageState extends State<CustomersPage> {
                   ),
                   _buildDetailRow(
                     'Home Address',
-                    customer.address ?? 'No address saved',
+                    customer.address.isEmpty
+                        ? 'No address saved'
+                        : customer.address,
                     Icons.home,
                   ),
                   const Divider(height: 32),
@@ -655,91 +753,6 @@ class _CustomersPageState extends State<CustomersPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class HoverFilterChip extends StatefulWidget {
-  final String label;
-  final bool selected;
-  final ValueChanged<bool> onSelected;
-
-  const HoverFilterChip({
-    Key? key,
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-  }) : super(key: key);
-
-  @override
-  State<HoverFilterChip> createState() => _HoverFilterChipState();
-}
-
-class _HoverFilterChipState extends State<HoverFilterChip> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color selectedBgColor = AppColors.primaryBlue;
-    final Color selectedTextColor = Colors.white;
-    final Color hoveredBgColor = AppColors.primaryBlue.withOpacity(0.08);
-    final Color normalBgColor = AppColors.offWhite;
-
-    final Color bgColor = widget.selected 
-        ? selectedBgColor 
-        : (_isHovered ? hoveredBgColor : normalBgColor);
-
-    final Color textColor = widget.selected 
-        ? selectedTextColor 
-        : (widget.selected || _isHovered ? AppColors.primaryBlue : AppColors.charcoal);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => widget.onSelected(!widget.selected),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.selected 
-                  ? selectedBgColor 
-                  : (_isHovered ? AppColors.primaryBlue.withOpacity(0.3) : AppColors.lightGray),
-              width: 1.5,
-            ),
-            boxShadow: widget.selected 
-                ? [
-                    BoxShadow(
-                      color: AppColors.primaryBlue.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    )
-                  ]
-                : (_isHovered 
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        )
-                      ]
-                    : []),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: widget.selected || _isHovered ? FontWeight.bold : FontWeight.w500,
-              fontSize: 12.5,
-            ),
-          ),
-        ),
       ),
     );
   }

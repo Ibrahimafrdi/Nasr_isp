@@ -3,9 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
-import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
+import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 class EmployeesPage extends StatefulWidget {
@@ -76,7 +76,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
               title: const Text('Add Team Member / Installer'),
               content: Form(
                 key: formKey,
-                child: Container(
+                child: SizedBox(
                   width: 450,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -200,11 +200,15 @@ class _EmployeesPageState extends State<EmployeesPage> {
 
   @override
   Widget build(BuildContext context) {
-    int totalSubs = _employees.fold(0, (s, e) => s + (e['subscribers'] as int));
-    int totalColl = _employees.fold(0, (s, e) => s + (e['collections'] as int));
-    double avgEfficiency =
+    final int totalSubs =
+        _employees.fold(0, (s, e) => s + (e['subscribers'] as int));
+    final int totalColl =
+        _employees.fold(0, (s, e) => s + (e['collections'] as int));
+    final double avgEfficiency =
         _employees.fold(0.0, (s, e) => s + (e['efficiency'] as double)) /
         _employees.length;
+
+    final isMobile = ResponsiveDashboard.isMobile(context);
 
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
@@ -212,89 +216,63 @@ class _EmployeesPageState extends State<EmployeesPage> {
           return const Scaffold(body: Center(child: Text('Not authenticated')));
         }
 
-        return Padding(
-          padding: const EdgeInsets.all(AppConstants.paddingLarge),
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(
+            isMobile ? AppConstants.paddingMedium : AppConstants.paddingLarge,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ─── Header ────────────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Breadcrumb(
-                    items: [
-                      BreadcrumbItem(
-                        label: 'Home',
-                        onTap: () => context.go(RoutePaths.dashboard),
-                      ),
-                      BreadcrumbItem(label: 'Employees'),
-                    ],
+                  Expanded(
+                    child: Breadcrumb(
+                      items: [
+                        BreadcrumbItem(
+                          label: 'Home',
+                          onTap: () => context.go(RoutePaths.dashboard),
+                        ),
+                        BreadcrumbItem(label: 'Employees'),
+                      ],
+                    ),
                   ),
                   if (authState.user.role.isAdmin)
                     ElevatedButton.icon(
                       onPressed: () => _showAddEmployeeDialog(context),
                       icon: const Icon(Icons.person_add_alt_1, size: 18),
-                      label: const Text('Add Technician'),
+                      label: Text(isMobile ? 'Add' : 'Add Technician'),
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              // Metric Summary Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: DashboardCard(
-                      label: 'Total Field Personnel',
-                      value: _employees.length.toString(),
-                      icon: Icons.groups_outlined,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DashboardCard(
-                      label: 'Subscribers Assigned',
-                      value: totalSubs.toString(),
-                      icon: Icons.supervised_user_circle_outlined,
-                      subtitle:
-                          '${(totalSubs / _employees.length).toStringAsFixed(0)} subs avg/technician',
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DashboardCard(
-                      label: 'Average Billing Efficiency',
-                      value: '${avgEfficiency.toStringAsFixed(1)}%',
-                      icon: Icons.assignment_turned_in_outlined,
-                      backgroundColor: AppTheme.successColor.withOpacity(0.05),
-                      subtitle:
-                          '$totalColl collections realized out of $totalSubs',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
+              // ─── Metric Cards (responsive grid) ────────────────────
+              _buildMetricCards(totalSubs, totalColl, avgEfficiency, isMobile),
+              const SizedBox(height: 28),
 
-              // Layout: Table on left, Activity log on right
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isDesktop = constraints.maxWidth > 800;
-                  return isDesktop
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 3, child: _buildEmployeeTableCard()),
-                            const SizedBox(width: 24),
-                            Expanded(flex: 2, child: _buildTeamActivityCard()),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            _buildEmployeeTableCard(),
-                            const SizedBox(height: 24),
-                            _buildTeamActivityCard(),
-                          ],
-                        );
-                },
+              // ─── Main Body (table + activity) ──────────────────────
+              ResponsiveDashboard(
+                mobile: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildEmployeeTableCard(isMobile: true),
+                    const SizedBox(height: 24),
+                    _buildTeamActivityCard(),
+                  ],
+                ),
+                desktop: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _buildEmployeeTableCard(isMobile: false),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(flex: 2, child: _buildTeamActivityCard()),
+                  ],
+                ),
               ),
             ],
           ),
@@ -303,11 +281,71 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
-  Widget _buildEmployeeTableCard() {
+  // ─── Metric Cards ──────────────────────────────────────────────────────────
+
+  Widget _buildMetricCards(
+    int totalSubs,
+    int totalColl,
+    double avgEfficiency,
+    bool isMobile,
+  ) {
+    final cards = [
+      DashboardCard(
+        label: 'Total Field Personnel',
+        value: _employees.length.toString(),
+        icon: Icons.groups_outlined,
+      ),
+      DashboardCard(
+        label: 'Subscribers Assigned',
+        value: totalSubs.toString(),
+        icon: Icons.supervised_user_circle_outlined,
+        subtitle:
+            '${(totalSubs / _employees.length).toStringAsFixed(0)} avg/tech',
+      ),
+      DashboardCard(
+        label: 'Avg Billing Efficiency',
+        value: '${avgEfficiency.toStringAsFixed(1)}%',
+        icon: Icons.assignment_turned_in_outlined,
+        backgroundColor: AppTheme.successColor.withOpacity(0.05),
+        subtitle: '$totalColl of $totalSubs collections realized',
+      ),
+    ];
+
+    if (isMobile) {
+      // 2-column grid on mobile
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: cards[0]),
+              const SizedBox(width: 12),
+              Expanded(child: cards[1]),
+            ],
+          ),
+          const SizedBox(height: 12),
+          cards[2],
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: cards[0]),
+        const SizedBox(width: 16),
+        Expanded(child: cards[1]),
+        const SizedBox(width: 16),
+        Expanded(child: cards[2]),
+      ],
+    );
+  }
+
+  // ─── Employee Table Card ───────────────────────────────────────────────────
+
+  Widget _buildEmployeeTableCard({required bool isMobile}) {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
       ),
       child: Padding(
@@ -322,12 +360,173 @@ class _EmployeesPageState extends State<EmployeesPage> {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildEmployeesTable(),
+            isMobile
+                ? _buildEmployeeCardList()
+                : _buildEmployeesTable(),
           ],
         ),
       ),
     );
   }
+
+  /// Mobile: card-per-employee layout
+  Widget _buildEmployeeCardList() {
+    return Column(
+      children: _employees.map((emp) {
+        final double eff = emp['efficiency'] as double;
+        final bool isEfficient = eff > 90.0;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.veryLightGray,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Name + efficiency badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    emp['name'] as String,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isEfficient
+                          ? AppTheme.successColor.withOpacity(0.1)
+                          : AppTheme.warningColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$eff%',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isEfficient
+                            ? AppTheme.successColor
+                            : AppTheme.warningColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                emp['role'] as String,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.mediumGray,
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Info chips row
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  _infoChip(Icons.location_on, emp['area'] as String),
+                  _infoChip(Icons.phone, emp['phone'] as String),
+                  _infoChip(
+                    Icons.people,
+                    '${emp['subscribers']} subs',
+                  ),
+                  _infoChip(
+                    Icons.check_circle_outline,
+                    '${emp['collections']}/${emp['subscribers']} collected',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: AppTheme.mediumGray),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: AppTheme.mediumGray),
+        ),
+      ],
+    );
+  }
+
+  /// Desktop: full DataTable
+  Widget _buildEmployeesTable() {
+    return DataTableWrapper(
+      columns: const [
+        DataColumn(label: Text('Name')),
+        DataColumn(label: Text('Designation')),
+        DataColumn(label: Text('Sector Area')),
+        DataColumn(label: Text('Contact')),
+        DataColumn(label: Text('Subscribers')),
+        DataColumn(label: Text('Collections')),
+        DataColumn(label: Text('Efficiency')),
+      ],
+      rows: _employees.map((emp) {
+        final double eff = emp['efficiency'] as double;
+        return DataRow(
+          cells: [
+            DataCell(
+              Text(
+                emp['name'] as String,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+            DataCell(Text(emp['role'] as String)),
+            DataCell(Text(emp['area'] as String)),
+            DataCell(Text(emp['phone'] as String)),
+            DataCell(Text(emp['subscribers'].toString())),
+            DataCell(Text('${emp['collections']}/${emp['subscribers']}')),
+            DataCell(
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: eff > 90.0
+                      ? AppTheme.successColor.withOpacity(0.1)
+                      : AppTheme.warningColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '$eff%',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: eff > 90.0
+                        ? AppTheme.successColor
+                        : AppTheme.warningColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── Team Activity Log Card ────────────────────────────────────────────────
 
   Widget _buildTeamActivityCard() {
     final activities = [
@@ -361,7 +560,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
       ),
       child: Padding(
@@ -439,62 +638,6 @@ class _EmployeesPageState extends State<EmployeesPage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildEmployeesTable() {
-    return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Name')),
-        DataColumn(label: Text('Designation')),
-        DataColumn(label: Text('Sector Area')),
-        DataColumn(label: Text('Contact')),
-        DataColumn(label: Text('Subscribers')),
-        DataColumn(label: Text('Collections Target')),
-        DataColumn(label: Text('Efficiency')),
-      ],
-      rows: _employees.map((emp) {
-        double eff = emp['efficiency'] as double;
-        return DataRow(
-          cells: [
-            DataCell(
-              Text(
-                emp['name'] as String,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ),
-            DataCell(Text(emp['role'] as String)),
-            DataCell(Text(emp['area'] as String)),
-            DataCell(Text(emp['phone'] as String)),
-            DataCell(Text(emp['subscribers'].toString())),
-            DataCell(Text('${emp['collections']}/${emp['subscribers']}')),
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: eff > 90.0
-                      ? AppTheme.successColor.withOpacity(0.1)
-                      : AppTheme.warningColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '$eff%',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: eff > 90.0
-                        ? AppTheme.successColor
-                        : AppTheme.warningColor,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      }).toList(),
     );
   }
 }

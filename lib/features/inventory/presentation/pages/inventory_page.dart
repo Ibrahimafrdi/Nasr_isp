@@ -3,9 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({Key? key}) : super(key: key);
@@ -15,8 +19,19 @@ class InventoryPage extends StatefulWidget {
 }
 
 class _InventoryPageState extends State<InventoryPage> {
-  String _searchQuery = '';
-  String _selectedCategory = 'All';
+  late TextEditingController _searchController;
+
+  /// null = "All" is active (default). Otherwise holds the selected
+  /// category label, e.g. 'ONU Devices', 'Routers', 'Switches', etc.
+  String? _selectedCategory;
+
+  static const List<String> _categories = [
+    'ONU Devices',
+    'Routers',
+    'Switches',
+    'Cables',
+    'Connectors',
+  ];
 
   // Sample static data representing local inventory
   final List<Map<String, dynamic>> _inventoryItems = [
@@ -73,23 +88,87 @@ class _InventoryPageState extends State<InventoryPage> {
       'name': 'Tenda F3 Wireless Router',
       'qty': '+50',
       'action': 'Restock',
-      'operator': 'Nasr Ullah'
+      'operator': 'Nasr Ullah',
     },
     {
       'date': 'May 18, 2026',
       'name': 'SC/UPC Fiber Connectors',
       'qty': '-120',
       'action': 'Dispatched',
-      'operator': 'Ahmad Ali (Tech)'
+      'operator': 'Ahmad Ali (Tech)',
     },
     {
       'date': 'May 15, 2026',
       'name': 'Fiber Home GPON ONU',
       'qty': '+30',
       'action': 'Restock',
-      'operator': 'Nasr Ullah'
+      'operator': 'Nasr Ullah',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _selectedCategory = null; // All
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedCategory = null;
+    });
+  }
+
+  void _onCategoryChanged(String? category) {
+    setState(() => _selectedCategory = category);
+  }
+
+  Widget _buildFilterPanel() {
+    final activeFilterCount =
+        (_selectedCategory != null ? 1 : 0) +
+        (_searchController.text.isNotEmpty ? 1 : 0);
+
+    return AppFilterContainer(
+      title: 'Search & Filter Inventory',
+      titleIcon: Icons.filter_list,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FilterPanelHeader(
+            searchController: _searchController,
+            onSearchChanged: (query) {
+              setState(() {});
+            },
+            onClearFilters: activeFilterCount > 0 ? _clearFilters : null,
+            activeFilterCount: activeFilterCount,
+            title: 'Active Filters',
+          ),
+          SizedBox(height: AppSpacing.lg),
+          const Text(
+            'Equipment Category',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.charcoal,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          AppStatusChipGroup(
+            options: _categories,
+            selected: _selectedCategory,
+            onChanged: _onCategoryChanged,
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showAddStockDialog() {
     final formKey = GlobalKey<FormState>();
@@ -104,8 +183,13 @@ class _InventoryPageState extends State<InventoryPage> {
           builder: (ctx, setDialogState) {
             return AlertDialog(
               backgroundColor: AppTheme.whiteColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              title: const Text('Add New Equipment Stock', style: TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: const Text(
+                'Add New Equipment Stock',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: Form(
                 key: formKey,
                 child: SizedBox(
@@ -118,15 +202,32 @@ class _InventoryPageState extends State<InventoryPage> {
                         controller: nameController,
                         hintText: 'e.g. Huawei GPON ONU',
                         isRequired: true,
-                        validator: (v) => v == null || v.isEmpty ? 'Device name required' : null,
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'Device name required'
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: category,
-                        decoration: const InputDecoration(labelText: 'Equipment Category'),
-                        items: ['ONU Devices', 'Routers', 'Switches', 'Cables', 'Connectors', 'Other']
-                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                            .toList(),
+                        decoration: const InputDecoration(
+                          labelText: 'Equipment Category',
+                        ),
+                        items:
+                            [
+                                  'ONU Devices',
+                                  'Routers',
+                                  'Switches',
+                                  'Cables',
+                                  'Connectors',
+                                  'Other',
+                                ]
+                                .map(
+                                  (c) => DropdownMenuItem(
+                                    value: c,
+                                    child: Text(c),
+                                  ),
+                                )
+                                .toList(),
                         onChanged: (val) {
                           if (val != null) {
                             setDialogState(() => category = val);
@@ -141,8 +242,10 @@ class _InventoryPageState extends State<InventoryPage> {
                         keyboardType: TextInputType.number,
                         isRequired: true,
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Quantity required';
-                          if (int.tryParse(v) == null || int.parse(v) <= 0) return 'Enter valid positive count';
+                          if (v == null || v.isEmpty)
+                            return 'Quantity required';
+                          if (int.tryParse(v) == null || int.parse(v) <= 0)
+                            return 'Enter valid positive count';
                           return null;
                         },
                       ),
@@ -153,7 +256,10 @@ class _InventoryPageState extends State<InventoryPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: AppTheme.mediumGray)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: AppTheme.mediumGray),
+                  ),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -162,14 +268,21 @@ class _InventoryPageState extends State<InventoryPage> {
                         final addedQty = int.parse(qtyController.text);
                         // Search if item already exists
                         final existingIndex = _inventoryItems.indexWhere(
-                          (item) => item['name'].toString().toLowerCase() == nameController.text.trim().toLowerCase()
+                          (item) =>
+                              item['name'].toString().toLowerCase() ==
+                              nameController.text.trim().toLowerCase(),
                         );
                         if (existingIndex != -1) {
-                          _inventoryItems[existingIndex]['total'] = _inventoryItems[existingIndex]['total'] + addedQty;
-                          _inventoryItems[existingIndex]['available'] = _inventoryItems[existingIndex]['available'] + addedQty;
+                          _inventoryItems[existingIndex]['total'] =
+                              _inventoryItems[existingIndex]['total'] +
+                              addedQty;
+                          _inventoryItems[existingIndex]['available'] =
+                              _inventoryItems[existingIndex]['available'] +
+                              addedQty;
                         } else {
                           _inventoryItems.add({
-                            'id': DateTime.now().millisecondsSinceEpoch.toString(),
+                            'id': DateTime.now().millisecondsSinceEpoch
+                                .toString(),
                             'name': nameController.text.trim(),
                             'category': category,
                             'total': addedQty,
@@ -190,7 +303,10 @@ class _InventoryPageState extends State<InventoryPage> {
                       });
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Stock logged successfully!'), backgroundColor: AppTheme.successColor),
+                        const SnackBar(
+                          content: Text('Stock logged successfully!'),
+                          backgroundColor: AppTheme.successColor,
+                        ),
                       );
                     }
                   },
@@ -213,17 +329,26 @@ class _InventoryPageState extends State<InventoryPage> {
         }
 
         final filteredItems = _inventoryItems.where((item) {
-          final matchesSearch = item['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
-          final matchesCategory = _selectedCategory == 'All' || item['category'] == _selectedCategory;
+          final matchesSearch = item['name'].toString().toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          );
+          final matchesCategory =
+              _selectedCategory == null ||
+              item['category'] == _selectedCategory;
           return matchesSearch && matchesCategory;
         }).toList();
 
         // Calculations for header counters
         final int totalDevices = _inventoryItems
-            .where((i) => i['category'] == 'ONU Devices' || i['category'] == 'Routers')
+            .where(
+              (i) =>
+                  i['category'] == 'ONU Devices' || i['category'] == 'Routers',
+            )
             .fold(0, (sum, i) => sum + (i['available'] as int));
 
-        final int lowStockCount = _inventoryItems.where((i) => (i['available'] as int) <= (i['minThreshold'] as int)).length;
+        final int lowStockCount = _inventoryItems
+            .where((i) => (i['available'] as int) <= (i['minThreshold'] as int))
+            .length;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(AppConstants.paddingLarge),
@@ -233,7 +358,10 @@ class _InventoryPageState extends State<InventoryPage> {
               // Breadcrumb
               Breadcrumb(
                 items: [
-                  BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
+                  BreadcrumbItem(
+                    label: 'Home',
+                    onTap: () => context.go(RoutePaths.dashboard),
+                  ),
                   BreadcrumbItem(label: 'Inventory'),
                 ],
               ),
@@ -248,7 +376,8 @@ class _InventoryPageState extends State<InventoryPage> {
                     children: [
                       Text(
                         'Hardware & Device Inventory',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -290,7 +419,9 @@ class _InventoryPageState extends State<InventoryPage> {
                         '$lowStockCount Items',
                         'Below minimum warning limit',
                         Icons.warning_amber_rounded,
-                        lowStockCount > 0 ? AppTheme.errorColor : AppTheme.successColor,
+                        lowStockCount > 0
+                            ? AppTheme.errorColor
+                            : AppTheme.successColor,
                       ),
                       _buildMetricCard(
                         'Active Switches',
@@ -312,54 +443,8 @@ class _InventoryPageState extends State<InventoryPage> {
               ),
               const SizedBox(height: 24),
 
-              // Filter chips and search bar
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Search equipment by name...',
-                                prefixIcon: const Icon(Icons.search, size: 20),
-                                fillColor: AppTheme.veryLightGray,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onChanged: (val) {
-                                setState(() => _searchQuery = val);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: ['All', 'ONU Devices', 'Routers', 'Switches', 'Cables', 'Connectors']
-                              .map((cat) => Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: ChoiceChip(
-                                      label: Text(cat),
-                                      selected: _selectedCategory == cat,
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(() => _selectedCategory = cat);
-                                        }
-                                      },
-                                    ),
-                                  ))
-                              .toList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // Premium Filter Panel (Search + Category, reusable across modules)
+              _buildFilterPanel(),
               const SizedBox(height: 24),
 
               // Main Inventory List Card
@@ -371,7 +456,10 @@ class _InventoryPageState extends State<InventoryPage> {
                       padding: EdgeInsets.all(16),
                       child: Text(
                         'Office Stock Inventory Directory',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                     const Divider(),
@@ -400,26 +488,50 @@ class _InventoryPageState extends State<InventoryPage> {
                           statusColor = AppTheme.warningColor;
                         }
 
-                        return DataRow(cells: [
-                          DataCell(Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          DataCell(Text(item['category'] as String)),
-                          DataCell(Text('$total')),
-                          DataCell(Text('$avail', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor))),
-                          DataCell(Text('$used')),
-                          DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                statusText,
-                                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(
+                                item['name'] as String,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                          ),
-                        ]);
+                            DataCell(Text(item['category'] as String)),
+                            DataCell(Text('$total')),
+                            DataCell(
+                              Text(
+                                '$avail',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ),
+                            DataCell(Text('$used')),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  statusText,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
                       }).toList(),
                     ),
                     if (filteredItems.isEmpty)
@@ -441,7 +553,8 @@ class _InventoryPageState extends State<InventoryPage> {
                     children: [
                       Text(
                         'Recent Stock Activities',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const Divider(height: 24),
                       ListView.builder(
@@ -454,26 +567,41 @@ class _InventoryPageState extends State<InventoryPage> {
                           return ListTile(
                             dense: true,
                             leading: CircleAvatar(
-                              backgroundColor: isAdd ? AppTheme.successColor.withOpacity(0.1) : AppTheme.errorColor.withOpacity(0.1),
+                              backgroundColor: isAdd
+                                  ? AppTheme.successColor.withOpacity(0.1)
+                                  : AppTheme.errorColor.withOpacity(0.1),
                               child: Icon(
-                                isAdd ? Icons.arrow_downward : Icons.arrow_upward,
-                                color: isAdd ? AppTheme.successColor : AppTheme.errorColor,
+                                isAdd
+                                    ? Icons.arrow_downward
+                                    : Icons.arrow_upward,
+                                color: isAdd
+                                    ? AppTheme.successColor
+                                    : AppTheme.errorColor,
                                 size: 16,
                               ),
                             ),
-                            title: Text(log['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: Text('Logged by ${log['operator']} on ${log['date']}'),
+                            title: Text(
+                              log['name'] as String,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Logged by ${log['operator']} on ${log['date']}',
+                            ),
                             trailing: Text(
                               log['qty'] as String,
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: isAdd ? AppTheme.successColor : AppTheme.errorColor,
+                                color: isAdd
+                                    ? AppTheme.successColor
+                                    : AppTheme.errorColor,
                                 fontSize: 14,
                               ),
                             ),
                           );
                         },
-                      )
+                      ),
                     ],
                   ),
                 ),
@@ -485,7 +613,13 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  Widget _buildMetricCard(String label, String value, String subtitle, IconData icon, Color iconColor) {
+  Widget _buildMetricCard(
+    String label,
+    String value,
+    String subtitle,
+    IconData icon,
+    Color iconColor,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -505,11 +639,30 @@ class _InventoryPageState extends State<InventoryPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.mediumGray)),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.mediumGray,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 10, color: AppTheme.mediumGray), overflow: TextOverflow.ellipsis),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppTheme.mediumGray,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_fonts.dart';
 import 'package:nasr_isp/shared/models/models.dart';
@@ -46,7 +45,6 @@ class DashboardSidebar extends StatefulWidget {
 
 class _DashboardSidebarState extends State<DashboardSidebar> {
   bool isExpanded = true;
-  final Set<int> expandedItems = <int>{};
 
   List<SidebarItem> _getMenuItems() {
     final isAdmin = widget.currentUser.role.isAdmin;
@@ -63,7 +61,10 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
         route: RoutePaths.customers,
         subItems: [
           const SidebarSubItem(label: 'Customers', route: RoutePaths.customers),
-          const SidebarSubItem(label: 'Installations', route: RoutePaths.installations),
+          const SidebarSubItem(
+            label: 'Installations',
+            route: RoutePaths.installations,
+          ),
           const SidebarSubItem(label: 'Inventory', route: RoutePaths.inventory),
         ],
       ),
@@ -73,7 +74,10 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
         route: RoutePaths.payments,
         subItems: [
           const SidebarSubItem(label: 'Payments', route: RoutePaths.payments),
-          const SidebarSubItem(label: 'Khataa Ledger', route: RoutePaths.khataa),
+          const SidebarSubItem(
+            label: 'Khataa Ledger',
+            route: RoutePaths.khataa,
+          ),
           if (isAdmin)
             const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
         ],
@@ -84,40 +88,14 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
         route: RoutePaths.settings,
         subItems: [
           if (isAdmin)
-            const SidebarSubItem(label: 'Reports', route: RoutePaths.reports),
-          if (isAdmin)
-            const SidebarSubItem(label: 'Employees', route: RoutePaths.employees),
+            const SidebarSubItem(
+              label: 'Employees',
+              route: RoutePaths.employees,
+            ),
           const SidebarSubItem(label: 'Settings', route: RoutePaths.settings),
         ],
       ),
     ];
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _expandActiveGroup();
-  }
-
-  @override
-  void didUpdateWidget(DashboardSidebar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _expandActiveGroup();
-  }
-
-  void _expandActiveGroup() {
-    final items = _getMenuItems();
-    for (int i = 0; i < items.length; i++) {
-      final item = items[i];
-      if (widget.currentRoute.startsWith(item.route)) {
-        expandedItems.add(i);
-      }
-      for (final sub in item.subItems) {
-        if (widget.currentRoute.startsWith(sub.route)) {
-          expandedItems.add(i);
-        }
-      }
-    }
   }
 
   @override
@@ -127,12 +105,10 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       width: isExpanded ? 260 : 80,
-      decoration: const BoxDecoration(
-        color: AppColors.navyDark, // Consistent premium dark navy color
-      ),
+      decoration: const BoxDecoration(color: AppColors.navyDark),
       child: Column(
         children: [
-          // Logo & Branding Header
+          // ── Logo & Branding Header ────────────────────────────────────────
           Container(
             height: 80,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -208,7 +184,10 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                   ),
                 if (isExpanded)
                   IconButton(
-                    icon: const Icon(Icons.chevron_left, color: AppColors.mediumGray),
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: AppColors.mediumGray,
+                    ),
                     onPressed: () => setState(() => isExpanded = false),
                   ),
               ],
@@ -224,7 +203,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
             ),
           ],
 
-          // Navigation Menu Items
+          // ── Navigation Menu ───────────────────────────────────────────────
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -232,8 +211,8 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
               itemBuilder: (context, i) {
                 final item = menuItems[i];
                 final hasSubItems = item.subItems.isNotEmpty;
-                
-                // Determine if this item or any of its sub-items is active
+
+                // Determine active state
                 bool isGroupActive = widget.currentRoute.startsWith(item.route);
                 int selectedSubIndex = -1;
                 for (int s = 0; s < item.subItems.length; s++) {
@@ -243,31 +222,32 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                   }
                 }
 
-                final isExpandedGroup = expandedItems.contains(i);
-
                 return _SidebarGroupTile(
                   item: item,
                   isExpandedSidebar: isExpanded,
                   isGroupActive: isGroupActive,
-                  isGroupExpanded: isExpandedGroup,
-                  selectedSubIndex: selectedSubIndex >= 0 ? selectedSubIndex : null,
+                  selectedSubIndex: selectedSubIndex >= 0
+                      ? selectedSubIndex
+                      : null,
                   onGroupTap: () {
-                    if (hasSubItems) {
-                      setState(() {
-                        if (isExpandedGroup) {
-                          expandedItems.remove(i);
-                        } else {
-                          expandedItems.add(i);
-                        }
-                      });
-                      if (!isExpanded) {
-                        setState(() => isExpanded = true);
+                    // If no sub-items, navigate directly
+                    if (!hasSubItems) {
+                      final scaffoldState = Scaffold.maybeOf(context);
+                      if (scaffoldState != null && scaffoldState.isDrawerOpen) {
+                        Navigator.pop(context);
                       }
-                    } else {
                       context.go(item.route);
+                    }
+                    // If collapsed sidebar, expand it
+                    if (!isExpanded) {
+                      setState(() => isExpanded = true);
                     }
                   },
                   onSubTap: (subIndex) {
+                    final scaffoldState = Scaffold.maybeOf(context);
+                    if (scaffoldState != null && scaffoldState.isDrawerOpen) {
+                      Navigator.pop(context);
+                    }
                     context.go(item.subItems[subIndex].route);
                   },
                 );
@@ -275,7 +255,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
             ),
           ),
 
-          // User Info & Logout Footer
+          // ── User Info & Logout Footer ─────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -295,7 +275,8 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                         radius: 16,
                         backgroundColor: AppColors.primaryBlue.withOpacity(0.2),
                         child: Text(
-                          widget.currentUser.name.characters.first.toUpperCase(),
+                          widget.currentUser.name.characters.first
+                              .toUpperCase(),
                           style: AppFonts.labelMedium.copyWith(
                             color: AppColors.primaryBlue,
                             fontWeight: AppFonts.bold,
@@ -336,7 +317,11 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                   width: double.infinity,
                   child: TextButton.icon(
                     onPressed: widget.onLogout,
-                    icon: const Icon(Icons.logout, size: 18, color: AppColors.errorRed),
+                    icon: const Icon(
+                      Icons.logout,
+                      size: 18,
+                      color: AppColors.errorRed,
+                    ),
                     label: isExpanded
                         ? Text(
                             'Sign Out',
@@ -347,7 +332,9 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                           )
                         : const SizedBox.shrink(),
                     style: TextButton.styleFrom(
-                      alignment: isExpanded ? Alignment.centerLeft : Alignment.center,
+                      alignment: isExpanded
+                          ? Alignment.centerLeft
+                          : Alignment.center,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
                   ),
@@ -361,11 +348,14 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// _SidebarGroupTile — Always-expanded group tile (no toggle)
+// ══════════════════════════════════════════════════════════════════════════════
+
 class _SidebarGroupTile extends StatefulWidget {
   final SidebarItem item;
   final bool isExpandedSidebar;
   final bool isGroupActive;
-  final bool isGroupExpanded;
   final int? selectedSubIndex;
   final VoidCallback onGroupTap;
   final Function(int) onSubTap;
@@ -374,7 +364,6 @@ class _SidebarGroupTile extends StatefulWidget {
     required this.item,
     required this.isExpandedSidebar,
     required this.isGroupActive,
-    required this.isGroupExpanded,
     this.selectedSubIndex,
     required this.onGroupTap,
     required this.onSubTap,
@@ -402,6 +391,7 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
 
     return Column(
       children: [
+        // ── Group header row (no chevron, no toggle) ──────────────────────
         MouseRegion(
           onEnter: (_) => setState(() => isHovered = true),
           onExit: (_) => setState(() => isHovered = false),
@@ -420,11 +410,7 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
                     ? MainAxisAlignment.start
                     : MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    widget.item.icon,
-                    color: iconAndTextColor,
-                    size: 20,
-                  ),
+                  Icon(widget.item.icon, color: iconAndTextColor, size: 20),
                   if (widget.isExpandedSidebar) ...[
                     const SizedBox(width: 12),
                     Expanded(
@@ -439,23 +425,16 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
                         ),
                       ),
                     ),
-                    if (hasSubItems)
-                      Icon(
-                        widget.isGroupExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        color: iconAndTextColor,
-                        size: 16,
-                      ),
+                    // ← chevron removed entirely
                   ],
                 ],
               ),
             ),
           ),
         ),
-        
-        // Expandable Sub-items list
-        if (hasSubItems && widget.isGroupExpanded && widget.isExpandedSidebar)
+
+        // ── Sub-items — always visible when sidebar is expanded ───────────
+        if (hasSubItems && widget.isExpandedSidebar)
           ...widget.item.subItems.asMap().entries.map((entry) {
             final int subIndex = entry.key;
             final SidebarSubItem subItem = entry.value;
@@ -465,11 +444,15 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
 
             final Color subBgColor = subSelected
                 ? AppColors.primaryBlue.withOpacity(0.12)
-                : (subHovered ? Colors.white.withOpacity(0.04) : Colors.transparent);
+                : (subHovered
+                      ? Colors.white.withOpacity(0.04)
+                      : Colors.transparent);
 
             final Color subTextColor = subSelected
                 ? AppColors.primaryBlue
-                : (subHovered ? AppColors.white : AppColors.mediumGray.withOpacity(0.8));
+                : (subHovered
+                      ? AppColors.white
+                      : AppColors.mediumGray.withOpacity(0.8));
 
             return MouseRegion(
               onEnter: (_) => setState(() => hoveredSubIndex = subIndex),
@@ -478,19 +461,23 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
               child: GestureDetector(
                 onTap: () => widget.onSubTap(subIndex),
                 child: Container(
-                  margin: const EdgeInsets.only(left: 36, right: 16, bottom: 4, top: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.only(
+                    left: 36,
+                    right: 16,
+                    bottom: 4,
+                    top: 4,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
                     color: subBgColor,
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.circle,
-                        size: 6,
-                        color: subTextColor,
-                      ),
+                      Icon(Icons.circle, size: 6, color: subTextColor),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -510,10 +497,21 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
               ),
             );
           }),
+
+        // ── Subtle section divider between groups ─────────────────────────
+        if (widget.isExpandedSidebar)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Divider(color: Colors.white.withOpacity(0.05), height: 1),
+          ),
       ],
     );
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DashboardTopBar
+// ══════════════════════════════════════════════════════════════════════════════
 
 class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -537,9 +535,7 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
       foregroundColor: AppColors.black,
       title: Text(
         title,
-        style: AppFonts.headlineMedium.copyWith(
-          fontWeight: AppFonts.bold,
-        ),
+        style: AppFonts.headlineMedium.copyWith(fontWeight: AppFonts.bold),
       ),
       actions: [
         if (actions != null) ...actions!,
@@ -611,7 +607,7 @@ class Breadcrumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items == null || items!.isEmpty) {
-      return const Breadcrumbs(); // Dynamic auto-generation fallback
+      return const Breadcrumbs();
     }
 
     return Padding(
@@ -631,7 +627,10 @@ class Breadcrumb extends StatelessWidget {
                     onTap: item.onTap,
                     borderRadius: BorderRadius.circular(4),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       child: Text(
                         item.label,
                         style: AppFonts.bodySmall.copyWith(
@@ -643,7 +642,10 @@ class Breadcrumb extends StatelessWidget {
                   )
                 else
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     child: Text(
                       item.label,
                       style: AppFonts.bodySmall.copyWith(

@@ -14,7 +14,6 @@ import 'package:nasr_isp/features/employees/presentation/pages/employees_page.da
 import 'package:nasr_isp/features/expenses/presentation/pages/expenses_page.dart';
 import 'package:nasr_isp/features/installations/presentation/pages/installations_page.dart';
 import 'package:nasr_isp/features/payments/presentation/pages/payments_page.dart';
-import 'package:nasr_isp/features/reports/presentation/pages/reports_page.dart';
 import 'package:nasr_isp/features/settings/presentation/pages/settings_page.dart';
 import 'package:nasr_isp/features/inventory/presentation/pages/inventory_page.dart';
 import 'package:nasr_isp/features/khataa/presentation/pages/khataa_page.dart';
@@ -92,20 +91,20 @@ GoRouter createAppRouter(AuthBloc authBloc) {
             },
           ),
           // Reports (admin-only)
-          GoRoute(
-            path: RoutePaths.reports,
-            builder: (context, state) => const ReportsPage(),
-            redirect: (context, state) {
-              final authBloc = context.read<AuthBloc>();
-              if (authBloc.state is AuthAuthenticated) {
-                final user = (authBloc.state as AuthAuthenticated).user;
-                if (!AuthHelpers.canAccessAdminRoutes(user)) {
-                  return RoutePaths.dashboard;
-                }
-              }
-              return null;
-            },
-          ),
+          // GoRoute(
+          //   path: RoutePaths.reports,
+          //   builder: (context, state) => const ReportsPage(),
+          //   redirect: (context, state) {
+          //     final authBloc = context.read<AuthBloc>();
+          //     if (authBloc.state is AuthAuthenticated) {
+          //       final user = (authBloc.state as AuthAuthenticated).user;
+          //       if (!AuthHelpers.canAccessAdminRoutes(user)) {
+          //         return RoutePaths.dashboard;
+          //       }
+          //     }
+          //     return null;
+          //   },
+          // ),
           // Employees (admin-only)
           GoRoute(
             path: RoutePaths.employees,
