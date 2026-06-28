@@ -3,60 +3,49 @@ import 'package:nasr_isp/shared/models/models.dart';
 
 /// Authorization helpers for role-based access control
 class AuthHelpers {
+  // Admin-only route paths
+  static const List<String> _adminOnlyRoutes = [
+    RoutePaths.expenses,
+    RoutePaths.employees,
+    RoutePaths.settings,
+    RoutePaths.inventory,
+    RoutePaths.khataa,
+  ];
+
   /// Check if user is an admin
-  static bool isAdmin(UserModel user) {
-    return user.role.isAdmin;
-  }
+  static bool isAdmin(UserModel user) => user.isAdmin;
 
   /// Check if user is an employee
-  static bool isEmployee(UserModel user) {
-    return !user.role.isAdmin;
-  }
+  static bool isEmployee(UserModel user) => user.isEmployee;
 
   /// Check if user has access to admin-only routes
-  static bool canAccessAdminRoutes(UserModel user) {
-    return user.role.isAdmin;
-  }
+  static bool canAccessAdminRoutes(UserModel user) => user.isAdmin;
 
-  /// Check if user can access employee routes
-  static bool canAccessEmployeeRoutes(UserModel user) {
-    return true; // All authenticated users can access
-  }
+  /// Check if user can edit packages (admin only)
+  static bool canEditPackages(UserModel user) => user.isAdmin;
+
+  /// Check if user can view financial information (admin only)
+  static bool canViewFinancials(UserModel user) => user.isAdmin;
 
   /// Check if user has access to a specific route
   static bool hasRouteAccess(UserModel user, String routePath) {
-    // Admin-only routes
-    const adminOnlyRoutes = [
-      RoutePaths.expenses,
-      RoutePaths.reports,
-      RoutePaths.employees,
-    ];
-
-    if (adminOnlyRoutes.contains(routePath)) {
+    if (_adminOnlyRoutes.contains(routePath)) {
       return isAdmin(user);
     }
-
     // All authenticated users can access other routes
     return true;
   }
 
-  /// Get the appropriate dashboard route based on user role
-  static String getDashboardRoute(UserModel user) {
-    return RoutePaths.dashboard;
-  }
-
-  /// Get user role display name
-  static String getRoleDisplayName(UserRole role) {
-    return role.isAdmin ? 'Administrator' : 'Employee';
-  }
-
   /// Check if route is admin-only
   static bool isAdminOnlyRoute(String routePath) {
-    const adminOnlyRoutes = [
-      RoutePaths.expenses,
-      RoutePaths.reports,
-      RoutePaths.employees,
-    ];
-    return adminOnlyRoutes.contains(routePath);
+    return _adminOnlyRoutes.contains(routePath);
+  }
+
+  /// Get the appropriate dashboard route based on user role
+  static String getDashboardRoute(UserModel user) => RoutePaths.dashboard;
+
+  /// Get user role display name
+  static String getRoleDisplayName(String role) {
+    return role.toLowerCase() == 'admin' ? 'Administrator' : 'Employee';
   }
 }

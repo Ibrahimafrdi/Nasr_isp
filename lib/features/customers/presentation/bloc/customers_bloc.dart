@@ -2,6 +2,10 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/add_customer.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
 
 // Customers Events
 abstract class CustomersEvent extends Equatable {
@@ -15,15 +19,22 @@ class LoadCustomersEvent extends CustomersEvent {
   final int page;
   final String? searchQuery;
   final CustomerStatus? filterStatus;
+  final String? filterConnectionType; // 'wireless', 'fiber', or null for all
 
   const LoadCustomersEvent({
     this.page = 1,
     this.searchQuery,
     this.filterStatus,
+    this.filterConnectionType,
   });
 
   @override
-  List<Object?> get props => [page, searchQuery, filterStatus];
+  List<Object?> get props => [
+    page,
+    searchQuery,
+    filterStatus,
+    filterConnectionType,
+  ];
 }
 
 class SearchCustomersEvent extends CustomersEvent {
@@ -62,6 +73,15 @@ class UpdateCustomerEvent extends CustomersEvent {
   List<Object?> get props => [customer];
 }
 
+class DeleteCustomerEvent extends CustomersEvent {
+  final String customerId;
+
+  const DeleteCustomerEvent(this.customerId);
+
+  @override
+  List<Object?> get props => [customerId];
+}
+
 // Customers States
 abstract class CustomersState extends Equatable {
   const CustomersState();
@@ -84,6 +104,7 @@ class CustomersLoaded extends CustomersState {
   final int totalPages;
   final String? searchQuery;
   final CustomerStatus? filterStatus;
+  final String? filterConnectionType;
 
   const CustomersLoaded({
     required this.customers,
@@ -91,6 +112,7 @@ class CustomersLoaded extends CustomersState {
     required this.totalPages,
     this.searchQuery,
     this.filterStatus,
+    this.filterConnectionType,
   });
 
   @override
@@ -100,6 +122,7 @@ class CustomersLoaded extends CustomersState {
     totalPages,
     searchQuery,
     filterStatus,
+    filterConnectionType,
   ];
 }
 
@@ -114,33 +137,62 @@ class CustomersError extends CustomersState {
 
 // Customers BLoC
 class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
-  final List<CustomerModel> _allCustomers = _generateAllMockCustomers();
+  final GetCustomers getCustomers;
+  final AddCustomer addCustomer;
+  final UpdateCustomer updateCustomer;
+  final DeleteCustomer deleteCustomer;
 
-  CustomersBloc() : super(const CustomersInitial()) {
+  CustomersBloc({
+    required this.getCustomers,
+    required this.addCustomer,
+    required this.updateCustomer,
+    required this.deleteCustomer,
+  }) : super(const CustomersInitial()) {
     on<LoadCustomersEvent>(_onLoadCustomers);
     on<SearchCustomersEvent>(_onSearchCustomers);
     on<FilterCustomersEvent>(_onFilterCustomers);
     on<CreateCustomerEvent>(_onCreateCustomer);
     on<UpdateCustomerEvent>(_onUpdateCustomer);
+    on<DeleteCustomerEvent>(_onDeleteCustomer);
   }
 
   Future<void> _onCreateCustomer(
     CreateCustomerEvent event,
     Emitter<CustomersState> emit,
   ) async {
-    _allCustomers.insert(0, event.customer);
-    await _onLoadCustomers(const LoadCustomersEvent(), emit);
+    try {
+      await addCustomer(event.customer);
+      await _onLoadCustomers(const LoadCustomersEvent(), emit);
+    } catch (e) {
+      emit(CustomersError(message: 'Failed to create customer: $e'));
+    }
   }
 
   Future<void> _onUpdateCustomer(
     UpdateCustomerEvent event,
     Emitter<CustomersState> emit,
   ) async {
-    final idx = _allCustomers.indexWhere((c) => c.id == event.customer.id);
-    if (idx != -1) {
-      _allCustomers[idx] = event.customer;
+    emit(const CustomersLoading());
+    try {
+      await updateCustomer(event.customer);
+      // Give Firestore time to propagate before re-fetching
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _onLoadCustomers(const LoadCustomersEvent(), emit);
+    } catch (e) {
+      emit(CustomersError(message: 'Failed to update customer: $e'));
     }
-    await _onLoadCustomers(const LoadCustomersEvent(), emit);
+  }
+
+  Future<void> _onDeleteCustomer(
+    DeleteCustomerEvent event,
+    Emitter<CustomersState> emit,
+  ) async {
+    try {
+      await deleteCustomer(event.customerId);
+      await _onLoadCustomers(const LoadCustomersEvent(), emit);
+    } catch (e) {
+      emit(CustomersError(message: 'Failed to delete customer: $e'));
+    }
   }
 
   Future<void> _onLoadCustomers(
@@ -148,10 +200,35 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     Emitter<CustomersState> emit,
   ) async {
     emit(const CustomersLoading());
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     try {
-      var filtered = _filterCustomers(event.searchQuery, event.filterStatus);
+      final allCustomersList = await getCustomers();
+      final List<CustomerModel> allModels = allCustomersList.map((e) {
+        if (e is CustomerModel) return e;
+        return CustomerModel(
+          id: e.id,
+          name: e.name,
+          phone: e.phone,
+          cnic: e.cnic,
+          address: e.address,
+          connectionType: e.connectionType,
+          packageId: e.packageId,
+          monthlyBill: e.monthlyBill,
+          status: e.status,
+          notes: e.notes,
+          createdAt: e.createdAt,
+          joinDate: e.joinDate,
+          nextDueDate: e.nextDueDate,
+        );
+      }).toList();
+
+      final filtered = _filterCustomers(
+        allModels,
+        event.searchQuery,
+        event.filterStatus,
+        event.filterConnectionType,
+      );
 
       final totalPages = (filtered.length / AppConstants.itemsPerPage).ceil();
       final start = (event.page - 1) * AppConstants.itemsPerPage;
@@ -167,6 +244,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
           totalPages: totalPages,
           searchQuery: event.searchQuery,
           filterStatus: event.filterStatus,
+          filterConnectionType: event.filterConnectionType,
         ),
       );
     } catch (e) {
@@ -192,55 +270,47 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
   }
 
   List<CustomerModel> _filterCustomers(
+    List<CustomerModel> customers,
     String? searchQuery,
     CustomerStatus? status,
+    String? connectionType,
   ) {
-    var result = List<CustomerModel>.from(_allCustomers);
+    var result = List<CustomerModel>.from(customers);
 
     if (searchQuery != null && searchQuery.isNotEmpty) {
       result = result.where((c) {
         return c.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
             c.phone.contains(searchQuery) ||
-            c.packageName.toLowerCase().contains(searchQuery.toLowerCase());
+            c.cnic.contains(searchQuery) ||
+            c.address.toLowerCase().contains(searchQuery.toLowerCase());
       }).toList();
     }
 
     if (status != null) {
-      result = result.where((c) => c.status == status).toList();
+      final now = DateTime.now();
+      result = result.where((c) {
+        switch (status) {
+          case CustomerStatus.active:
+            return c.status == 'active' &&
+                (c.nextDueDate == null ||
+                    c.nextDueDate!.isAfter(now.add(const Duration(days: 7))));
+          case CustomerStatus.expiringSoon:
+            if (c.nextDueDate == null) return false;
+            final diff = c.nextDueDate!.difference(now).inDays;
+            return diff >= 0 && diff <= 7;
+          case CustomerStatus.expired:
+            if (c.nextDueDate == null) return false;
+            return c.nextDueDate!.isBefore(now);
+          case CustomerStatus.inactive:
+            return c.status == 'inactive';
+        }
+      }).toList();
+    }
+
+    if (connectionType != null) {
+      result = result.where((c) => c.connectionType == connectionType).toList();
     }
 
     return result;
-  }
-
-  static List<CustomerModel> _generateAllMockCustomers() {
-    final baseDate = DateTime.now();
-    return List.generate(150, (i) {
-      final daysUntilExpiry = 7 + (i % 60);
-      final expiryDate = baseDate.add(Duration(days: daysUntilExpiry));
-
-      CustomerStatus status;
-      if (daysUntilExpiry <= 0) {
-        status = CustomerStatus.expired;
-      } else if (daysUntilExpiry <= 7) {
-        status = CustomerStatus.expiringSoon;
-      } else {
-        status = CustomerStatus.active;
-      }
-
-      return CustomerModel(
-        id: 'cust_$i',
-        name: 'Customer ${i + 1}',
-        phone: '+923001234${500 + i}',
-        address: 'Address $i, Karachi',
-        email: 'customer$i@email.com',
-        packageName: ['10 Mbps', '25 Mbps', '50 Mbps'][i % 3],
-        monthlyRate: [999, 1499, 2499][i % 3].toDouble(),
-        expiryDate: expiryDate,
-        status: status,
-        assignedEmployeeId: 'emp_${i % 5}',
-        createdAt: baseDate.subtract(Duration(days: 90 + i)),
-        balance: (i % 2 == 0) ? 0 : (500 + (i * 100)).toDouble(),
-      );
-    });
   }
 }

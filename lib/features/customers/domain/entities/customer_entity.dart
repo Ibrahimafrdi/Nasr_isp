@@ -1,0 +1,31 @@
+class CustomerEntity {
+  final String id;
+  final String name;
+  final String phone;
+  final String cnic;
+  final String address;
+  final String connectionType;
+  final String? packageId;
+  final double monthlyBill;
+  final String status;
+  final String notes;
+  final DateTime? createdAt;
+  final DateTime? joinDate;
+  final DateTime? nextDueDate;
+
+  const CustomerEntity({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.cnic,
+    required this.address,
+    required this.connectionType,
+    this.packageId,
+    required this.monthlyBill,
+    required this.status,
+    required this.notes,
+    this.createdAt,
+    this.joinDate,
+    this.nextDueDate,
+  });
+}

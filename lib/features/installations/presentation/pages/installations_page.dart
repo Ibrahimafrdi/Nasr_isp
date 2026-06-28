@@ -413,7 +413,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       BreadcrumbItem(label: 'Installations'),
                     ],
                   ),
-                  if (authState.user.role.isAdmin)
+                  if (authState.user.isAdmin)
                     ElevatedButton.icon(
                       onPressed: () => _showAddInstallationDialog(context),
                       icon: const Icon(Icons.construction, size: 18),
@@ -428,39 +428,41 @@ class _InstallationsPageState extends State<InstallationsPage> {
               const SizedBox(height: 24),
 
               // Metric Summary Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: DashboardCard(
-                      label: 'Gross Installation Fees',
-                      value: DateTimeUtils.formatCurrency(totalFee),
-                      icon: Icons.payments,
+              if (authState.user.isAdmin) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: DashboardCard(
+                        label: 'Gross Installation Fees',
+                        value: DateTimeUtils.formatCurrency(totalFee),
+                        icon: Icons.payments,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DashboardCard(
-                      label: 'Total Material & Cable Costs',
-                      value: DateTimeUtils.formatCurrency(totalCost),
-                      icon: Icons.shopping_bag_outlined,
-                      backgroundColor: AppTheme.errorColor.withOpacity(0.04),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DashboardCard(
+                        label: 'Total Material & Cable Costs',
+                        value: DateTimeUtils.formatCurrency(totalCost),
+                        icon: Icons.shopping_bag_outlined,
+                        backgroundColor: AppTheme.errorColor.withOpacity(0.04),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DashboardCard(
-                      label: 'Net Installation Profit',
-                      value: DateTimeUtils.formatCurrency(netMargin),
-                      icon: Icons.account_balance_wallet,
-                      backgroundColor: AppTheme.successColor.withOpacity(0.05),
-                      subtitle: totalFee > 0
-                          ? '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin'
-                          : 'No data for current filter',
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DashboardCard(
+                        label: 'Net Installation Profit',
+                        value: DateTimeUtils.formatCurrency(netMargin),
+                        icon: Icons.account_balance_wallet,
+                        backgroundColor: AppTheme.successColor.withOpacity(0.05),
+                        subtitle: totalFee > 0
+                            ? '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin'
+                            : 'No data for current filter',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
+                  ],
+                ),
+                const SizedBox(height: 32),
+              ],
 
               // Installations table
               Card(
@@ -487,7 +489,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                               subtitle:
                                   'Adjust your filters or log a new installation to begin.',
                             )
-                          : _buildInstallationsTable(installations),
+                          : _buildInstallationsTable(installations, authState.user.isAdmin),
                     ],
                   ),
                 ),
@@ -499,17 +501,19 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
-  Widget _buildInstallationsTable(List<Map<String, dynamic>> installations) {
+  Widget _buildInstallationsTable(List<Map<String, dynamic>> installations, bool isAdmin) {
     return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Customer')),
-        DataColumn(label: Text('Assigned Installer')),
-        DataColumn(label: Text('Date Installed')),
-        DataColumn(label: Text('Materials Used (BOM)')),
-        DataColumn(label: Text('Material Cost')),
-        DataColumn(label: Text('Setup Fee Charged')),
-        DataColumn(label: Text('Net Return')),
-        DataColumn(label: Text('Status')),
+      columns: [
+        const DataColumn(label: Text('Customer')),
+        const DataColumn(label: Text('Assigned Installer')),
+        const DataColumn(label: Text('Date Installed')),
+        const DataColumn(label: Text('Materials Used (BOM)')),
+        if (isAdmin) ...[
+          const DataColumn(label: Text('Material Cost')),
+          const DataColumn(label: Text('Setup Fee Charged')),
+          const DataColumn(label: Text('Net Return')),
+        ],
+        const DataColumn(label: Text('Status')),
       ],
       rows: installations.map((inst) {
         double cost = inst['cost'] as double;
@@ -549,19 +553,21 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 ),
               ),
             ),
-            DataCell(Text(DateTimeUtils.formatCurrency(cost))),
-            DataCell(Text(DateTimeUtils.formatCurrency(fee))),
-            DataCell(
-              Text(
-                DateTimeUtils.formatCurrency(profit),
-                style: TextStyle(
-                  color: profit > 0
-                      ? AppTheme.successColor
-                      : AppTheme.errorColor,
-                  fontWeight: FontWeight.bold,
+            if (isAdmin) ...[
+              DataCell(Text(DateTimeUtils.formatCurrency(cost))),
+              DataCell(Text(DateTimeUtils.formatCurrency(fee))),
+              DataCell(
+                Text(
+                  DateTimeUtils.formatCurrency(profit),
+                  style: TextStyle(
+                    color: profit > 0
+                        ? AppTheme.successColor
+                        : AppTheme.errorColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
+            ],
             DataCell(
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -7,6 +7,7 @@ import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/alert_panel.dart';
 import 'package:nasr_isp/shared/widgets/kpi_card.dart';
 import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
@@ -51,7 +52,7 @@ class _DashboardPageState extends State<DashboardPage> {
         }
 
         final user = authState.user;
-        final isAdmin = user.role.isAdmin;
+        final isAdmin = user.isAdmin;
 
         return BlocBuilder<DashboardBloc, DashboardState>(
           builder: (context, state) {
@@ -135,40 +136,36 @@ class _DashboardPageState extends State<DashboardPage> {
                   const SizedBox(height: 24),
 
                   // ===== ALERTS (Admin Only) =====
-                  if (isAdmin && (_showExpiringAlert || _showOverdueAlert)) ...[
-                    Column(
-                      children: [
-                        if (_showExpiringAlert) ...[
-                          AlertPanel(
-                            type: AlertType.warning,
-                            title: '5 Customers Expiring Soon',
-                            message:
-                                'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
-                            icon: Icons.warning_amber,
-                            actionLabel: 'Review',
-                            onActionTap: () => context.go(RoutePaths.customers),
-                            onDismiss: () {
-                              setState(() => _showExpiringAlert = false);
-                            },
-                          ),
-                          if (_showOverdueAlert) const SizedBox(height: 16),
-                        ],
-                        if (_showOverdueAlert)
-                          AlertPanel(
-                            type: AlertType.error,
-                            title: 'Payments Overdue',
-                            message:
-                                '12 customers have unpaid invoices totaling 185K PKR.',
-                            icon: Icons.error_outline,
-                            actionLabel: 'Collect Now',
-                            onActionTap: () => context.go(RoutePaths.payments),
-                            onDismiss: () {
-                              setState(() => _showOverdueAlert = false);
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
+                  if (isAdmin && state is DashboardLoaded) ...[
+                    if (_showExpiringAlert && state.expiringCustomers.isNotEmpty)
+                      AlertPanel(
+                        type: AlertType.warning,
+                        title: '${state.expiringCustomers.length} Customers Expiring Soon',
+                        message:
+                            'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
+                        icon: Icons.warning_amber,
+                        actionLabel: 'Review',
+                        onActionTap: () => context.go(RoutePaths.customers),
+                        onDismiss: () => setState(() => _showExpiringAlert = false),
+                      ),
+                    if (_showOverdueAlert && state.pendingPayments.isNotEmpty) ...[
+                      if (_showExpiringAlert && state.expiringCustomers.isNotEmpty)
+                        const SizedBox(height: 16),
+                      AlertPanel(
+                        type: AlertType.error,
+                        title: 'Payments Overdue',
+                        message:
+                            '${state.pendingPayments.length} customers have unpaid invoices totaling ${_formatCurrency(state.stats.pendingPayments)}.',
+                        icon: Icons.error_outline,
+                        actionLabel: 'Collect Now',
+                        onActionTap: () => context.go(RoutePaths.payments),
+                        onDismiss: () => setState(() => _showOverdueAlert = false),
+                      ),
+                    ],
+                    if ((state.expiringCustomers.isNotEmpty ||
+                            state.pendingPayments.isNotEmpty) &&
+                        (_showExpiringAlert || _showOverdueAlert))
+                      const SizedBox(height: 32),
                   ],
 
                   // ===== KPI CARDS =====
@@ -181,7 +178,21 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildKPICards(isAdmin),
+                  _buildKPICards(
+                    isAdmin,
+                    state is DashboardLoaded
+                        ? state.stats
+                        : const DashboardStatsModel(
+                            totalCustomers: 0,
+                            activeCustomers: 0,
+                            expiredCustomers: 0,
+                            expiringsoon: 0,
+                            monthlyRevenue: 0,
+                            monthlyExpenses: 0,
+                            netProfit: 0,
+                            pendingPayments: 0,
+                          ),
+                  ),
                   const SizedBox(height: 32),
 
                   // ===== QUICK ACTIONS =====
@@ -198,7 +209,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   const SizedBox(height: 32),
 
                   // ===== ANALYTICS (Admin Only) =====
-                  if (isAdmin) ...[
+                  if (isAdmin && state is DashboardLoaded) ...[
                     Text(
                       'Analytics & Performance Statistics',
                       style: GoogleFonts.inter(
@@ -208,7 +219,12 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const AnalyticsSection(),
+                    AnalyticsSection(
+                      monthlyRevenue6: state.monthlyRevenue6,
+                      customerGrowth6: state.customerGrowth6,
+                      connectionTypeDist: state.connectionTypeDist,
+                      paymentByMethod: state.paymentByMethod,
+                    ),
                     const SizedBox(height: 32),
                   ],
 
@@ -222,7 +238,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildActivityTimeline(),
+                  _buildActivityTimeline(
+                    state is DashboardLoaded ? state.recentPayments : [],
+                  ),
                   const SizedBox(height: 32),
 
                   // ===== DATA TABLES (Admin Only) =====
@@ -236,7 +254,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildExpiringTable(),
+                    _buildExpiringTable(
+                      state is DashboardLoaded ? state.expiringCustomers : [],
+                    ),
                     const SizedBox(height: 32),
 
                     Text(
@@ -248,7 +268,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildRecentPaymentsTable(),
+                    _buildRecentPaymentsTable(
+                      state is DashboardLoaded ? state.recentPayments : [],
+                    ),
                     const SizedBox(height: 24),
                   ],
                 ],
@@ -271,8 +293,17 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // ===== KPI CARDS (static placeholder data) =====
-  Widget _buildKPICards(bool isAdmin) {
+  String _formatCurrency(double amount) {
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M PKR';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(0)}K PKR';
+    }
+    return '${amount.toStringAsFixed(0)} PKR';
+  }
+
+  // ===== KPI CARDS (real data-driven) =====
+  Widget _buildKPICards(bool isAdmin, DashboardStatsModel stats) {
     return LayoutBuilder(
       builder: (context, constraints) {
         int columns = 1;
@@ -292,9 +323,9 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             KPICard(
               title: 'Total Customers',
-              value: '1,245',
+              value: stats.totalCustomers.toString(),
               subtitle: 'Active accounts',
-              trend: '+12.5%',
+              trend: '',
               isTrendPositive: true,
               icon: Icons.people,
               gradient: AppColors.blueGradient,
@@ -302,9 +333,9 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             KPICard(
               title: 'Active Subscribers',
-              value: '980',
+              value: stats.activeCustomers.toString(),
               subtitle: 'Currently active',
-              trend: '+8.2%',
+              trend: '',
               isTrendPositive: true,
               icon: Icons.check_circle,
               gradient: AppColors.greenGradient,
@@ -313,9 +344,9 @@ class _DashboardPageState extends State<DashboardPage> {
             if (isAdmin)
               KPICard(
                 title: 'Monthly Revenue',
-                value: '450K PKR',
-                subtitle: 'Current month',
-                trend: '+15.3%',
+                value: _formatCurrency(stats.monthlyRevenue),
+                subtitle: 'Collected this month',
+                trend: '',
                 isTrendPositive: true,
                 icon: Icons.trending_up,
                 gradient: AppColors.purpleGradient,
@@ -324,9 +355,9 @@ class _DashboardPageState extends State<DashboardPage> {
             if (isAdmin)
               KPICard(
                 title: 'Total Expenses',
-                value: '125K PKR',
+                value: _formatCurrency(stats.monthlyExpenses),
                 subtitle: 'Month to date',
-                trend: '+5.1%',
+                trend: '',
                 isTrendPositive: false,
                 icon: Icons.receipt,
                 gradient: AppColors.orangeGradient,
@@ -335,10 +366,10 @@ class _DashboardPageState extends State<DashboardPage> {
             if (isAdmin)
               KPICard(
                 title: 'Net Profit',
-                value: '325K PKR',
+                value: _formatCurrency(stats.netProfit),
                 subtitle: 'After expenses',
-                trend: '+22.4%',
-                isTrendPositive: true,
+                trend: '',
+                isTrendPositive: stats.netProfit >= 0,
                 icon: Icons.attach_money,
                 gradient: AppColors.purpleGradient,
                 sparklineData: const [2, 3, 2, 4, 5, 6, 7, 6, 8, 10],
@@ -346,20 +377,20 @@ class _DashboardPageState extends State<DashboardPage> {
             if (isAdmin)
               KPICard(
                 title: 'Pending Payments',
-                value: '85K PKR',
-                subtitle: '24 invoices awaiting',
-                trend: '-3.2%',
-                isTrendPositive: true,
+                value: _formatCurrency(stats.pendingPayments),
+                subtitle: '${stats.expiringsoon} expiring soon',
+                trend: '',
+                isTrendPositive: false,
                 icon: Icons.schedule,
                 gradient: AppColors.redGradient,
                 sparklineData: const [10, 9, 8, 9, 7, 6, 5, 6, 4, 2],
               ),
             if (!isAdmin) ...[
               KPICard(
-                title: 'Assigned Customers',
-                value: '48',
-                subtitle: 'Under your care',
-                trend: '+2.3%',
+                title: 'Total Customers',
+                value: stats.totalCustomers.toString(),
+                subtitle: 'All subscribers',
+                trend: '',
                 isTrendPositive: true,
                 icon: Icons.group,
                 gradient: AppColors.blueGradient,
@@ -367,10 +398,10 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               KPICard(
                 title: 'Expiring Soon',
-                value: '5',
+                value: stats.expiringsoon.toString(),
                 subtitle: 'Next 7 days',
-                trend: '-5.1%',
-                isTrendPositive: true,
+                trend: '',
+                isTrendPositive: false,
                 icon: Icons.alarm,
                 gradient: AppColors.orangeGradient,
                 sparklineData: const [6, 5, 6, 4, 5, 3, 4, 3, 2, 5],
@@ -435,105 +466,97 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ===== ACTIVITY TIMELINE (static placeholder data) =====
-  Widget _buildActivityTimeline() {
-    final activities = [
-      ActivityTimelineItem(
-        title: 'New Customer Registered',
-        description: 'Ahmed Hassan signed up for Premium 10Mbps package',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
-        icon: Icons.person_add,
-        color: AppColors.primaryBlue,
-        badge: 'Customer',
-      ),
-      ActivityTimelineItem(
+  // ===== ACTIVITY TIMELINE (real recent payments) =====
+  Widget _buildActivityTimeline(List<PaymentModel> recentPayments) {
+    final activities = recentPayments.map((p) {
+      final date = p.completedDate ?? p.createdAt ?? DateTime.now();
+      return ActivityTimelineItem(
         title: 'Payment Received',
-        description: 'Fatima Mohamed paid 1,000 PKR via bank transfer',
-        timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+        description:
+            '${p.customerName ?? p.customerId} paid Rs ${(p.paidAmount ?? p.amount).toStringAsFixed(0)} via ${p.method ?? 'cash'}',
+        timestamp: date,
         icon: Icons.check_circle,
         color: AppColors.successGreen,
         badge: 'Payment',
-      ),
-      ActivityTimelineItem(
-        title: 'Installation Completed',
-        description:
-            'Fiber connection setup for Mohammed Ali completed successfully',
-        timestamp: DateTime.now().subtract(const Duration(hours: 4)),
-        icon: Icons.done_all,
-        color: AppColors.successGreen,
-        badge: 'Installation',
-      ),
-      ActivityTimelineItem(
-        title: 'Contract Expiring',
-        description: "Sara Ibrahim's contract expires in 4 days",
-        timestamp: DateTime.now().subtract(const Duration(hours: 6)),
-        icon: Icons.warning,
-        color: AppColors.warningOrange,
-        badge: 'Alert',
-      ),
-    ];
+      );
+    }).toList();
+
+    if (activities.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'No recent activity.',
+              style: GoogleFonts.inter(color: AppColors.darkGray),
+            ),
+          ),
+        ),
+      );
+    }
 
     return ActivityTimelineWidget(
       items: activities,
       title: 'Recent Activity',
-      onViewMore: () {
-        // TODO: Navigate to full activity log page once built
-      },
+      onViewMore: () {},
     );
   }
 
-  // ===== EXPIRING CONTRACTS TABLE (static placeholder data) =====
-  Widget _buildExpiringTable() {
-    final expiringRows = [
-      {
-        'name': 'Ahmed Hassan',
-        'package': 'Premium 10Mbps',
-        'date': 'May 25, 2024',
-        'days': 4,
-      },
-      {
-        'name': 'Fatima Mohamed',
-        'package': 'Business 50Mbps',
-        'date': 'May 26, 2024',
-        'days': 5,
-      },
-      {
-        'name': 'Mohammed Ali',
-        'package': 'Standard 5Mbps',
-        'date': 'May 27, 2024',
-        'days': 6,
-      },
-    ];
+  // ===== EXPIRING CONTRACTS TABLE (real data-driven) =====
+  Widget _buildExpiringTable(List<CustomerModel> customers) {
+    if (customers.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: Text(
+              'No expiring contracts in the next 7 days.',
+              style: GoogleFonts.inter(color: AppColors.darkGray),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final now = DateTime.now();
 
     return ResponsiveTable(
       columns: [
         PremiumDataColumn(label: 'Customer Name'),
-        PremiumDataColumn(label: 'Package'),
-        PremiumDataColumn(label: 'Expiry Date'),
+        PremiumDataColumn(label: 'Connection Type'),
+        PremiumDataColumn(label: 'Due Date'),
         PremiumDataColumn(label: 'Days Left'),
         PremiumDataColumn(label: 'Status', width: 0.15),
         PremiumDataColumn(label: 'Action', width: 0.15),
       ],
-      rows: expiringRows.map((row) {
-        final daysLeft = row['days'] as int;
+      rows: customers.map((customer) {
+        final due = customer.nextDueDate ??
+            (customer.createdAt != null
+                ? DateTime(customer.createdAt!.year,
+                    customer.createdAt!.month + 1, customer.createdAt!.day)
+                : now);
+        final daysLeft = due.difference(now).inDays;
+
         return PremiumDataRow(
           cells: [
             Text(
-              row['name'] as String,
+              customer.name,
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: AppColors.charcoal,
               ),
             ),
             Text(
-              row['package'] as String,
+              customer.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
               style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
-            Text(row['date'] as String),
             Text(
-              '$daysLeft days',
+              '${due.day}/${due.month}/${due.year}',
+            ),
+            Text(
+              daysLeft <= 0 ? 'Today' : '$daysLeft days',
               style: GoogleFonts.inter(
-                color: daysLeft <= 7
+                color: daysLeft <= 3
                     ? AppColors.errorRed
                     : AppColors.warningOrange,
                 fontWeight: FontWeight.bold,
@@ -556,64 +579,53 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       }).toList(),
       mobileItemBuilder: (context, index) {
-        final row = expiringRows[index];
-        final daysLeft = row['days'] as int;
+        final customer = customers[index];
+        final due = customer.nextDueDate ??
+            (customer.createdAt != null
+                ? DateTime(customer.createdAt!.year,
+                    customer.createdAt!.month + 1, customer.createdAt!.day)
+                : now);
+        final daysLeft = due.difference(now).inDays;
 
         return MobileDashboardCard(
-          title: row['name'] as String,
-          subtitle: row['package'] as String,
+          title: customer.name,
+          subtitle: customer.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
           statusBadge: const StatusBadge(
             status: StatusType.expiring,
             label: 'Expiring Soon',
           ),
           details: {
-            'Expiry Date': row['date'] as String,
-            'Days Left': '$daysLeft days',
+            'Due Date': '${due.day}/${due.month}/${due.year}',
+            'Days Left': daysLeft <= 0 ? 'Today' : '$daysLeft days',
           },
           actionButton: TextButton(
             onPressed: () => context.go(RoutePaths.customers),
             style: TextButton.styleFrom(
               backgroundColor: AppColors.primaryBlue.withOpacity(0.08),
               foregroundColor: AppColors.primaryBlue,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
             ),
-            child: const Text(
-              'Renew Package',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Renew'),
           ),
         );
       },
     );
   }
 
-  // ===== RECENT PAYMENTS TABLE (static placeholder data) =====
-  Widget _buildRecentPaymentsTable() {
-    final paymentRows = [
-      {
-        'name': 'Ahmed Hassan',
-        'method': 'Bank Transfer',
-        'amount': '500 PKR',
-        'status': StatusType.completed,
-        'date': 'May 21, 2024',
-      },
-      {
-        'name': 'Fatima Mohamed',
-        'method': 'Cash',
-        'amount': '1,000 PKR',
-        'status': StatusType.completed,
-        'date': 'May 21, 2024',
-      },
-      {
-        'name': 'Mohammed Ali',
-        'method': 'Card',
-        'amount': '250 PKR',
-        'status': StatusType.pending,
-        'date': 'May 21, 2024',
-      },
-    ];
+  // ===== RECENT PAYMENTS TABLE (real data-driven) =====
+  Widget _buildRecentPaymentsTable(List<PaymentModel> payments) {
+    if (payments.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: Text(
+              'No recent payments found.',
+              style: GoogleFonts.inter(color: AppColors.darkGray),
+            ),
+          ),
+        ),
+      );
+    }
 
     return ResponsiveTable(
       columns: [
@@ -623,43 +635,57 @@ class _DashboardPageState extends State<DashboardPage> {
         PremiumDataColumn(label: 'Status', width: 0.15),
         PremiumDataColumn(label: 'Date'),
       ],
-      rows: paymentRows.map((row) {
-        final status = row['status'] as StatusType;
+      rows: payments.map((payment) {
+        final statusType = payment.status == 'completed'
+            ? StatusType.completed
+            : StatusType.pending;
+        final date = payment.completedDate ?? payment.createdAt;
+        final dateStr = date != null
+            ? '${date.day}/${date.month}/${date.year}'
+            : '—';
+
         return PremiumDataRow(
           cells: [
             Text(
-              row['name'] as String,
+              payment.customerName ?? payment.customerId,
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: AppColors.charcoal,
               ),
             ),
-            Text(row['method'] as String),
+            Text(payment.method ?? '—'),
             Text(
-              row['amount'] as String,
+              'Rs ${(payment.paidAmount ?? payment.amount).toStringAsFixed(0)}',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
-                color: status == StatusType.completed
+                color: statusType == StatusType.completed
                     ? AppColors.successGreen
                     : AppColors.warningOrange,
               ),
             ),
-            StatusBadge(status: status),
-            Text(row['date'] as String),
+            StatusBadge(status: statusType),
+            Text(dateStr),
           ],
         );
       }).toList(),
       mobileItemBuilder: (context, index) {
-        final row = paymentRows[index];
-        final status = row['status'] as StatusType;
+        final payment = payments[index];
+        final statusType = payment.status == 'completed'
+            ? StatusType.completed
+            : StatusType.pending;
+        final date = payment.completedDate ?? payment.createdAt;
+        final dateStr = date != null
+            ? '${date.day}/${date.month}/${date.year}'
+            : '—';
 
         return MobileDashboardCard(
-          title: row['name'] as String,
-          subtitle: row['method'] as String,
-          statusBadge: StatusBadge(status: status),
+          title: payment.customerName ?? payment.customerId,
+          subtitle: payment.method ?? '—',
+          statusBadge: StatusBadge(status: statusType),
           details: {
-            'Amount': row['amount'] as String,
-            'Date': row['date'] as String,
+            'Amount':
+                'Rs ${(payment.paidAmount ?? payment.amount).toStringAsFixed(0)}',
+            'Date': dateStr,
           },
         );
       },

@@ -9,13 +9,13 @@ class QuickActionCard extends StatefulWidget {
   final VoidCallback onTap;
 
   const QuickActionCard({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     required this.description,
     required this.gradient,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   State<QuickActionCard> createState() => _QuickActionCardState();
@@ -72,7 +72,7 @@ class _QuickActionCardState extends State<QuickActionCard>
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: widget.gradient.first.withOpacity(_isHovered ? 0.35 : 0.15),
+                  color: widget.gradient.first.withValues(alpha: _isHovered ? 0.35 : 0.15),
                   blurRadius: _isHovered ? 16 : 8,
                   offset: Offset(0, _isHovered ? 8 : 4),
                 ),
@@ -91,7 +91,7 @@ class _QuickActionCardState extends State<QuickActionCard>
                       height: 70,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.08),
                       ),
                     ),
                   ),
@@ -106,7 +106,7 @@ class _QuickActionCardState extends State<QuickActionCard>
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(_isHovered ? 0.25 : 0.15),
+                            color: Colors.white.withValues(alpha: _isHovered ? 0.25 : 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
@@ -134,7 +134,7 @@ class _QuickActionCardState extends State<QuickActionCard>
                             Text(
                               widget.description,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
+                                color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: 11,
                               ),
                               maxLines: 2,

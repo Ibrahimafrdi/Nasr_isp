@@ -13,14 +13,14 @@ class MobileDashboardCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const MobileDashboardCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.subtitle,
     this.statusBadge,
     required this.details,
     this.actionButton,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,10 +32,10 @@ class MobileDashboardCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.withOpacity(0.15), width: 1.2),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.15), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

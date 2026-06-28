@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
@@ -12,7 +13,7 @@ import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 class PaymentsPage extends StatefulWidget {
-  const PaymentsPage({Key? key}) : super(key: key);
+  const PaymentsPage({super.key});
 
   @override
   State<PaymentsPage> createState() => _PaymentsPageState();
@@ -21,7 +22,7 @@ class PaymentsPage extends StatefulWidget {
 class _PaymentsPageState extends State<PaymentsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String? _statusFilter; // null == "All"
+  String? _statusFilter;
   DateTime? _dateRangeStart;
   DateTime? _dateRangeEnd;
 
@@ -105,7 +106,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
           const SizedBox(height: 14),
 
           // Date range row
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: _pickDateRange,
@@ -123,8 +126,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   ),
                 ),
               ),
-              if (hasDateRange) ...[
-                const SizedBox(width: 8),
+              if (hasDateRange)
                 IconButton(
                   tooltip: 'Clear date range',
                   icon: const Icon(Icons.close_rounded, size: 16),
@@ -133,19 +135,18 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     _dateRangeEnd = null;
                   }),
                 ),
-              ],
             ],
           ),
           const SizedBox(height: 14),
 
-          // Status chips + badge + clear
+          // Status chips — fixed to spec values
           Wrap(
             spacing: 12,
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               AppStatusChipGroup(
-                options: const ['Completed', 'Pending', 'Failed', 'Partial'],
+                options: const ['paid', 'unpaid', 'partial'],
                 selected: _statusFilter,
                 onChanged: (val) {
                   setState(() => _statusFilter = val);
@@ -197,66 +198,48 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   const SizedBox(height: 16),
 
                   if (state is PaymentsLoaded) ...[
-                    // Financial stats cards (unchanged)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DashboardCard(
-                            label: 'Current Billing Target',
-                            value: DateTimeUtils.formatCurrency(
-                              state.totalAmount,
-                            ),
-                            icon: Icons.monetization_on,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: DashboardCard(
-                            label: 'Collections Realized',
-                            value: DateTimeUtils.formatCurrency(
-                              state.collectedAmount,
-                            ),
-                            icon: Icons.check_circle_outline,
-                            backgroundColor: AppTheme.successColor.withOpacity(
-                              0.05,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: DashboardCard(
-                            label: 'Total Outstanding Dues',
-                            value: DateTimeUtils.formatCurrency(
-                              state.totalAmount - state.collectedAmount,
-                            ),
-                            icon: Icons.pending_actions,
-                            backgroundColor: AppTheme.errorColor.withOpacity(
-                              0.05,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+                    // Stats cards — admin only
+                    if (authState.user.role == 'admin') ...[
+                      _buildStatsCards(state),
+                      const SizedBox(height: 24),
+                    ],
 
-                    // Centralized filter panel
+                    // Filter panel
                     _buildFilterPanel(),
                     const SizedBox(height: 24),
 
-                    // Payments table (unchanged)
-                    Card(
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: AppTheme.lightGray.withOpacity(0.5),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _buildPaymentsTable(state.payments),
-                      ),
-                    ),
+                    // Payments list
+                    state.payments.isEmpty
+                        ? const EmptyStateWidget(
+                            icon: Icons.receipt_long,
+                            title: 'No Payments In Selection',
+                            subtitle:
+                                'Modify filters or search term to discover records.',
+                          )
+                        : ResponsiveLayout(
+                            mobile: _buildPaymentCards(
+                              state.payments,
+                              authState.user.role == 'admin',
+                            ),
+                            desktop: Card(
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: AppTheme.lightGray.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: _buildPaymentsTable(
+                                  state.payments,
+                                  authState.user.role == 'admin',
+                                ),
+                              ),
+                            ),
+                          ),
 
                     if (state.totalPages > 1) ...[
                       const SizedBox(height: 24),
@@ -295,29 +278,77 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
   }
 
-  // ── Payments table (unchanged) ───────────────────────────────────────────────
-  Widget _buildPaymentsTable(List<PaymentModel> payments) {
-    if (payments.isEmpty) {
-      return const EmptyStateWidget(
-        icon: Icons.receipt_long,
-        title: 'No Payments In Selection',
-        subtitle: 'Modify filters or search term to discover records.',
-      );
-    }
+  // ── Stats cards ──────────────────────────────────────────────────────────
+  Widget _buildStatsCards(PaymentsLoaded state) {
+    final cards = [
+      DashboardCard(
+        label: 'Current Billing Target',
+        value: DateTimeUtils.formatCurrency(state.totalAmount),
+        icon: Icons.monetization_on,
+      ),
+      DashboardCard(
+        label: 'Collections Realized',
+        value: DateTimeUtils.formatCurrency(state.collectedAmount),
+        icon: Icons.check_circle_outline,
+        backgroundColor: AppTheme.successColor.withValues(alpha: 0.05),
+      ),
+      DashboardCard(
+        label: 'Total Outstanding Dues',
+        value: DateTimeUtils.formatCurrency(
+          state.totalAmount - state.collectedAmount,
+        ),
+        icon: Icons.pending_actions,
+        backgroundColor: AppTheme.errorColor.withValues(alpha: 0.05),
+      ),
+    ];
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Column(
+            children: [
+              cards[0],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: cards[1]),
+                  const SizedBox(width: 12),
+                  Expanded(child: cards[2]),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: cards[0]),
+            const SizedBox(width: 16),
+            Expanded(child: cards[1]),
+            const SizedBox(width: 16),
+            Expanded(child: cards[2]),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Desktop: Payments table ───────────────────────────────────────────────
+  Widget _buildPaymentsTable(List<PaymentModel> payments, bool isAdmin) {
     return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Customer Account')),
-        DataColumn(label: Text('Plan Price')),
-        DataColumn(label: Text('Amount Collected')),
-        DataColumn(label: Text('Remaining Dues')),
-        DataColumn(label: Text('Due Date')),
-        DataColumn(label: Text('Status')),
-        DataColumn(label: Text('Method')),
-        DataColumn(label: Text('Action')),
+      columns: [
+        const DataColumn(label: Text('Customer Account')),
+        if (isAdmin) ...[
+          const DataColumn(label: Text('Plan Price')),
+          const DataColumn(label: Text('Amount Collected')),
+          const DataColumn(label: Text('Remaining Dues')),
+        ],
+        const DataColumn(label: Text('Due Date')),
+        const DataColumn(label: Text('Status')),
+        const DataColumn(label: Text('Method')),
+        if (isAdmin) const DataColumn(label: Text('Action')),
       ],
       rows: payments.map((payment) {
-        final isCompleted = payment.status == PaymentStatus.completed;
+        final isPaid = payment.status == 'paid';
         return DataRow(
           cells: [
             DataCell(
@@ -329,47 +360,172 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 ),
               ),
             ),
-            DataCell(Text(DateTimeUtils.formatCurrency(payment.amount))),
-            DataCell(Text(DateTimeUtils.formatCurrency(payment.paidAmount))),
-            DataCell(
-              Text(
-                DateTimeUtils.formatCurrency(payment.remainingAmount),
-                style: TextStyle(
-                  color: payment.remainingAmount > 0
-                      ? AppTheme.errorColor
-                      : AppTheme.successColor,
-                  fontWeight: FontWeight.bold,
+            if (isAdmin) ...[
+              DataCell(Text(DateTimeUtils.formatCurrency(payment.amount))),
+              DataCell(Text(DateTimeUtils.formatCurrency(payment.paidAmount))),
+              DataCell(
+                Text(
+                  DateTimeUtils.formatCurrency(payment.remainingAmount),
+                  style: TextStyle(
+                    color: payment.remainingAmount > 0
+                        ? AppTheme.errorColor
+                        : AppTheme.successColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            DataCell(Text(DateTimeUtils.formatDate(payment.dueDate))),
-            DataCell(PaymentStatusBadge(status: payment.status)),
-            DataCell(Text(payment.method ?? 'N/A')),
+            ],
             DataCell(
-              IconButton(
-                icon: const Icon(Icons.payment),
-                tooltip: isCompleted ? 'Dues Settled' : 'Record Receipt',
-                color: isCompleted
-                    ? AppTheme.mediumGray
-                    : AppTheme.primaryColor,
-                onPressed: isCompleted
-                    ? null
-                    : () => _showRecordPaymentDialog(context, payment),
+              Text(
+                payment.dueDate != null
+                    ? DateTimeUtils.formatDate(payment.dueDate!)
+                    : 'N/A',
               ),
             ),
+            DataCell(PaymentStatusBadge(status: payment.status)),
+            DataCell(Text(payment.method ?? 'N/A')),
+            if (isAdmin)
+              DataCell(
+                IconButton(
+                  icon: const Icon(Icons.payment),
+                  tooltip: isPaid ? 'Dues Settled' : 'Record Receipt',
+                  color: isPaid ? AppTheme.mediumGray : AppTheme.primaryColor,
+                  onPressed: isPaid
+                      ? null
+                      : () => _showRecordPaymentDialog(context, payment),
+                ),
+              ),
           ],
         );
       }).toList(),
     );
   }
 
-  // ── Record payment dialog (unchanged) ────────────────────────────────────────
+  // ── Mobile: Payment cards ─────────────────────────────────────────────────
+  Widget _buildPaymentCards(List<PaymentModel> payments, bool isAdmin) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: payments.map((payment) {
+        final isPaid = payment.status == 'paid';
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.lightGray.withValues(alpha: 0.6),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Customer name + status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      payment.customerName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                  PaymentStatusBadge(status: payment.status),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Info chips
+              Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                children: [
+                  if (isAdmin) ...[
+                    _infoChip(
+                      Icons.monetization_on,
+                      DateTimeUtils.formatCurrency(payment.amount),
+                    ),
+                    _infoChip(
+                      Icons.check_circle,
+                      'Paid: ${DateTimeUtils.formatCurrency(payment.paidAmount)}',
+                    ),
+                    _infoChip(
+                      Icons.warning_amber,
+                      'Due: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
+                      color: payment.remainingAmount > 0
+                          ? AppTheme.errorColor
+                          : AppTheme.successColor,
+                    ),
+                  ],
+                  if (payment.dueDate != null)
+                    _infoChip(
+                      Icons.calendar_today,
+                      DateTimeUtils.formatDate(payment.dueDate!),
+                    ),
+                  _infoChip(Icons.credit_card, payment.method ?? 'N/A'),
+                ],
+              ),
+
+              if (isAdmin && !isPaid) ...[
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.payment, size: 16),
+                    label: const Text(
+                      'Record Payment',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    onPressed: () => _showRecordPaymentDialog(context, payment),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── Info chip ─────────────────────────────────────────────────────────────
+  Widget _infoChip(IconData icon, String label, {Color? color}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color ?? AppTheme.mediumGray),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: color ?? AppTheme.mediumGray,
+            fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Record payment dialog ─────────────────────────────────────────────────
   void _showRecordPaymentDialog(BuildContext context, PaymentModel payment) {
     final formKey = GlobalKey<FormState>();
     final amountController = TextEditingController(
       text: payment.remainingAmount.toString(),
     );
-    String selectedMethod = 'Bank Transfer';
+    String selectedMethod = 'cash';
     String notes = '';
     bool isSubmitting = false;
 
@@ -384,79 +540,87 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 key: formKey,
                 child: SizedBox(
                   width: 450,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Billing Dues: ${DateTimeUtils.formatCurrency(payment.amount)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Outstanding balance: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
-                        style: const TextStyle(
-                          color: AppTheme.errorColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total Billing Dues: ${DateTimeUtils.formatCurrency(payment.amount)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      const Divider(height: 24),
-                      TextFormField(
-                        controller: amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment Amount Received (PKR)',
-                          prefixText: 'PKR ',
+                        const SizedBox(height: 4),
+                        Text(
+                          'Outstanding Balance: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
+                          style: const TextStyle(
+                            color: AppTheme.errorColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          if (v == null || v.isEmpty)
-                            return 'Please enter an amount';
-                          final val = double.tryParse(v);
-                          if (val == null || val <= 0)
-                            return 'Please enter a valid positive number';
-                          if (val > payment.remainingAmount)
-                            return 'Amount cannot exceed outstanding balance';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: selectedMethod,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment Collection Method',
+                        const Divider(height: 24),
+                        TextFormField(
+                          controller: amountController,
+                          decoration: const InputDecoration(
+                            labelText: 'Payment Amount Received (PKR)',
+                            prefixText: 'PKR ',
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Please enter an amount';
+                            }
+                            final val = double.tryParse(v);
+                            if (val == null || val <= 0) {
+                              return 'Please enter a valid positive number';
+                            }
+                            if (val > payment.remainingAmount) {
+                              return 'Amount cannot exceed outstanding balance';
+                            }
+                            return null;
+                          },
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Cash',
-                            child: Text('Cash Collection'),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: selectedMethod,
+                          decoration: const InputDecoration(
+                            labelText: 'Payment Collection Method',
                           ),
-                          DropdownMenuItem(
-                            value: 'Bank Transfer',
-                            child: Text('Direct Bank Transfer'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'EasyPaisa',
-                            child: Text('EasyPaisa Mobile Wallet'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'JazzCash',
-                            child: Text('JazzCash Mobile Wallet'),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => selectedMethod = val);
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Collection Reference / Notes (Optional)',
-                          hintText: 'e.g. cheque number, transaction ID',
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'cash',
+                              child: Text('Cash Collection'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'bankTransfer',
+                              child: Text('Direct Bank Transfer'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'easypaisa',
+                              child: Text('EasyPaisa Mobile Wallet'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'jazzcash',
+                              child: Text('JazzCash Mobile Wallet'),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => selectedMethod = val);
+                            }
+                          },
                         ),
-                        onChanged: (val) => notes = val,
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          decoration: const InputDecoration(
+                            labelText:
+                                'Collection Reference / Notes (Optional)',
+                            hintText: 'e.g. cheque number, transaction ID',
+                          ),
+                          onChanged: (val) => notes = val,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -474,7 +638,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             await Future.delayed(
                               const Duration(milliseconds: 800),
                             );
-                            if (!mounted) return;
+                            if (!ctx.mounted) return;
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -484,8 +648,16 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                 backgroundColor: AppTheme.successColor,
                               ),
                             );
+                            final newPaid = payment.paidAmount + double.parse(amountController.text);
+                            final updatedPayment = payment.copyWith(
+                              paidAmount: newPaid,
+                              status: newPaid >= payment.amount ? 'paid' : 'partial',
+                              completedDate: DateTime.now(),
+                              method: selectedMethod,
+                              notes: notes.isNotEmpty ? notes : null,
+                            );
                             context.read<PaymentsBloc>().add(
-                              const LoadPaymentsEvent(),
+                              UpdatePaymentEvent(updatedPayment),
                             );
                           }
                         },

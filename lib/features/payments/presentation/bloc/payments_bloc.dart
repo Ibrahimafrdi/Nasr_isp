@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 
 // ──────────────────────────────────────────────
 // Events
@@ -17,7 +19,7 @@ abstract class PaymentsEvent extends Equatable {
 class LoadPaymentsEvent extends PaymentsEvent {
   final int page;
   final String? searchQuery;
-  final PaymentStatus? filterStatus;
+  final String? filterStatus;
   final List<String>? filterStatuses;
   final DateTime? dateRangeStart;
   final DateTime? dateRangeEnd;
@@ -40,6 +42,24 @@ class LoadPaymentsEvent extends PaymentsEvent {
     dateRangeStart,
     dateRangeEnd,
   ];
+}
+
+class CreatePaymentEvent extends PaymentsEvent {
+  final PaymentModel payment;
+
+  const CreatePaymentEvent(this.payment);
+
+  @override
+  List<Object?> get props => [payment];
+}
+
+class UpdatePaymentEvent extends PaymentsEvent {
+  final PaymentModel payment;
+
+  const UpdatePaymentEvent(this.payment);
+
+  @override
+  List<Object?> get props => [payment];
 }
 
 // ──────────────────────────────────────────────
@@ -100,8 +120,65 @@ class PaymentsError extends PaymentsState {
 // ──────────────────────────────────────────────
 
 class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
-  PaymentsBloc() : super(const PaymentsInitial()) {
+  final GetCustomers getCustomers;
+  final UpdateCustomer updateCustomer;
+  
+  // In-memory list to accumulate created or updated payments during this session
+  final List<PaymentModel> _createdPayments = [];
+
+  PaymentsBloc({
+    required this.getCustomers,
+    required this.updateCustomer,
+  }) : super(const PaymentsInitial()) {
     on<LoadPaymentsEvent>(_onLoadPayments);
+    on<CreatePaymentEvent>(_onCreatePayment);
+    on<UpdatePaymentEvent>(_onUpdatePayment);
+  }
+
+  Future<void> _onCreatePayment(
+    CreatePaymentEvent event,
+    Emitter<PaymentsState> emit,
+  ) async {
+    // Persist created payment in memory for this session
+    _createdPayments.add(event.payment);
+    // Reload with the new payment included
+    await _onLoadPayments(const LoadPaymentsEvent(), emit);
+  }
+
+  Future<void> _onUpdatePayment(
+    UpdatePaymentEvent event,
+    Emitter<PaymentsState> emit,
+  ) async {
+    final updatedPayment = event.payment;
+
+    if (updatedPayment.status == 'paid' && updatedPayment.completedDate != null) {
+      final newNextDueDate = DateTime(
+        updatedPayment.completedDate!.year,
+        updatedPayment.completedDate!.month + 1,
+        updatedPayment.completedDate!.day,
+      );
+
+      try {
+        // Load existing customer and update nextDueDate
+        final customers = await getCustomers();
+        final customer = customers.firstWhere((c) => c.id == updatedPayment.customerId);
+        final updatedCustomer = (customer as CustomerModel).copyWith(
+          nextDueDate: newNextDueDate,
+        );
+        await updateCustomer(updatedCustomer);
+      } catch (e) {
+        print('Error updating customer nextDueDate: $e');
+      }
+    }
+
+    // Persist created/updated payment in memory for this session
+    final idx = _createdPayments.indexWhere((p) => p.id == updatedPayment.id);
+    if (idx != -1) {
+      _createdPayments[idx] = updatedPayment;
+    } else {
+      _createdPayments.add(updatedPayment);
+    }
+    await _onLoadPayments(const LoadPaymentsEvent(), emit);
   }
 
   Future<void> _onLoadPayments(
@@ -113,7 +190,15 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
     try {
       await Future.delayed(const Duration(milliseconds: 500));
 
-      var payments = _generateMockPayments();
+      // Combine mock payments with session-created ones, prioritizing session updates
+      final mockList = _generateMockPayments();
+      final Map<String, PaymentModel> paymentMap = {
+        for (var p in mockList) p.id: p,
+      };
+      for (var p in _createdPayments) {
+        paymentMap[p.id] = p;
+      }
+      var payments = paymentMap.values.toList();
 
       // Apply search filter
       final query = event.searchQuery?.trim().toLowerCase();
@@ -123,21 +208,22 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
             .toList();
       }
 
-      // ✅ FIX: Apply multi-status filter (this is what the UI chips actually send)
+      // Apply multi-status filter (case-insensitive check)
       if (event.filterStatuses != null && event.filterStatuses!.isNotEmpty) {
         payments = payments
-            .where((p) => event.filterStatuses!.contains(p.status.label))
+            .where((p) => event.filterStatuses!
+                .any((status) => status.toLowerCase() == p.status.toLowerCase()))
             .toList();
       }
 
-      // Keep single-status filter too, in case it's used elsewhere
+      // Keep single-status filter too
       if (event.filterStatus != null) {
         payments = payments
-            .where((p) => p.status == event.filterStatus)
+            .where((p) => p.status.toLowerCase() == event.filterStatus!.toLowerCase())
             .toList();
       }
 
-      // Compute totals on the full filtered list (not just the current page)
+      // Compute totals on the full filtered list
       final totalAmount = payments.fold<double>(0, (sum, p) => sum + p.amount);
       final collectedAmount = payments.fold<double>(
         0,
@@ -174,11 +260,11 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
 
   List<PaymentModel> _generateMockPayments() {
     final baseDate = DateTime.now();
-    const statuses = [
-      PaymentStatus.completed,
-      PaymentStatus.pending,
-      PaymentStatus.partial,
-      PaymentStatus.failed,
+    final statuses = [
+      'paid',
+      'unpaid',
+      'partial',
+      'failed',
     ];
 
     return List.generate(80, (i) {
@@ -187,10 +273,10 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
         customerId: 'cust_${i % 30}',
         customerName: 'Customer ${i % 30 + 1}',
         amount: 1500,
-        paidAmount: i % 3 == 0 ? 0 : (i % 3 == 1 ? 750 : 1500),
+        paidAmount: i % 4 == 0 ? 1500 : (i % 4 == 1 ? 0 : (i % 4 == 2 ? 750 : 0)),
         status: statuses[i % statuses.length],
         dueDate: baseDate.subtract(Duration(days: 30 - (i % 30))),
-        completedDate: i % 2 == 0
+        completedDate: i % 4 == 0
             ? baseDate.subtract(Duration(days: 20 - (i % 20)))
             : null,
         method: i % 2 == 0 ? 'Bank Transfer' : 'Cash',

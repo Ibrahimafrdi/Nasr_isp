@@ -18,17 +18,22 @@ class StatusBadge extends StatelessWidget {
   final TextStyle? textStyle;
 
   const StatusBadge({
-    Key? key,
+    super.key,
     required this.status,
     this.label,
     this.showIcon = true,
     this.width,
     this.textStyle,
-  }) : super(key: key);
+  });
 
   String get _labelText {
     if (label != null) return label!;
-    if (status is String) return status as String;
+    if (status is String) {
+      final String s = status as String;
+      if (s == 'expiringSoon') return 'Expiring Soon';
+      if (s.isEmpty) return 'N/A';
+      return s[0].toUpperCase() + s.substring(1);
+    }
     if (status is CustomerStatus) return (status as CustomerStatus).label;
     if (status is PaymentStatus) return (status as PaymentStatus).label;
     if (status is StatusType) {
@@ -73,6 +78,7 @@ class StatusBadge extends StatelessWidget {
       case 'active':
       case 'completed':
       case 'success':
+      case 'paid':
         return AppColors.successGreen;
       case 'pending':
       case 'partial':
@@ -85,6 +91,7 @@ class StatusBadge extends StatelessWidget {
       case 'suspended':
       case 'failed':
       case 'error':
+      case 'unpaid':
         return AppColors.errorRed;
       case 'offline':
       case 'inactive':
@@ -100,6 +107,7 @@ class StatusBadge extends StatelessWidget {
       case 'active':
       case 'completed':
       case 'success':
+      case 'paid':
         return Icons.check_circle_outline;
       case 'pending':
       case 'partial':
@@ -113,6 +121,7 @@ class StatusBadge extends StatelessWidget {
       case 'suspended':
       case 'failed':
       case 'error':
+      case 'unpaid':
         return Icons.block_flipped;
       case 'offline':
         return Icons.cloud_off_rounded;
@@ -133,9 +142,9 @@ class StatusBadge extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: width ?? 140),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        border: Border.all(color: color.withOpacity(0.24), width: 1.0),
+        border: Border.all(color: color.withValues(alpha: 0.24), width: 1.0),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

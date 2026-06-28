@@ -5,6 +5,10 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
+import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
+import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
+import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
@@ -21,42 +25,84 @@ class CustomerDetailsPage extends StatefulWidget {
 }
 
 class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
-  late CustomerModel _customer;
+  CustomerModel? _customer;
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadCustomerData();
+    _loadCustomer();
+    // Also trigger package load to ensure package info is available for lookups
+    context.read<PackagesBloc>().add(const LoadPackagesEvent());
   }
 
-  void _loadCustomerData() async {
-    // Simulate loading data from backend DB
-    await Future.delayed(const Duration(milliseconds: 400));
-    if (!mounted) return;
+  Future<void> _loadCustomer() async {
+    try {
+      final customersState = context.read<CustomersBloc>().state;
 
-    final index = int.tryParse(widget.customerId.replaceAll('cust_', '')) ?? 1;
-    setState(() {
-      _customer = CustomerModel(
-        id: widget.customerId,
-        name: 'Customer ${index + 1}',
-        phone: '+923001234${500 + index}',
-        address: 'House $index, Street 14, Phase 2, DHA, Karachi',
-        email: 'customer$index@nasr_isp.com',
-        packageName: ['10 Mbps', '25 Mbps', '50 Mbps'][index % 3],
-        monthlyRate: [999, 1499, 2499][index % 3].toDouble(),
-        expiryDate: DateTime.now().add(Duration(days: 7 + (index % 15))),
-        status: (index % 12 == 0)
-            ? CustomerStatus.expired
-            : ((index % 12 <= 2)
-                  ? CustomerStatus.expiringSoon
-                  : CustomerStatus.active),
-        assignedEmployeeId: 'emp_2',
-        createdAt: DateTime.now().subtract(const Duration(days: 240)),
-        balance: (index % 2 == 0) ? 0 : 1500,
+      // First try BLoC state (fast path)
+      if (customersState is CustomersLoaded) {
+        final found = customersState.customers.firstWhere(
+          (c) => c.id == widget.customerId,
+          orElse: () => throw Exception('not_in_state'),
+        );
+        if (mounted) {
+          setState(() {
+            _customer = found;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      // Fallback: reload all customers via BLoC and wait
+      context.read<CustomersBloc>().add(const LoadCustomersEvent());
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+
+      final newState = context.read<CustomersBloc>().state;
+      if (newState is CustomersLoaded) {
+        final found = newState.customers.firstWhere(
+          (c) => c.id == widget.customerId,
+          orElse: () => throw Exception('Customer not found'),
+        );
+        setState(() {
+          _customer = found;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Could not load customer data.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Customer not found.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _getPackageName(String? packageId) {
+    if (packageId == null || packageId.isEmpty) return 'No Package';
+    final state = context.read<PackagesBloc>().state;
+    if (state is PackagesLoaded) {
+      final pkg = state.packages.firstWhere(
+        (p) => p.id == packageId,
+        orElse: () => const PackageModel(
+          id: '',
+          name: '',
+          speed: 0,
+          price: 0.0,
+          description: '',
+        ),
       );
-      _isLoading = false;
-    });
+      if (pkg.id.isNotEmpty) return pkg.name;
+    }
+    return 'Plan ID: $packageId';
   }
 
   @override
@@ -73,6 +119,28 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           );
         }
 
+        if (_errorMessage != null || _customer == null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppTheme.errorColor,
+                ),
+                const SizedBox(height: 12),
+                Text(_errorMessage ?? 'Customer not found.'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => context.go(RoutePaths.customers),
+                  child: const Text('Back to Customers'),
+                ),
+              ],
+            ),
+          );
+        }
+
         final isMobile = ResponsiveDashboard.isMobile(context);
 
         return SingleChildScrollView(
@@ -82,7 +150,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ─── Header Row ───────────────────────────────────────────
               Breadcrumb(
                 items: [
                   BreadcrumbItem(
@@ -93,12 +160,11 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                     label: 'Customers',
                     onTap: () => context.go(RoutePaths.customers),
                   ),
-                  BreadcrumbItem(label: _customer.name),
+                  BreadcrumbItem(label: _customer!.name),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // Title + action button — stacks on mobile
               isMobile
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,18 +175,15 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          _customer.name,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium?.copyWith(
-                            color: AppTheme.mediumGray,
-                          ),
+                          _customer!.name,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: AppTheme.mediumGray),
                         ),
-                        if (authState.user.role.isAdmin) ...[
+                        if (authState.user.isAdmin) ...[
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
                             onPressed: () => context.go(
-                              '${RoutePaths.customers}/${_customer.id}/edit',
+                              '${RoutePaths.customers}/${_customer!.id}/edit',
                             ),
                             icon: const Icon(Icons.edit, size: 16),
                             label: const Text('Edit Account'),
@@ -133,15 +196,15 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Subscriber Ledger: ${_customer.name}',
+                            'Subscriber Ledger: ${_customer!.name}',
                             style: Theme.of(context).textTheme.headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
-                        if (authState.user.role.isAdmin)
+                        if (authState.user.isAdmin)
                           OutlinedButton.icon(
                             onPressed: () => context.go(
-                              '${RoutePaths.customers}/${_customer.id}/edit',
+                              '${RoutePaths.customers}/${_customer!.id}/edit',
                             ),
                             icon: const Icon(Icons.edit, size: 16),
                             label: const Text('Edit Account'),
@@ -151,22 +214,27 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
 
               const SizedBox(height: 20),
 
-              // ─── Main Body ───────────────────────────────────────────
               ResponsiveDashboard(
                 mobile: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildPrimaryInfoCol(),
+                    _buildPrimaryInfoCol(authState.user.isAdmin),
                     const SizedBox(height: 24),
-                    _buildTimelineSidebarCol(),
+                    _buildTimelineSidebarCol(authState.user.isAdmin),
                   ],
                 ),
                 desktop: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(flex: 3, child: _buildPrimaryInfoCol()),
+                    Expanded(
+                      flex: 3,
+                      child: _buildPrimaryInfoCol(authState.user.isAdmin),
+                    ),
                     const SizedBox(width: 24),
-                    Expanded(flex: 2, child: _buildTimelineSidebarCol()),
+                    Expanded(
+                      flex: 2,
+                      child: _buildTimelineSidebarCol(authState.user.isAdmin),
+                    ),
                   ],
                 ),
               ),
@@ -177,22 +245,22 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     );
   }
 
-  // ─── Overview Section ─────────────────────────────────────────────────────
-
-  Widget _buildPrimaryInfoCol() {
+  Widget _buildPrimaryInfoCol(bool isAdmin) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildOverviewCard(),
+        _buildOverviewCard(isAdmin),
         const SizedBox(height: 24),
-        _buildContactDetailsCard(),
-        const SizedBox(height: 24),
-        _buildPaymentHistoryCard(),
+        _buildContactDetailsCard(isAdmin),
+        if (isAdmin) ...[
+          const SizedBox(height: 24),
+          _buildPaymentHistoryCard(),
+        ],
       ],
     );
   }
 
-  Widget _buildOverviewCard() {
+  Widget _buildOverviewCard(bool isAdmin) {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
@@ -213,13 +281,14 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _customer.name,
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        _customer!.name,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'ID: ${_customer.id.toUpperCase()} · Since ${DateTimeUtils.formatDate(_customer.createdAt)}',
+                        'ID: ${_customer!.id.toUpperCase()} · Since ${DateTimeUtils.formatDate(_customer!.createdAt ?? DateTime.now())}',
                         style: const TextStyle(
                           color: AppTheme.mediumGray,
                           fontSize: 12,
@@ -229,35 +298,29 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                StatusBadge(status: _customer.status),
+                StatusBadge(status: _customer!.status),
               ],
             ),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 16),
-            // Stat icons wrap on small screens
             LayoutBuilder(
               builder: (context, constraints) {
                 final isNarrow = constraints.maxWidth < 480;
                 final stats = [
                   _overviewStatData(
                     'Active Package',
-                    _customer.packageName,
+                    _getPackageName(_customer!.packageId),
                     Icons.speed,
                     AppTheme.primaryColor,
                   ),
-                  _overviewStatData(
-                    'Monthly Cost',
-                    DateTimeUtils.formatCurrency(_customer.monthlyRate),
-                    Icons.monetization_on,
-                    AppTheme.successColor,
-                  ),
-                  _overviewStatData(
-                    'Plan Expiry',
-                    DateTimeUtils.formatDate(_customer.expiryDate),
-                    Icons.date_range,
-                    AppTheme.warningColor,
-                  ),
+                  if (isAdmin)
+                    _overviewStatData(
+                      'Monthly Cost',
+                      DateTimeUtils.formatCurrency(_customer!.monthlyBill),
+                      Icons.monetization_on,
+                      AppTheme.successColor,
+                    ),
                 ];
 
                 if (isNarrow) {
@@ -272,7 +335,9 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                         .toList(),
                   );
                 }
-                return Row(children: stats.map(_buildOverviewStatWidget).toList());
+                return Row(
+                  children: stats.map(_buildOverviewStatWidget).toList(),
+                );
               },
             ),
           ],
@@ -323,9 +388,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     );
   }
 
-  // ─── Contact / Details Card ───────────────────────────────────────────────
-
-  Widget _buildContactDetailsCard() {
+  Widget _buildContactDetailsCard(bool isAdmin) {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
@@ -338,28 +401,76 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Physical & Contact Details',
+              'Subscriber Details',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: AppTheme.primaryColor,
               ),
             ),
             const Divider(height: 24),
-            _buildInfoRow('Contact Phone', _customer.phone, Icons.phone),
             _buildInfoRow(
-              'Email Address',
-              _customer.email ?? 'N/A',
-              Icons.email,
+              'Connection Type',
+              _customer!.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
+              Icons.settings_input_antenna,
             ),
             _buildInfoRow(
+              'Monthly Bill Rate',
+              DateTimeUtils.formatCurrency(_customer!.monthlyBill),
+              Icons.receipt_long,
+            ),
+            _buildInfoRow('Contact Phone', _customer!.phone, Icons.phone),
+            _buildInfoRow('CNIC / National ID', _customer!.cnic, Icons.badge),
+            _buildInfoRow(
               'Physical Address',
-              _customer.address,
+              _customer!.address.isEmpty ? 'N/A' : _customer!.address,
               Icons.location_on,
             ),
             _buildInfoRow(
-              'Assigned Field Tech',
-              _customer.assignedEmployeeId ?? 'Unassigned',
-              Icons.engineering,
+              'Notes',
+              _customer!.notes.isEmpty ? 'N/A' : _customer!.notes,
+              Icons.notes,
+            ),
+            _buildInfoRow(
+              'Join Date',
+              _customer!.joinDate != null
+                  ? DateTimeUtils.formatDate(_customer!.joinDate!)
+                  : 'N/A',
+              Icons.calendar_today,
+            ),
+            _buildInfoRow(
+              'Next Due Date',
+              () {
+                final due =
+                    _customer!.nextDueDate ??
+                    (_customer!.createdAt != null
+                        ? DateTime(
+                            _customer!.createdAt!.year,
+                            _customer!.createdAt!.month + 1,
+                            _customer!.createdAt!.day,
+                          )
+                        : null);
+                return due != null ? DateTimeUtils.formatDate(due) : 'N/A';
+              }(),
+              Icons.event,
+              isEstimated:
+                  _customer!.nextDueDate == null &&
+                  _customer!.createdAt != null,
+              valueColor: () {
+                final due =
+                    _customer!.nextDueDate ??
+                    (_customer!.createdAt != null
+                        ? DateTime(
+                            _customer!.createdAt!.year,
+                            _customer!.createdAt!.month + 1,
+                            _customer!.createdAt!.day,
+                          )
+                        : null);
+                if (due == null) return null;
+                final diff = due.difference(DateTime.now()).inDays;
+                if (diff < 0) return AppTheme.errorColor;
+                if (diff <= 7) return Colors.orange;
+                return null;
+              }(),
             ),
           ],
         ),
@@ -367,7 +478,13 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, IconData icon) {
+  Widget _buildInfoRow(
+    String label,
+    String value,
+    IconData icon, {
+    Color? valueColor,
+    bool isEstimated = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -388,22 +505,37 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           ),
           Expanded(
             flex: 3,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppTheme.darkGray,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.end,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (isEstimated)
+                  Tooltip(
+                    message: 'Estimated — no payment recorded yet',
+                    child: const Icon(
+                      Icons.info_outline,
+                      size: 13,
+                      color: AppTheme.mediumGray,
+                    ),
+                  ),
+                if (isEstimated) const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: valueColor ?? AppTheme.darkGray,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-
-  // ─── Payment History Card ─────────────────────────────────────────────────
 
   Widget _buildPaymentHistoryCard() {
     return Card(
@@ -419,9 +551,9 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           children: [
             Text(
               'Transaction History',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             _buildPaymentHistoryTable(),
@@ -459,7 +591,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     final isMobile = ResponsiveDashboard.isMobile(context);
 
     if (isMobile) {
-      // Card-list layout for mobile
       return Column(
         children: mockPayments.map((pay) {
           return Container(
@@ -535,9 +666,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
             ),
             DataCell(
               Text(
-                DateTimeUtils.formatDate(
-                  DateTime.parse(pay['date'] as String),
-                ),
+                DateTimeUtils.formatDate(DateTime.parse(pay['date'] as String)),
               ),
             ),
             DataCell(
@@ -553,18 +682,24 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     );
   }
 
-  // ─── Timeline / Audit Log Sidebar ─────────────────────────────────────────
-
-  Widget _buildTimelineSidebarCol() {
+  Widget _buildTimelineSidebarCol(bool isAdmin) {
     final timelineEvents = [
-      {
-        'title': 'Billing collection verified',
-        'subtitle': 'Collected amount PKR 1,500 by Technician Ali',
-        'date': '2026-05-01',
-      },
+      if (isAdmin)
+        {
+          'title': 'Billing collection verified',
+          'subtitle': 'Collected amount PKR 1,500 by Installer',
+          'date': '2026-05-01',
+        }
+      else
+        {
+          'title': 'Payment collected',
+          'subtitle': 'Verified by Installer',
+          'date': '2026-05-01',
+        },
       {
         'title': 'Account Plan Auto-renewed',
-        'subtitle': 'Package updated to ${_customer.packageName}',
+        'subtitle':
+            'Package updated to ${_getPackageName(_customer!.packageId)}',
         'date': '2026-05-01',
       },
       {
@@ -579,7 +714,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
       },
       {
         'title': 'Physical installation completed',
-        'subtitle': 'ONT Router node setup by Technician Bilal',
+        'subtitle': 'ONT Router node setup by Installer',
         'date': '2025-09-23',
       },
     ];
@@ -614,7 +749,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Dot + line column
                       SizedBox(
                         width: 20,
                         child: Column(

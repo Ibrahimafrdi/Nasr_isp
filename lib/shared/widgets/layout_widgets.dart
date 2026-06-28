@@ -32,28 +32,40 @@ class DashboardSidebar extends StatefulWidget {
   final String currentRoute;
   final VoidCallback? onLogout;
 
+  /// When true, sidebar is always rendered in icon-only (collapsed) mode.
+  /// Used on tablet breakpoint by [AppShell].
+  final bool forceCollapsed;
+
   const DashboardSidebar({
-    Key? key,
+    super.key,
     required this.currentUser,
     required this.currentRoute,
     this.onLogout,
-  }) : super(key: key);
+    this.forceCollapsed = false,
+  });
 
   @override
   State<DashboardSidebar> createState() => _DashboardSidebarState();
 }
 
 class _DashboardSidebarState extends State<DashboardSidebar> {
-  bool isExpanded = true;
+  bool _localExpanded = true;
+
+  bool get isExpanded => widget.forceCollapsed ? false : _localExpanded;
 
   List<SidebarItem> _getMenuItems() {
-    final isAdmin = widget.currentUser.role.isAdmin;
+    final isAdmin = widget.currentUser.isAdmin;
 
     return [
       SidebarItem(
         icon: Icons.dashboard,
         label: 'Dashboard',
         route: RoutePaths.dashboard,
+      ),
+      SidebarItem(
+        icon: Icons.wifi,
+        label: 'Packages',
+        route: RoutePaths.packages,
       ),
       SidebarItem(
         icon: Icons.alt_route,
@@ -65,7 +77,12 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
             label: 'Installations',
             route: RoutePaths.installations,
           ),
-          const SidebarSubItem(label: 'Inventory', route: RoutePaths.inventory),
+          // Inventory — admin only
+          if (isAdmin)
+            const SidebarSubItem(
+              label: 'Inventory',
+              route: RoutePaths.inventory,
+            ),
         ],
       ),
       SidebarItem(
@@ -74,27 +91,36 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
         route: RoutePaths.payments,
         subItems: [
           const SidebarSubItem(label: 'Payments', route: RoutePaths.payments),
-          const SidebarSubItem(
-            label: 'Khataa Ledger',
-            route: RoutePaths.khataa,
-          ),
+          // Khataa — admin only
           if (isAdmin)
-            const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
+            const SidebarSubItem(
+              label: 'Khataa Ledger',
+              route: RoutePaths.khataa,
+            ),
+          if (isAdmin)
+            const SidebarSubItem(
+              label: 'Expenses',
+              route: RoutePaths.expenses,
+            ),
         ],
       ),
-      SidebarItem(
-        icon: Icons.admin_panel_settings,
-        label: 'Management',
-        route: RoutePaths.settings,
-        subItems: [
-          if (isAdmin)
+      // Management group — admin only (employees see no items here)
+      if (isAdmin)
+        SidebarItem(
+          icon: Icons.admin_panel_settings,
+          label: 'Management',
+          route: RoutePaths.settings,
+          subItems: [
             const SidebarSubItem(
               label: 'Employees',
               route: RoutePaths.employees,
             ),
-          const SidebarSubItem(label: 'Settings', route: RoutePaths.settings),
-        ],
-      ),
+            const SidebarSubItem(
+              label: 'Settings',
+              route: RoutePaths.settings,
+            ),
+          ],
+        ),
     ];
   }
 
@@ -115,7 +141,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha: 0.08),
                   width: 1,
                 ),
               ),
@@ -188,17 +214,19 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                       Icons.chevron_left,
                       color: AppColors.mediumGray,
                     ),
-                    onPressed: () => setState(() => isExpanded = false),
+                    onPressed: widget.forceCollapsed
+                        ? null
+                        : () => setState(() => _localExpanded = false),
                   ),
               ],
             ),
           ),
 
-          if (!isExpanded) ...[
+          if (!isExpanded && !widget.forceCollapsed) ...[
             const SizedBox(height: 12),
             IconButton(
               icon: const Icon(Icons.menu, color: AppColors.mediumGray),
-              onPressed: () => setState(() => isExpanded = true),
+              onPressed: () => setState(() => _localExpanded = true),
               tooltip: 'Expand Sidebar',
             ),
           ],
@@ -240,7 +268,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                     }
                     // If collapsed sidebar, expand it
                     if (!isExpanded) {
-                      setState(() => isExpanded = true);
+                      setState(() => _localExpanded = true);
                     }
                   },
                   onSubTap: (subIndex) {
@@ -261,7 +289,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha: 0.08),
                   width: 1,
                 ),
               ),
@@ -273,7 +301,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                     children: [
                       CircleAvatar(
                         radius: 16,
-                        backgroundColor: AppColors.primaryBlue.withOpacity(0.2),
+                        backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.2),
                         child: Text(
                           widget.currentUser.name.characters.first
                               .toUpperCase(),
@@ -298,7 +326,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              widget.currentUser.role.name.toUpperCase(),
+                              widget.currentUser.role.toUpperCase(),
                               style: AppFonts.labelSmall.copyWith(
                                 color: AppColors.mediumGray,
                                 fontSize: 9,
@@ -382,8 +410,8 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
     final hasSubItems = widget.item.subItems.isNotEmpty;
 
     final Color tileBgColor = widget.isGroupActive
-        ? Colors.white.withOpacity(0.08)
-        : (isHovered ? Colors.white.withOpacity(0.04) : Colors.transparent);
+        ? Colors.white.withValues(alpha: 0.08)
+        : (isHovered ? Colors.white.withValues(alpha: 0.04) : Colors.transparent);
 
     final Color iconAndTextColor = widget.isGroupActive
         ? AppColors.primaryBlue
@@ -443,16 +471,16 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
             final bool subHovered = hoveredSubIndex == subIndex;
 
             final Color subBgColor = subSelected
-                ? AppColors.primaryBlue.withOpacity(0.12)
+                ? AppColors.primaryBlue.withValues(alpha: 0.12)
                 : (subHovered
-                      ? Colors.white.withOpacity(0.04)
+                      ? Colors.white.withValues(alpha: 0.04)
                       : Colors.transparent);
 
             final Color subTextColor = subSelected
                 ? AppColors.primaryBlue
                 : (subHovered
                       ? AppColors.white
-                      : AppColors.mediumGray.withOpacity(0.8));
+                      : AppColors.mediumGray.withValues(alpha: 0.8));
 
             return MouseRegion(
               onEnter: (_) => setState(() => hoveredSubIndex = subIndex),
@@ -502,7 +530,10 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
         if (widget.isExpandedSidebar)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Divider(color: Colors.white.withOpacity(0.05), height: 1),
+            child: Divider(
+              color: Colors.white.withValues(alpha: 0.05),
+              height: 1,
+            ),
           ),
       ],
     );
@@ -520,12 +551,12 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
   final UserModel? currentUser;
 
   const DashboardTopBar({
-    Key? key,
+    super.key,
     required this.title,
     this.actions,
     this.onMenuPressed,
     this.currentUser,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -544,13 +575,13 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Center(
               child: Tooltip(
-                message: '${currentUser!.name} (${currentUser!.role.name})',
+                message: '${currentUser!.name} (${currentUser!.role})',
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: AppColors.primaryBlue.withOpacity(0.12),
+                      backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.2),
                       child: Text(
                         currentUser!.name.characters.first.toUpperCase(),
                         style: AppFonts.labelMedium.copyWith(
@@ -571,7 +602,7 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
                         ),
                         Text(
-                          currentUser!.role.name.toUpperCase(),
+                          currentUser!.role.toUpperCase(),
                           style: AppFonts.labelSmall.copyWith(
                             color: AppColors.mediumGray,
                             fontSize: 9,
@@ -602,7 +633,7 @@ class BreadcrumbItem {
 class Breadcrumb extends StatelessWidget {
   final List<BreadcrumbItem>? items;
 
-  const Breadcrumb({Key? key, this.items}) : super(key: key);
+  const Breadcrumb({super.key, this.items});
 
   @override
   Widget build(BuildContext context) {

@@ -13,6 +13,7 @@ import 'package:nasr_isp/features/dashboard/presentation/pages/dashboard_page.da
 import 'package:nasr_isp/features/employees/presentation/pages/employees_page.dart';
 import 'package:nasr_isp/features/expenses/presentation/pages/expenses_page.dart';
 import 'package:nasr_isp/features/installations/presentation/pages/installations_page.dart';
+import 'package:nasr_isp/features/packages/presentation/pages/packages_page.dart';
 import 'package:nasr_isp/features/payments/presentation/pages/payments_page.dart';
 import 'package:nasr_isp/features/settings/presentation/pages/settings_page.dart';
 import 'package:nasr_isp/features/inventory/presentation/pages/inventory_page.dart';
@@ -33,7 +34,6 @@ GoRouter createAppRouter(AuthBloc authBloc) {
       // Shell Routes (authenticated - wrapped with AppShell)
       ShellRoute(
         builder: (context, state, child) {
-          // Extract current route for sidebar highlighting
           final location = state.matchedLocation;
           return AppShell(currentRoute: location, child: child);
         },
@@ -43,6 +43,7 @@ GoRouter createAppRouter(AuthBloc authBloc) {
             path: RoutePaths.dashboard,
             builder: (context, state) => const DashboardPage(),
           ),
+
           // Customers
           GoRoute(
             path: RoutePaths.customers,
@@ -70,80 +71,75 @@ GoRouter createAppRouter(AuthBloc authBloc) {
               ),
             ],
           ),
+
+          // Packages (accessible to all authenticated users; role filtering done in-page)
+          GoRoute(
+            path: RoutePaths.packages,
+            builder: (context, state) => const PackagesPage(),
+          ),
+
           // Payments
           GoRoute(
             path: RoutePaths.payments,
             builder: (context, state) => const PaymentsPage(),
           ),
-          // Expenses (admin-only)
-          GoRoute(
-            path: RoutePaths.expenses,
-            builder: (context, state) => const ExpensesPage(),
-            redirect: (context, state) {
-              final authBloc = context.read<AuthBloc>();
-              if (authBloc.state is AuthAuthenticated) {
-                final user = (authBloc.state as AuthAuthenticated).user;
-                if (!AuthHelpers.canAccessAdminRoutes(user)) {
-                  return RoutePaths.dashboard;
-                }
-              }
-              return null;
-            },
-          ),
-          // Reports (admin-only)
-          // GoRoute(
-          //   path: RoutePaths.reports,
-          //   builder: (context, state) => const ReportsPage(),
-          //   redirect: (context, state) {
-          //     final authBloc = context.read<AuthBloc>();
-          //     if (authBloc.state is AuthAuthenticated) {
-          //       final user = (authBloc.state as AuthAuthenticated).user;
-          //       if (!AuthHelpers.canAccessAdminRoutes(user)) {
-          //         return RoutePaths.dashboard;
-          //       }
-          //     }
-          //     return null;
-          //   },
-          // ),
-          // Employees (admin-only)
-          GoRoute(
-            path: RoutePaths.employees,
-            builder: (context, state) => const EmployeesPage(),
-            redirect: (context, state) {
-              final authBloc = context.read<AuthBloc>();
-              if (authBloc.state is AuthAuthenticated) {
-                final user = (authBloc.state as AuthAuthenticated).user;
-                if (!AuthHelpers.canAccessAdminRoutes(user)) {
-                  return RoutePaths.dashboard;
-                }
-              }
-              return null;
-            },
-          ),
+
           // Installations
           GoRoute(
             path: RoutePaths.installations,
             builder: (context, state) => const InstallationsPage(),
           ),
-          // Inventory
+
+          // Expenses (admin-only)
+          GoRoute(
+            path: RoutePaths.expenses,
+            builder: (context, state) => const ExpensesPage(),
+            redirect: _adminOnlyRedirect,
+          ),
+
+          // Employees (admin-only)
+          GoRoute(
+            path: RoutePaths.employees,
+            builder: (context, state) => const EmployeesPage(),
+            redirect: _adminOnlyRedirect,
+          ),
+
+          // Inventory (admin-only)
           GoRoute(
             path: RoutePaths.inventory,
             builder: (context, state) => const InventoryPage(),
+            redirect: _adminOnlyRedirect,
           ),
-          // Khataa
+
+          // Khataa (admin-only)
           GoRoute(
             path: RoutePaths.khataa,
             builder: (context, state) => const KhataaPage(),
+            redirect: _adminOnlyRedirect,
           ),
-          // Settings
+
+          // Settings (admin-only)
           GoRoute(
             path: RoutePaths.settings,
             builder: (context, state) => const SettingsPage(),
+            redirect: _adminOnlyRedirect,
           ),
         ],
       ),
     ],
   );
+}
+
+/// Redirect helper for admin-only routes
+String? _adminOnlyRedirect(BuildContext context, GoRouterState state) {
+  final authBloc = context.read<AuthBloc>();
+  if (authBloc.state is AuthAuthenticated) {
+    final user = (authBloc.state as AuthAuthenticated).user;
+    if (!AuthHelpers.canAccessAdminRoutes(user)) {
+      return RoutePaths.dashboard;
+    }
+  }
+  return null;
 }
 
 /// Simple ChangeNotifier that notifies the router when AuthBloc state changes
@@ -165,8 +161,15 @@ class GoRouterRefreshBloc extends ChangeNotifier {
 /// Global redirect for authentication
 String? _goRouterRedirect(BuildContext context, GoRouterState state) {
   final authBloc = context.read<AuthBloc>();
+  final authState = authBloc.state;
   final isLogin = state.matchedLocation == RoutePaths.login;
-  final isAuthenticated = authBloc.state is AuthAuthenticated;
+
+  // Still checking Firebase session on startup — don't redirect yet
+  if (authState is AuthInitial || authState is AuthLoading) {
+    return null;
+  }
+
+  final isAuthenticated = authState is AuthAuthenticated;
 
   // If not authenticated and not on login page, redirect to login
   if (!isAuthenticated && !isLogin) {
@@ -178,6 +181,5 @@ String? _goRouterRedirect(BuildContext context, GoRouterState state) {
     return RoutePaths.dashboard;
   }
 
-  // Otherwise, allow navigation
   return null;
 }

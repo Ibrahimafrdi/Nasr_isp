@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
@@ -13,7 +14,7 @@ import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class ExpensesPage extends StatefulWidget {
-  const ExpensesPage({Key? key}) : super(key: key);
+  const ExpensesPage({super.key});
 
   @override
   State<ExpensesPage> createState() => _ExpensesPageState();
@@ -123,7 +124,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
           const SizedBox(height: 14),
 
           // Date range row
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: _pickDateRange,
@@ -141,8 +144,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   ),
                 ),
               ),
-              if (hasDateRange) ...[
-                const SizedBox(width: 8),
+              if (hasDateRange)
                 IconButton(
                   tooltip: 'Clear date range',
                   icon: const Icon(Icons.close_rounded, size: 16),
@@ -151,7 +153,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     _dateRangeEnd = null;
                   }),
                 ),
-              ],
             ],
           ),
           const SizedBox(height: 14),
@@ -207,16 +208,18 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Breadcrumb(
-                        items: [
-                          BreadcrumbItem(
-                            label: 'Home',
-                            onTap: () => context.go(RoutePaths.dashboard),
-                          ),
-                          BreadcrumbItem(label: 'Expenses'),
-                        ],
+                      Expanded(
+                        child: Breadcrumb(
+                          items: [
+                            BreadcrumbItem(
+                              label: 'Home',
+                              onTap: () => context.go(RoutePaths.dashboard),
+                            ),
+                            BreadcrumbItem(label: 'Expenses'),
+                          ],
+                        ),
                       ),
-                      if (authState.user.role.isAdmin)
+                      if (authState.user.isAdmin)
                         ElevatedButton.icon(
                           onPressed: () => _showAddExpenseDialog(context),
                           icon: const Icon(Icons.add_shopping_cart, size: 18),
@@ -231,7 +234,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     _buildFilterPanel(),
                     const SizedBox(height: 24),
 
-                    // Summary + pie chart (unchanged)
+                    // Summary + pie chart (responsive)
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final isDesktop = constraints.maxWidth > 800;
@@ -267,13 +270,13 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Expenses table (unchanged)
+                    // Expenses table / cards — responsive
                     Card(
                       elevation: 1,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                         side: BorderSide(
-                          color: AppTheme.lightGray.withOpacity(0.5),
+                          color: AppTheme.lightGray.withValues(alpha: 0.5),
                         ),
                       ),
                       child: Padding(
@@ -287,7 +290,15 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                   ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 16),
-                            _buildExpensesTable(state.expenses),
+                            state.expenses.isEmpty
+                                ? const EmptyStateWidget(
+                                    icon: Icons.receipt,
+                                    title: 'No expenses recorded',
+                                  )
+                                : ResponsiveLayout(
+                                    mobile: _buildExpenseCards(state.expenses),
+                                    desktop: _buildExpensesTable(state.expenses),
+                                  ),
                           ],
                         ),
                       ),
@@ -324,7 +335,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  // ── Summary cards (unchanged) ────────────────────────────────────────────────
+  // ── Summary cards ────────────────────────────────────────────────────────────
   Widget _buildExpenseSummaryCards(double total) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,33 +344,54 @@ class _ExpensesPageState extends State<ExpensesPage> {
           label: 'Total Expenses (Current Cycle)',
           value: DateTimeUtils.formatCurrency(total),
           icon: Icons.trending_up,
-          backgroundColor: AppTheme.errorColor.withOpacity(0.04),
+          backgroundColor: AppTheme.errorColor.withValues(alpha: 0.04),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: DashboardCard(
-                label: 'Internet Transit (Upstream)',
-                value: DateTimeUtils.formatCurrency(total * 0.45),
-                subtitle: '45% of total spend',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: DashboardCard(
-                label: 'Salary & Payroll',
-                value: DateTimeUtils.formatCurrency(total * 0.35),
-                subtitle: '35% of total spend',
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 400) {
+              return Column(
+                children: [
+                  DashboardCard(
+                    label: 'Internet Transit (Upstream)',
+                    value: DateTimeUtils.formatCurrency(total * 0.45),
+                    subtitle: '45% of total spend',
+                  ),
+                  const SizedBox(height: 12),
+                  DashboardCard(
+                    label: 'Salary & Payroll',
+                    value: DateTimeUtils.formatCurrency(total * 0.35),
+                    subtitle: '35% of total spend',
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: DashboardCard(
+                    label: 'Internet Transit (Upstream)',
+                    value: DateTimeUtils.formatCurrency(total * 0.45),
+                    subtitle: '45% of total spend',
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: DashboardCard(
+                    label: 'Salary & Payroll',
+                    value: DateTimeUtils.formatCurrency(total * 0.35),
+                    subtitle: '35% of total spend',
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 
-  // ── Pie chart (unchanged) ────────────────────────────────────────────────────
+  // ── Pie chart ────────────────────────────────────────────────────────────────
   Widget _buildExpensePieChart(List<ExpenseModel> expenses) {
     final Map<ExpenseCategory, double> totals = {};
     for (final e in expenses) {
@@ -380,7 +412,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
       elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+        side: BorderSide(color: AppTheme.lightGray.withValues(alpha: 0.5)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -459,14 +491,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  // ── Expenses table (unchanged) ───────────────────────────────────────────────
+  // ── Desktop: Expenses table ──────────────────────────────────────────────────
   Widget _buildExpensesTable(List<ExpenseModel> expenses) {
-    if (expenses.isEmpty) {
-      return const EmptyStateWidget(
-        icon: Icons.receipt,
-        title: 'No expenses recorded',
-      );
-    }
     return DataTableWrapper(
       columns: const [
         DataColumn(label: Text('Description')),
@@ -488,7 +514,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.08),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -527,7 +553,109 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  // ── Add expense dialog (unchanged) ───────────────────────────────────────────
+  // ── Mobile: Expense cards ──────────────────────────────────────────────────
+  Widget _buildExpenseCards(List<ExpenseModel> expenses) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: expenses.map((e) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.lightGray.withValues(alpha: 0.6),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Description + category chip
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      e.description,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      e.category.label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Info row
+              Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                children: [
+                  _infoChip(
+                    Icons.monetization_on,
+                    DateTimeUtils.formatCurrency(e.amount),
+                  ),
+                  _infoChip(Icons.calendar_today, DateTimeUtils.formatDate(e.date)),
+                  if (e.notes != null && e.notes!.isNotEmpty)
+                    _infoChip(Icons.notes, e.notes!),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: AppTheme.mediumGray),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppTheme.mediumGray,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Add expense dialog ───────────────────────────────────────────────────────
   void _showAddExpenseDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final descController = TextEditingController();
@@ -547,70 +675,75 @@ class _ExpensesPageState extends State<ExpensesPage> {
                 key: formKey,
                 child: SizedBox(
                   width: 450,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: descController,
-                        decoration: const InputDecoration(
-                          labelText: 'Expense Title / Description',
-                        ),
-                        validator: (v) => v == null || v.isEmpty
-                            ? 'Description is required'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: amountController,
-                              decoration: const InputDecoration(
-                                labelText: 'Amount (PKR)',
-                                prefixText: 'PKR ',
-                              ),
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                if (v == null || v.isEmpty)
-                                  return 'Amount is required';
-                                if (double.tryParse(v) == null)
-                                  return 'Enter a number';
-                                return null;
-                              },
-                            ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: descController,
+                          decoration: const InputDecoration(
+                            labelText: 'Expense Title / Description',
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DropdownButtonFormField<ExpenseCategory>(
-                              value: selectedCategory,
-                              decoration: const InputDecoration(
-                                labelText: 'Category',
-                              ),
-                              items: ExpenseCategory.values
-                                  .map(
-                                    (cat) => DropdownMenuItem(
-                                      value: cat,
-                                      child: Text(cat.label),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (val) {
-                                if (val != null)
-                                  setState(() => selectedCategory = val);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: notesController,
-                        decoration: const InputDecoration(
-                          labelText: 'Audit Memo / Notes (Optional)',
+                          validator: (v) => v == null || v.isEmpty
+                              ? 'Description is required'
+                              : null,
                         ),
-                        maxLines: 2,
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: amountController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Amount (PKR)',
+                                  prefixText: 'PKR ',
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) {
+                                    return 'Amount is required';
+                                  }
+                                  if (double.tryParse(v) == null) {
+                                    return 'Enter a number';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: DropdownButtonFormField<ExpenseCategory>(
+                                value: selectedCategory,
+                                decoration: const InputDecoration(
+                                  labelText: 'Category',
+                                ),
+                                items: ExpenseCategory.values
+                                    .map(
+                                      (cat) => DropdownMenuItem(
+                                        value: cat,
+                                        child: Text(cat.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => selectedCategory = val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: notesController,
+                          decoration: const InputDecoration(
+                            labelText: 'Audit Memo / Notes (Optional)',
+                          ),
+                          maxLines: 2,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -628,7 +761,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                             await Future.delayed(
                               const Duration(milliseconds: 800),
                             );
-                            if (!mounted) return;
+                            if (!ctx.mounted) return;
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(

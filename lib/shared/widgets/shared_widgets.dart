@@ -5,7 +5,7 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/shared/widgets/status_badge.dart' as sb;
 
 class StatusBadge extends StatelessWidget {
-  final CustomerStatus status;
+  final dynamic status;
   final String? label;
 
   const StatusBadge({Key? key, required this.status, this.label})
@@ -21,7 +21,7 @@ class StatusBadge extends StatelessWidget {
 }
 
 class PaymentStatusBadge extends StatelessWidget {
-  final PaymentStatus status;
+  final dynamic status;
 
   const PaymentStatusBadge({Key? key, required this.status}) : super(key: key);
 
@@ -77,15 +77,15 @@ class _DashboardCardState extends State<DashboardCard> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: _isHovered
-                  ? primaryColor.withOpacity(0.4)
-                  : Colors.grey.withOpacity(0.15),
+                  ? primaryColor.withValues(alpha: 0.4)
+                  : Colors.grey.withValues(alpha: 0.15),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
                 color: _isHovered
-                    ? primaryColor.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.03),
+                    ? primaryColor.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.03),
                 blurRadius: _isHovered ? 16 : 8,
                 offset: Offset(0, _isHovered ? 6 : 3),
               ),
@@ -114,7 +114,7 @@ class _DashboardCardState extends State<DashboardCard> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.08),
+                        color: primaryColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(

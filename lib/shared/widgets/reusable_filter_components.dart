@@ -12,12 +12,12 @@ class DateRangePickerField extends StatefulWidget {
   final String label;
 
   const DateRangePickerField({
-    Key? key,
+    super.key,
     this.startDate,
     this.endDate,
     required this.onDateRangeChanged,
     this.label = 'Date Range',
-  }) : super(key: key);
+  });
 
   @override
   State<DateRangePickerField> createState() => _DateRangePickerFieldState();
@@ -102,11 +102,11 @@ class _DateRangePickerFieldState extends State<DateRangePickerField> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            borderSide: BorderSide(color: AppColors.lightGray.withOpacity(0.8)),
+            borderSide: BorderSide(color: AppColors.lightGray.withValues(alpha: 0.8)),
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            borderSide: BorderSide(color: AppColors.lightGray.withOpacity(0.6)),
+            borderSide: BorderSide(color: AppColors.lightGray.withValues(alpha: 0.6)),
           ),
         ),
       ),
@@ -122,12 +122,12 @@ class StatusFilterChips extends StatelessWidget {
   final Map<String, IconData>? statusIcons;
 
   const StatusFilterChips({
-    Key? key,
+    super.key,
     required this.availableStatuses,
     required this.selectedStatuses,
     required this.onStatusesChanged,
     this.statusIcons,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -163,12 +163,12 @@ class CategoryFilterDropdown extends StatelessWidget {
   final String label;
 
   const CategoryFilterDropdown({
-    Key? key,
+    super.key,
     required this.categories,
     required this.selectedCategories,
     required this.onCategoriesChanged,
     this.label = 'Categories',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +188,7 @@ class CategoryFilterDropdown extends StatelessWidget {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          borderSide: BorderSide(color: AppColors.lightGray.withOpacity(0.8)),
+          borderSide: BorderSide(color: AppColors.lightGray.withValues(alpha: 0.8)),
         ),
       ),
       items: categories
@@ -221,13 +221,13 @@ class FilterPanelHeader extends StatelessWidget {
   final String title;
 
   const FilterPanelHeader({
-    Key? key,
+    super.key,
     required this.searchController,
     required this.onSearchChanged,
     this.onClearFilters,
     this.activeFilterCount = 0,
     this.title = 'Filters',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

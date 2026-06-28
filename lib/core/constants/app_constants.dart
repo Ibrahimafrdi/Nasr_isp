@@ -53,9 +53,9 @@ class RoutePaths {
   static const String customerDetails = '/customers/:id';
   static const String addCustomer = '/customers/add';
   static const String editCustomer = '/customers/:id/edit';
+  static const String packages = '/packages';
   static const String payments = '/payments';
   static const String expenses = '/expenses';
-  static const String reports = '/reports';
   static const String employees = '/employees';
   static const String installations = '/installations';
   static const String settings = '/settings';
@@ -145,3 +145,21 @@ enum ExpenseCategory {
     }
   }
 }
+
+/// Connection type
+enum ConnectionType {
+  wireless,
+  opticalFibre;
+
+  String get label {
+    switch (this) {
+      case ConnectionType.wireless:
+        return 'Wireless';
+      case ConnectionType.opticalFibre:
+        return 'Optical Fibre';
+    }
+  }
+
+  String get displayName => label;
+}
+

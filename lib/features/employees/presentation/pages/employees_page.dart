@@ -238,7 +238,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       ],
                     ),
                   ),
-                  if (authState.user.role.isAdmin)
+                  if (authState.user.isAdmin)
                     ElevatedButton.icon(
                       onPressed: () => _showAddEmployeeDialog(context),
                       icon: const Icon(Icons.person_add_alt_1, size: 18),

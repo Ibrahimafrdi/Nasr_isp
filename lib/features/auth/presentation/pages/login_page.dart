@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -31,18 +29,16 @@ class _LoginPageState extends State<LoginPage>
   static const _bgDeep = Color(0xFF0A0F1E);
   static const _bgCard = Color(0xFF0F1729);
   static const _borderDefault = Color(0xFF1E2D45);
-  static const _borderFocus = Color(0xFF2563EB);
   static const _accentBlue = Color(0xFF2563EB);
   static const _accentGreen = Color(0xFF10B981);
   static const _textPrimary = Color(0xFFF1F5F9);
-  static const _textSecondary = Color(0xFF94A3B8);
   static const _textMuted = Color(0xFF475569);
 
   @override
   void initState() {
     super.initState();
-    _emailController = TextEditingController(text: 'admin@nasr.com');
-    _passwordController = TextEditingController(text: 'admin123');
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
 
     _animController = AnimationController(
       vsync: this,
@@ -160,8 +156,7 @@ class _LoginPageState extends State<LoginPage>
                   const SizedBox(height: 16),
                   _buildPasswordField(),
                   const SizedBox(height: 20),
-                  _buildDemoCredentials(),
-                  const SizedBox(height: 24),
+
                   _buildSignInButton(),
                   const SizedBox(height: 16),
                   _buildForgotPassword(),

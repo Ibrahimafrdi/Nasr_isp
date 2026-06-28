@@ -3,11 +3,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
+import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
+import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
+import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
+import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
+import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
 
 class AddCustomerPage extends StatefulWidget {
   final String? customerId;
@@ -22,49 +28,108 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
-  late TextEditingController _emailController;
+  late TextEditingController _cnicController;
   late TextEditingController _addressController;
-  late TextEditingController _rateController;
+  late TextEditingController _monthlyBillController;
+  // late TextEditingController _installationCostController;
+  late TextEditingController _notesController;
 
-  String _selectedPackage = '10 Mbps';
-  String _selectedEmployee = 'emp_1';
+  ConnectionType _selectedConnectionType = ConnectionType.wireless;
+  String? _selectedPackageId;
   bool _isSaving = false;
+  DateTime _joinDate = DateTime.now();
 
-  final List<String> _packages = ['10 Mbps', '25 Mbps', '50 Mbps', '100 Mbps'];
-  final Map<String, double> _packageRates = {
-    '10 Mbps': 999.0,
-    '25 Mbps': 1499.0,
-    '50 Mbps': 2499.0,
-    '100 Mbps': 4499.0,
-  };
-
-  final List<Map<String, String>> _employees = [
-    {'id': 'emp_1', 'name': 'Technician Ali'},
-    {'id': 'emp_2', 'name': 'Technician Hamza'},
-    {'id': 'emp_3', 'name': 'Technician Sana'},
-    {'id': 'emp_4', 'name': 'Technician Bilal'},
-  ];
+  String? _existingStatus;
+  DateTime? _existingCreatedAt;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _phoneController = TextEditingController();
-    _emailController = TextEditingController();
+    _cnicController = TextEditingController();
     _addressController = TextEditingController();
-    _rateController = TextEditingController(
-      text: _packageRates[_selectedPackage].toString(),
-    );
+    _monthlyBillController = TextEditingController();
+    // _installationCostController = TextEditingController();
+    _notesController = TextEditingController();
 
-    if (widget.customerId != null) {
-      // Simulate fetching existing customer details for Edit Mode
-      _nameController.text =
-          'Customer ${widget.customerId!.replaceAll('cust_', '')}';
-      _phoneController.text = '+923001234567';
-      _emailController.text = 'subscriber@nasr_isp.com';
-      _addressController.text = 'Flat 402, Block D, Gulshan, Karachi';
-      _selectedPackage = '25 Mbps';
-      _rateController.text = _packageRates[_selectedPackage].toString();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCustomerData();
+    });
+  }
+
+  void _loadCustomerData() {
+    if (widget.customerId == null) {
+      _setDefaultPackage();
+      return;
+    }
+
+    // Try BLoC state first (all customers, not just paginated)
+    final customersState = context.read<CustomersBloc>().state;
+    if (customersState is CustomersLoaded) {
+      // Search across ALL loaded customers
+      try {
+        final customer = customersState.customers.firstWhere(
+          (c) => c.id == widget.customerId,
+        );
+        _fillForm(customer);
+        return;
+      } catch (_) {
+        // Not found in current page — trigger a fresh full load
+      }
+    }
+
+    // Fallback: reload without filters to get all customers
+    context.read<CustomersBloc>().add(const LoadCustomersEvent());
+
+    // Listen for state change via addPostFrameCallback retry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        final state = context.read<CustomersBloc>().state;
+        if (state is CustomersLoaded) {
+          try {
+            final customer = state.customers.firstWhere(
+              (c) => c.id == widget.customerId,
+            );
+            _fillForm(customer);
+          } catch (_) {
+            // Customer truly not found
+          }
+        }
+      });
+    });
+  }
+
+  void _fillForm(CustomerModel customer) {
+    setState(() {
+      _nameController.text = customer.name;
+      _phoneController.text = customer.phone;
+      _cnicController.text = customer.cnic;
+      _addressController.text = customer.address;
+      _selectedConnectionType = customer.connectionType == 'fiber'
+          ? ConnectionType.opticalFibre
+          : ConnectionType.wireless;
+      _monthlyBillController.text = customer.monthlyBill.toString();
+      // _installationCostController.text = customer.installationCost.toString();
+      _selectedPackageId = customer.packageId;
+      _notesController.text = customer.notes;
+      _existingStatus = customer.status;
+      _existingCreatedAt = customer.createdAt;
+      if (customer.joinDate != null) _joinDate = customer.joinDate!;
+    });
+  }
+
+  void _setDefaultPackage() {
+    final packagesState = context.read<PackagesBloc>().state;
+    if (packagesState is PackagesLoaded) {
+      if (packagesState.packages.isNotEmpty) {
+        setState(() {
+          _selectedPackageId = packagesState.packages.first.id;
+          _monthlyBillController.text = packagesState.packages.first.price
+              .toString();
+        });
+      }
     }
   }
 
@@ -72,63 +137,122 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _emailController.dispose();
+    _cnicController.dispose();
     _addressController.dispose();
-    _rateController.dispose();
+    _monthlyBillController.dispose();
+    // _installationCostController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
-  void _onPackageChanged(String? newPackage) {
-    if (newPackage != null) {
-      setState(() {
-        _selectedPackage = newPackage;
-        _rateController.text = _packageRates[newPackage].toString();
-      });
+  void _onPackageChanged(String? packageId) {
+    if (packageId != null) {
+      final packagesState = context.read<PackagesBloc>().state;
+      if (packagesState is PackagesLoaded) {
+        final pkg = packagesState.packages.firstWhere((p) => p.id == packageId);
+        setState(() {
+          _selectedPackageId = packageId;
+          _monthlyBillController.text = pkg.price.toString();
+        });
+      }
     }
   }
 
   void _saveForm() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
-      // Simulate network save delay
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
 
+      final nextDueDate = DateTime(
+        _joinDate.year,
+        _joinDate.month + 1,
+        _joinDate.day,
+      );
+
+      final customerId =
+          widget.customerId ?? 'cust_${DateTime.now().millisecondsSinceEpoch}';
+
       final newCustomer = CustomerModel(
-        id: widget.customerId ?? 'cust_${DateTime.now().millisecondsSinceEpoch}',
+        id: customerId,
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
+        cnic: _cnicController.text.trim(),
         address: _addressController.text.trim(),
-        email: _emailController.text.trim().isNotEmpty
-            ? _emailController.text.trim()
-            : null,
-        packageName: _selectedPackage,
-        monthlyRate: double.tryParse(_rateController.text) ?? 0.0,
-        expiryDate: DateTime.now().add(const Duration(days: 30)),
-        status: CustomerStatus.active,
-        assignedEmployeeId: _selectedEmployee,
-        createdAt: DateTime.now(),
-        balance: 0.0,
+        connectionType: _selectedConnectionType == ConnectionType.opticalFibre
+            ? 'fiber'
+            : 'wireless',
+        packageId: _selectedPackageId,
+        monthlyBill: double.tryParse(_monthlyBillController.text.trim()) ?? 0.0,
+        status: _existingStatus ?? 'active',
+        notes: _notesController.text.trim(),
+        createdAt: _existingCreatedAt ?? DateTime.now(),
+        joinDate: _joinDate,
+        nextDueDate: nextDueDate,
       );
 
       if (widget.customerId == null) {
+        // CREATE new customer
         context.read<CustomersBloc>().add(CreateCustomerEvent(newCustomer));
+
+        final billingMonth =
+            '${_joinDate.year}-${_joinDate.month.toString().padLeft(2, '0')}';
+        final firstPayment = PaymentModel(
+          id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
+          customerId: customerId,
+          customerName: newCustomer.name,
+          amount: newCustomer.monthlyBill,
+          paidAmount: newCustomer.monthlyBill,
+          billingMonth: billingMonth,
+          dueDate: nextDueDate,
+          completedDate: _joinDate,
+          method: 'cash',
+          status: 'completed',
+          notes: 'First month bill collected at connection setup',
+          createdAt: DateTime.now(),
+        );
+        context.read<PaymentsBloc>().add(CreatePaymentEvent(firstPayment));
+
+        // Wait for Firestore write then navigate
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Subscriber account created successfully!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        context.go(RoutePaths.customers);
       } else {
+        // UPDATE existing customer
         context.read<CustomersBloc>().add(UpdateCustomerEvent(newCustomer));
+
+        // Wait for Firestore write + BLoC reload to complete
+        await Future.delayed(const Duration(milliseconds: 1000));
+        if (!mounted) return;
+
+        // Trigger a fresh load to ensure list reflects update
+        context.read<CustomersBloc>().add(const LoadCustomersEvent());
+
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Subscriber details updated successfully!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        context.go(RoutePaths.customers);
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.customerId == null
-                ? 'Subscriber account created successfully!'
-                : 'Subscriber details updated successfully!',
-          ),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
-      context.go(RoutePaths.customers);
+      setState(() => _isSaving = false);
     }
+  }
+
+  bool _isMobile(BuildContext context) {
+    return MediaQuery.of(context).size.width < 700;
   }
 
   @override
@@ -141,253 +265,345 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
           return const Scaffold(body: Center(child: Text('Not authenticated')));
         }
 
-        return Padding(
-          padding: const EdgeInsets.all(AppConstants.paddingLarge),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Breadcrumb(
-                items: [
-                  BreadcrumbItem(
-                    label: 'Home',
-                    onTap: () => context.go(RoutePaths.dashboard),
-                  ),
-                  BreadcrumbItem(
-                    label: 'Customers',
-                    onTap: () => context.go(RoutePaths.customers),
-                  ),
-                  BreadcrumbItem(
-                    label: isEditMode ? 'Modify Profile' : 'New Subscription',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                isEditMode ? 'Edit Account' : 'Provisioning Form',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Center(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(
-                        color: AppTheme.lightGray.withOpacity(0.5),
-                      ),
+        return BlocBuilder<PackagesBloc, PackagesState>(
+          builder: (context, packagesState) {
+            List<PackageEntity> availablePackages = [];
+
+            if (packagesState is PackagesLoaded) {
+              availablePackages = packagesState.packages;
+            }
+
+            return Scaffold(
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppConstants.paddingLarge),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Breadcrumb(
+                      items: [
+                        BreadcrumbItem(
+                          label: 'Home',
+                          onTap: () => context.go(RoutePaths.dashboard),
+                        ),
+                        BreadcrumbItem(
+                          label: 'Customers',
+                          onTap: () => context.go(RoutePaths.customers),
+                        ),
+                        BreadcrumbItem(
+                          label: isEditMode
+                              ? 'Modify Profile'
+                              : 'New Subscription',
+                        ),
+                      ],
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Account Information',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: AppTheme.primaryColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const Divider(height: 24),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: AppFormField(
-                                    label: 'Full Name',
-                                    isRequired: true,
-                                    controller: _nameController,
-                                    hintText: 'Enter complete name',
-                                    validator: (val) =>
-                                        val == null || val.isEmpty
-                                        ? 'Name is required'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: AppFormField(
-                                    label: 'Phone Number',
-                                    isRequired: true,
-                                    controller: _phoneController,
-                                    hintText: '+923001234567',
-                                    keyboardType: TextInputType.phone,
-                                    validator: (val) =>
-                                        val == null || val.isEmpty
-                                        ? 'Phone is required'
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: AppFormField(
-                                    label: 'Email Address',
-                                    controller: _emailController,
-                                    hintText: 'name@nasr.com',
-                                    keyboardType: TextInputType.emailAddress,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Assigned Field Technician',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
+                    const SizedBox(height: 20),
+                    Text(
+                      isEditMode ? 'Edit Account' : 'Provisioning Form',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: Card(
+                          elevation: 1,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Account Information",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: AppTheme.primaryColor,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      DropdownButtonFormField<String>(
-                                        value: _selectedEmployee,
-                                        decoration: const InputDecoration(
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                        ),
-                                        items: _employees.map((emp) {
-                                          return DropdownMenuItem<String>(
-                                            value: emp['id'],
-                                            child: Text(emp['name']!),
-                                          );
-                                        }).toList(),
-                                        onChanged: (val) {
-                                          if (val != null) {
-                                            setState(
-                                              () => _selectedEmployee = val,
-                                            );
-                                          }
-                                        },
-                                      ),
-                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-                            AppFormField(
-                              label: 'Installation Physical Address',
-                              isRequired: true,
-                              controller: _addressController,
-                              hintText:
-                                  'Enter complete flat, street, block and area detail...',
-                              maxLines: 2,
-                              validator: (val) => val == null || val.isEmpty
-                                  ? 'Address is required'
-                                  : null,
-                            ),
-                            const SizedBox(height: 32),
-                            Text(
-                              'Plan & Subscription Service',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: AppTheme.primaryColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const Divider(height: 24),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Bandwidth Plan',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      DropdownButtonFormField<String>(
-                                        value: _selectedPackage,
-                                        decoration: const InputDecoration(
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                        ),
-                                        items: _packages.map((pkg) {
-                                          return DropdownMenuItem<String>(
-                                            value: pkg,
-                                            child: Text(pkg),
-                                          );
-                                        }).toList(),
-                                        onChanged: _onPackageChanged,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: AppFormField(
-                                    label: 'Monthly Rate (PKR)',
-                                    isRequired: true,
-                                    controller: _rateController,
-                                    keyboardType: TextInputType.number,
-                                    validator: (val) =>
-                                        val == null || val.isEmpty
-                                        ? 'Rate is required'
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 40),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () =>
-                                      context.go(RoutePaths.customers),
-                                  child: const Text('Cancel'),
-                                ),
-                                const SizedBox(width: 16),
-                                ElevatedButton.icon(
-                                  onPressed: _isSaving ? null : _saveForm,
-                                  icon: _isSaving
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
+                                  const Divider(height: 24),
+                                  _isMobile(context)
+                                      ? Column(
+                                          children: [
+                                            AppFormField(
+                                              label: 'Full Name',
+                                              isRequired: true,
+                                              controller: _nameController,
+                                            ),
+                                            const SizedBox(height: 16),
+                                            AppFormField(
+                                              label: 'Phone Number',
+                                              isRequired: true,
+                                              controller: _phoneController,
+                                            ),
+                                          ],
                                         )
-                                      : const Icon(Icons.save),
-                                  label: Text(
-                                    _isSaving
-                                        ? 'Saving...'
-                                        : 'Save Configuration',
+                                      : Row(
+                                          children: [
+                                            Expanded(
+                                              child: AppFormField(
+                                                label: 'Full Name',
+                                                isRequired: true,
+                                                controller: _nameController,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: AppFormField(
+                                                label: 'Phone Number',
+                                                isRequired: true,
+                                                controller: _phoneController,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                  const SizedBox(height: 16),
+                                  _isMobile(context)
+                                      ? Column(
+                                          children: [
+                                            AppFormField(
+                                              label: 'CNIC / National ID',
+                                              isRequired: true,
+                                              controller: _cnicController,
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          children: [
+                                            Expanded(
+                                              child: AppFormField(
+                                                label: 'CNIC / National ID',
+                                                isRequired: true,
+                                                controller: _cnicController,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                  const SizedBox(height: 16),
+                                  AppFormField(
+                                    label: 'Installation Physical Address',
+                                    controller: _addressController,
+                                    maxLines: 2,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 16),
+                                  AppFormField(
+                                    label: 'Notes / Remarks',
+                                    controller: _notesController,
+                                    maxLines: 2,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  // Join Date picker
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(
+                                      Icons.calendar_today,
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                    title: const Text(
+                                      'Join Date',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    subtitle: Text(
+                                      DateTimeUtils.formatDate(_joinDate),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    onTap: () async {
+                                      final picked = await showDatePicker(
+                                        context: context,
+                                        initialDate: _joinDate,
+                                        firstDate: DateTime(2020),
+                                        lastDate: DateTime.now(),
+                                      );
+                                      if (picked != null) {
+                                        setState(() => _joinDate = picked);
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(height: 30),
+                                  Text(
+                                    "Plan & Pricing Details",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: AppTheme.primaryColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                  const Divider(height: 24),
+                                  _isMobile(context)
+                                      ? Column(
+                                          children: [
+                                            DropdownButtonFormField<
+                                              ConnectionType
+                                            >(
+                                              value: _selectedConnectionType,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Connection Type',
+                                              ),
+                                              items: ConnectionType.values.map((
+                                                type,
+                                              ) {
+                                                return DropdownMenuItem(
+                                                  value: type,
+                                                  child: Text(type.displayName),
+                                                );
+                                              }).toList(),
+                                              onChanged: (val) {
+                                                if (val != null) {
+                                                  setState(() {
+                                                    _selectedConnectionType =
+                                                        val;
+                                                  });
+                                                }
+                                              },
+                                            ),
+                                            const SizedBox(height: 16),
+                                            DropdownButtonFormField<String>(
+                                              value: _selectedPackageId,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Select Package',
+                                              ),
+                                              items: availablePackages.map((
+                                                pkg,
+                                              ) {
+                                                return DropdownMenuItem(
+                                                  value: pkg.id,
+                                                  child: Text(pkg.name),
+                                                );
+                                              }).toList(),
+                                              onChanged: _onPackageChanged,
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          children: [
+                                            Expanded(
+                                              child:
+                                                  DropdownButtonFormField<
+                                                    ConnectionType
+                                                  >(
+                                                    value:
+                                                        _selectedConnectionType,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText:
+                                                              'Connection Type',
+                                                        ),
+                                                    items: ConnectionType.values
+                                                        .map((type) {
+                                                          return DropdownMenuItem(
+                                                            value: type,
+                                                            child: Text(
+                                                              type.displayName,
+                                                            ),
+                                                          );
+                                                        })
+                                                        .toList(),
+                                                    onChanged: (val) {
+                                                      if (val != null) {
+                                                        setState(() {
+                                                          _selectedConnectionType =
+                                                              val;
+                                                        });
+                                                      }
+                                                    },
+                                                  ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child:
+                                                  DropdownButtonFormField<
+                                                    String
+                                                  >(
+                                                    value: _selectedPackageId,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText:
+                                                              'Select Package',
+                                                        ),
+                                                    items: availablePackages.map(
+                                                      (pkg) {
+                                                        return DropdownMenuItem(
+                                                          value: pkg.id,
+                                                          child: Text(pkg.name),
+                                                        );
+                                                      },
+                                                    ).toList(),
+                                                    onChanged:
+                                                        _onPackageChanged,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                  const SizedBox(height: 16),
+                                  _isMobile(context)
+                                      ? Column(
+                                          children: [
+                                            AppFormField(
+                                              label: 'Monthly Bill Rate (PKR)',
+                                              isRequired: true,
+                                              controller:
+                                                  _monthlyBillController,
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          children: [
+                                            Expanded(
+                                              child: AppFormField(
+                                                label:
+                                                    'Monthly Bill Rate (PKR)',
+                                                isRequired: true,
+                                                controller:
+                                                    _monthlyBillController,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                  const SizedBox(height: 30),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      OutlinedButton(
+                                        onPressed: () {
+                                          context.go(RoutePaths.customers);
+                                        },
+                                        child: const Text("Cancel"),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      ElevatedButton.icon(
+                                        onPressed: _isSaving ? null : _saveForm,
+                                        icon: const Icon(Icons.save),
+                                        label: Text(
+                                          _isSaving
+                                              ? "Saving..."
+                                              : "Save Configuration",
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

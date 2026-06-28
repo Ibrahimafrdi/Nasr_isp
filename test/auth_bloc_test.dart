@@ -1,13 +1,39 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/auth/data/models/user_model.dart';
+import 'package:nasr_isp/features/auth/domain/repositories/auth_repository.dart';
+
+class FakeAuthRepository implements AuthRepository {
+  @override
+  Future<UserModel> login({required String email, required String password}) async {
+    if (email == 'admin@nasr.com' && password == 'admin123') {
+      return const UserModel(
+        id: 'admin_uid',
+        email: 'admin@nasr.com',
+        role: 'admin',
+        name: 'Admin User',
+        phone: '1234567890',
+      );
+    }
+    throw Exception('Invalid email or password');
+  }
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<UserModel?> getCurrentUser() async => null;
+}
 
 void main() {
   group('AuthBloc', () {
     late AuthBloc authBloc;
+    late FakeAuthRepository fakeAuthRepository;
 
     setUp(() {
-      authBloc = AuthBloc();
+      fakeAuthRepository = FakeAuthRepository();
+      authBloc = AuthBloc(authRepository: fakeAuthRepository);
     });
 
     tearDown(() {
@@ -24,7 +50,7 @@ void main() {
         isA<AuthAuthenticated>().having(
           (state) => state.user.role,
           'role',
-          UserRole.admin,
+          'admin',
         ),
       ];
 

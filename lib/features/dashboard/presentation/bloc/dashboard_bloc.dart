@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
+import 'package:nasr_isp/features/expenses/domain/usecases/get_expenses.dart';
 
 // Dashboard Events
 abstract class DashboardEvent extends Equatable {
@@ -42,12 +44,22 @@ class DashboardLoaded extends DashboardState {
   final List<CustomerModel> expiringCustomers;
   final List<ExpenseModel> recentExpenses;
 
+  // NEW chart data fields:
+  final List<double> monthlyRevenue6;      // last 6 months revenue
+  final List<double> customerGrowth6;      // customer count per month (last 6)
+  final Map<String, int> connectionTypeDist; // {'wireless': X, 'fiber': Y}
+  final Map<String, double> paymentByMethod; // {'cash': X, 'bank': Y, etc}
+
   const DashboardLoaded({
     required this.stats,
     required this.recentPayments,
     required this.pendingPayments,
     required this.expiringCustomers,
     required this.recentExpenses,
+    required this.monthlyRevenue6,
+    required this.customerGrowth6,
+    required this.connectionTypeDist,
+    required this.paymentByMethod,
   });
 
   @override
@@ -57,6 +69,10 @@ class DashboardLoaded extends DashboardState {
     pendingPayments,
     expiringCustomers,
     recentExpenses,
+    monthlyRevenue6,
+    customerGrowth6,
+    connectionTypeDist,
+    paymentByMethod,
   ];
 }
 
@@ -69,9 +85,16 @@ class DashboardError extends DashboardState {
   List<Object?> get props => [message];
 }
 
-// Dashboard BLoC
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
-  DashboardBloc() : super(const DashboardInitial()) {
+  final GetCustomers getCustomers;
+  final GetPayments getPayments;
+  final GetExpenses getExpenses;
+
+  DashboardBloc({
+    required this.getCustomers,
+    required this.getPayments,
+    required this.getExpenses,
+  }) : super(const DashboardInitial()) {
     on<LoadDashboardEvent>(_onLoadDashboard);
     on<RefreshDashboardEvent>(_onRefreshDashboard);
   }
@@ -81,34 +104,161 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(const DashboardLoading());
-    await Future.delayed(const Duration(seconds: 1));
-
     try {
-      // FIX: generate once, reuse — avoids calling generators twice
-      final allPayments = _generateMockPayments();
-      final allCustomers = _generateMockCustomers();
+      // Fetch all data in parallel
+      final results = await Future.wait([
+        getCustomers(),
+        getPayments(),
+        getExpenses(),
+      ]);
 
-      final stats = _generateMockStats();
-      final recentPayments = allPayments.take(5).toList();
-      final pendingPayments = allPayments
-          .where((p) => p.status == PaymentStatus.pending)
-          .take(5)
-          .toList();
-      final expiringCustomers = allCustomers
-          .where((c) => c.status == CustomerStatus.expiringSoon)
-          .take(10)
-          .toList();
-      final recentExpenses = _generateMockExpenses().take(5).toList();
+      final allCustomers = (results[0] as List).cast<CustomerModel>();
+      final allPayments = (results[1] as List).cast<PaymentModel>();
+      final allExpenses = (results[2] as List).cast<ExpenseModel>();
 
-      emit(
-        DashboardLoaded(
-          stats: stats,
-          recentPayments: recentPayments,
-          pendingPayments: pendingPayments,
-          expiringCustomers: expiringCustomers,
-          recentExpenses: recentExpenses,
-        ),
+      final now = DateTime.now();
+
+      // Customer stats
+      final totalCustomers = allCustomers.length;
+      final activeCustomers = allCustomers
+          .where((c) => c.status == 'active').length;
+      final expiredCustomers = allCustomers
+          .where((c) {
+            final due = c.nextDueDate ??
+                (c.createdAt != null
+                    ? DateTime(c.createdAt!.year,
+                        c.createdAt!.month + 1, c.createdAt!.day)
+                    : null);
+            return due != null && due.isBefore(now);
+          }).length;
+      final expiringSoon = allCustomers.where((c) {
+        final due = c.nextDueDate ??
+            (c.createdAt != null
+                ? DateTime(c.createdAt!.year,
+                    c.createdAt!.month + 1, c.createdAt!.day)
+                : null);
+        if (due == null) return false;
+        final diff = due.difference(now).inDays;
+        return diff >= 0 && diff <= 7;
+      }).toList();
+
+      // Payment stats — current month only
+      final currentMonthPayments = allPayments.where((p) {
+        final date = p.completedDate ?? p.createdAt;
+        if (date == null) return false;
+        return date.year == now.year && date.month == now.month;
+      }).toList();
+
+      final monthlyRevenue = currentMonthPayments
+          .where((p) => p.status == 'completed')
+          .fold(0.0, (sum, p) => sum + p.paidAmount);
+
+      final pendingPaymentsAmount = allPayments
+          .where((p) => p.status == 'pending' || p.status == 'partial')
+          .fold(0.0, (sum, p) => sum + p.amount);
+
+      // Expense stats — current month only
+      final currentMonthExpenses = allExpenses.where((e) {
+        return e.date.year == now.year && e.date.month == now.month;
+      }).toList();
+
+      final monthlyExpenses = currentMonthExpenses
+          .fold(0.0, (sum, e) => sum + e.amount);
+
+      final netProfit = monthlyRevenue - monthlyExpenses;
+
+      final stats = DashboardStatsModel(
+        totalCustomers: totalCustomers,
+        activeCustomers: activeCustomers,
+        expiredCustomers: expiredCustomers,
+        expiringsoon: expiringSoon.length,
+        monthlyRevenue: monthlyRevenue,
+        monthlyExpenses: monthlyExpenses,
+        netProfit: netProfit,
+        pendingPayments: pendingPaymentsAmount,
       );
+
+      // Recent payments (last 5 completed)
+      final recentPayments = allPayments
+          .where((p) => p.status == 'completed')
+          .toList()
+        ..sort((a, b) {
+          final aDate = a.completedDate ?? a.createdAt ?? DateTime(2000);
+          final bDate = b.completedDate ?? b.createdAt ?? DateTime(2000);
+          return bDate.compareTo(aDate);
+        });
+
+      // Pending payments
+      final pendingPayments = allPayments
+          .where((p) => p.status == 'pending' || p.status == 'partial')
+          .toList()
+        ..sort((a, b) {
+          final aDate = a.dueDate ?? DateTime(2000);
+          final bDate = b.dueDate ?? DateTime(2000);
+          return aDate.compareTo(bDate);
+        });
+
+      // Recent expenses (last 5)
+      final recentExpenses = List<ExpenseModel>.from(allExpenses)
+        ..sort((a, b) => b.date.compareTo(a.date));
+
+      // ── Monthly Revenue (last 6 months) ─────────────────
+      // Build a list of 6 doubles: index 0 = 6 months ago, index 5 = current month
+      final List<double> monthlyRevenue6 = List.filled(6, 0.0);
+      for (final p in allPayments) {
+        if (p.status != 'completed') continue;
+        final date = p.completedDate ?? p.createdAt;
+        if (date == null) continue;
+        for (int i = 0; i < 6; i++) {
+          final target = DateTime(now.year, now.month - (5 - i));
+          if (date.year == target.year && date.month == target.month) {
+            monthlyRevenue6[i] += p.paidAmount;
+            break;
+          }
+        }
+      }
+
+      // ── Customer Growth (last 6 months) ─────────────────
+      // Count customers whose createdAt <= end of that month (cumulative)
+      final List<double> customerGrowth6 = List.filled(6, 0.0);
+      for (int i = 0; i < 6; i++) {
+        final target = DateTime(now.year, now.month - (5 - i));
+        final endOfMonth = DateTime(target.year, target.month + 1, 0);
+        customerGrowth6[i] = allCustomers
+            .where((c) =>
+                c.createdAt != null && c.createdAt!.isBefore(endOfMonth))
+            .length
+            .toDouble();
+      }
+
+      // ── Connection Type Distribution ─────────────────────
+      final Map<String, int> connectionTypeDist = {
+        'wireless': allCustomers
+            .where((c) => c.connectionType == 'wireless').length,
+        'fiber': allCustomers
+            .where((c) => c.connectionType == 'fiber').length,
+      };
+
+      // ── Payment by Method (completed payments only) ──────
+      final Map<String, double> paymentByMethod = {};
+      for (final p in allPayments) {
+        if (p.status != 'completed') continue;
+        final method = (p.method ?? 'other').toLowerCase().trim();
+        paymentByMethod[method] =
+            (paymentByMethod[method] ?? 0) + p.paidAmount;
+      }
+
+      emit(DashboardLoaded(
+        stats: stats,
+        recentPayments: recentPayments.take(5).toList(),
+        pendingPayments: pendingPayments.take(5).toList(),
+        expiringCustomers: expiringSoon.take(10).toList(),
+        recentExpenses: recentExpenses.take(5).toList(),
+        monthlyRevenue6: monthlyRevenue6,
+        customerGrowth6: customerGrowth6,
+        connectionTypeDist: connectionTypeDist,
+        paymentByMethod: paymentByMethod,
+      ));
     } catch (e) {
       emit(DashboardError(message: 'Failed to load dashboard: $e'));
     }
@@ -119,94 +269,5 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     await _onLoadDashboard(const LoadDashboardEvent(), emit);
-  }
-
-  DashboardStatsModel _generateMockStats() {
-    return const DashboardStatsModel(
-      totalCustomers: 284,
-      activeCustomers: 256,
-      expiredCustomers: 12,
-      expiringsoon: 16,
-      monthlyRevenue: 285000,
-      monthlyExpenses: 125000,
-      netProfit: 160000,
-      pendingPayments: 45000,
-    );
-  }
-
-  List<CustomerModel> _generateMockCustomers() {
-    final baseDate = DateTime.now();
-    return List.generate(50, (i) {
-      final daysUntilExpiry = 7 + (i % 30);
-      final expiryDate = baseDate.add(Duration(days: daysUntilExpiry));
-
-      CustomerStatus status;
-      if (daysUntilExpiry <= 0) {
-        status = CustomerStatus.expired;
-      } else if (daysUntilExpiry <= 7) {
-        status = CustomerStatus.expiringSoon;
-      } else {
-        status = CustomerStatus.active;
-      }
-
-      return CustomerModel(
-        id: 'cust_$i',
-        name: 'Customer ${i + 1}',
-        phone: '+923001234${500 + i}',
-        address: 'Address $i, Karachi',
-        email: 'customer$i@email.com',
-        packageName: ['10 Mbps', '25 Mbps', '50 Mbps'][i % 3],
-        monthlyRate: [999, 1499, 2499][i % 3].toDouble(),
-        expiryDate: expiryDate,
-        status: status,
-        assignedEmployeeId: 'emp_${i % 5}',
-        createdAt: baseDate.subtract(Duration(days: 90 + i)),
-        balance: (i % 2 == 0) ? 0 : (500 + (i * 100)).toDouble(),
-      );
-    });
-  }
-
-  List<PaymentModel> _generateMockPayments() {
-    final baseDate = DateTime.now();
-    final statuses = [
-      PaymentStatus.completed,
-      PaymentStatus.pending,
-      PaymentStatus.partial,
-      PaymentStatus.failed,
-    ];
-
-    return List.generate(30, (i) {
-      return PaymentModel(
-        id: 'pay_$i',
-        customerId: 'cust_${i % 10}',
-        customerName: 'Customer ${i % 10 + 1}',
-        amount: 1500,
-        paidAmount: i % 3 == 0 ? 0 : (i % 3 == 1 ? 750 : 1500),
-        status: statuses[i % statuses.length],
-        dueDate: baseDate.subtract(Duration(days: 30 - i)),
-        completedDate: i % 2 == 0
-            ? baseDate.subtract(Duration(days: 20 - i))
-            : null,
-        method: i % 2 == 0 ? 'Bank Transfer' : 'Cash',
-        notes: 'Monthly subscription payment',
-        createdAt: baseDate.subtract(Duration(days: 40 - i)),
-      );
-    });
-  }
-
-  List<ExpenseModel> _generateMockExpenses() {
-    final baseDate = DateTime.now();
-    final categories = ExpenseCategory.values;
-    return List.generate(20, (i) {
-      return ExpenseModel(
-        id: 'exp_$i',
-        description: 'Expense ${i + 1}',
-        category: categories[i % categories.length],
-        amount: (5000 + (i * 1000)).toDouble(),
-        date: baseDate.subtract(Duration(days: i)),
-        notes: 'Sample note for expense',
-        createdAt: baseDate.subtract(Duration(days: i)),
-      );
-    });
   }
 }

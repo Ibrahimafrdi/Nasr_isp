@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "828459923042",
+    "project_id": "nasr-isp",
+    "storage_bucket": "nasr-isp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828459923042:android:0c92bdda612d008cf0033b",
+        "android_client_info": {
+          "package_name": "com.example.nasr_isp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8_pRYoQacxj1dh61aSd9-gnjh9has7Eg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
