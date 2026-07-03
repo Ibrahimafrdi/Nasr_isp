@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/features/installations/data/models/installation_item_used_model.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 
 class InstallationModel extends InstallationEntity {
@@ -7,84 +9,125 @@ class InstallationModel extends InstallationEntity {
     required super.customerId,
     required super.customerName,
     required super.connectionType,
-    required super.assignedEmployeeId,
-    required super.assignedEmployeeName,
+    required super.installationDate,
+    super.assignedEmployeeId,
+    super.assignedEmployeeName,
     required super.installationCost,
     required super.status,
-    required super.remarks,
-    super.installationDate,
-    super.createdAt,
+    super.remarks,
+    super.itemsUsed,
+    required super.createdAt,
+    super.completedAt,
   });
 
-  factory InstallationModel.fromMap(Map<String, dynamic> map) {
+  factory InstallationModel.fromMap(Map<String, dynamic> map, String docId) {
+    final rawItems = map['itemsUsed'] as List<dynamic>?;
+    final parsedItems = rawItems != null
+        ? rawItems.map((item) => InstallationItemUsedModel.fromMap(Map<String, dynamic>.from(item))).toList()
+        : <InstallationItemUsedModel>[];
+
     return InstallationModel(
-      id: map['id'] as String? ?? '',
+      id: docId,
       customerId: map['customerId'] as String? ?? '',
       customerName: map['customerName'] as String? ?? '',
-      connectionType: map['connectionType'] as String? ?? '',
-      assignedEmployeeId: map['assignedEmployeeId'] as String? ?? '',
-      assignedEmployeeName: map['assignedEmployeeName'] as String? ?? '',
+      connectionType: _parseConnectionType(map['connectionType']),
+      installationDate: _parseDate(map['installationDate']) ?? DateTime.now(),
+      assignedEmployeeId: map['assignedEmployeeId'] as String?,
+      assignedEmployeeName: map['assignedEmployeeName'] as String?,
       installationCost: (map['installationCost'] as num?)?.toDouble() ?? 0.0,
-      status: map['status'] as String? ?? '',
-      remarks: map['remarks'] as String? ?? '',
-      installationDate: map['installationDate'] is Timestamp
-          ? (map['installationDate'] as Timestamp).toDate()
-          : (map['installationDate'] != null ? DateTime.tryParse(map['installationDate'].toString()) : null),
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : (map['createdAt'] != null ? DateTime.tryParse(map['createdAt'].toString()) : null),
+      status: _parseInstallationStatus(map['status']),
+      remarks: map['remarks'] as String?,
+      itemsUsed: parsedItems,
+      createdAt: _parseDate(map['createdAt']) ?? DateTime.now(),
+      completedAt: _parseDate(map['completedAt']),
     );
+  }
+
+  static ConnectionType _parseConnectionType(dynamic value) {
+    if (value == null) return ConnectionType.wireless;
+    final valueStr = value.toString();
+    return ConnectionType.values.firstWhere(
+      (e) => e.name == valueStr || e.label == valueStr,
+      orElse: () => ConnectionType.wireless,
+    );
+  }
+
+  static InstallationStatus _parseInstallationStatus(dynamic value) {
+    if (value == null) return InstallationStatus.pending;
+    final valueStr = value.toString();
+    return InstallationStatus.values.firstWhere(
+      (e) => e.name == valueStr || e.label == valueStr,
+      orElse: () => InstallationStatus.pending,
+    );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'customerId': customerId,
       'customerName': customerName,
-      'connectionType': connectionType,
+      'connectionType': connectionType.name,
+      'installationDate': Timestamp.fromDate(installationDate),
       'assignedEmployeeId': assignedEmployeeId,
       'assignedEmployeeName': assignedEmployeeName,
       'installationCost': installationCost,
-      'status': status,
+      'status': status.name,
       'remarks': remarks,
-      'installationDate': installationDate,
-      'createdAt': createdAt,
+      'itemsUsed': itemsUsed?.map((item) {
+        if (item is InstallationItemUsedModel) {
+          return item.toMap();
+        }
+        return InstallationItemUsedModel(
+          inventoryItemId: item.inventoryItemId,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          costPriceAtTime: item.costPriceAtTime,
+        ).toMap();
+      }).toList(),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
     };
   }
 
   factory InstallationModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
-    return InstallationModel.fromMap({
-      ...data,
-      'id': doc.id,
-    });
+    return InstallationModel.fromMap(data, doc.id);
   }
 
   InstallationModel copyWith({
     String? id,
     String? customerId,
     String? customerName,
-    String? connectionType,
+    ConnectionType? connectionType,
+    DateTime? installationDate,
     String? assignedEmployeeId,
     String? assignedEmployeeName,
     double? installationCost,
-    String? status,
+    InstallationStatus? status,
     String? remarks,
-    DateTime? installationDate,
+    List<InstallationItemUsedModel>? itemsUsed,
     DateTime? createdAt,
+    DateTime? completedAt,
   }) {
     return InstallationModel(
       id: id ?? this.id,
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
       connectionType: connectionType ?? this.connectionType,
+      installationDate: installationDate ?? this.installationDate,
       assignedEmployeeId: assignedEmployeeId ?? this.assignedEmployeeId,
       assignedEmployeeName: assignedEmployeeName ?? this.assignedEmployeeName,
       installationCost: installationCost ?? this.installationCost,
       status: status ?? this.status,
       remarks: remarks ?? this.remarks,
-      installationDate: installationDate ?? this.installationDate,
+      itemsUsed: itemsUsed ?? this.itemsUsed,
       createdAt: createdAt ?? this.createdAt,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 }

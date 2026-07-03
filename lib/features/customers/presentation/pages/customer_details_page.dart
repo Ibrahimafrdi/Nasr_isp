@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
+import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
@@ -35,6 +38,10 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     _loadCustomer();
     // Also trigger package load to ensure package info is available for lookups
     context.read<PackagesBloc>().add(const LoadPackagesEvent());
+    // Load installations for this subscriber
+    context.read<InstallationBloc>().add(
+      LoadCustomerInstallationsEvent(widget.customerId),
+    );
   }
 
   Future<void> _loadCustomer() async {
@@ -90,17 +97,11 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     if (packageId == null || packageId.isEmpty) return 'No Package';
     final state = context.read<PackagesBloc>().state;
     if (state is PackagesLoaded) {
-      final pkg = state.packages.firstWhere(
-        (p) => p.id == packageId,
-        orElse: () => const PackageModel(
-          id: '',
-          name: '',
-          speed: 0,
-          price: 0.0,
-          description: '',
-        ),
-      );
-      if (pkg.id.isNotEmpty) return pkg.name;
+      for (final pkg in state.packages) {
+        if (pkg.id == packageId) {
+          return pkg.name;
+        }
+      }
     }
     return 'Plan ID: $packageId';
   }
@@ -252,6 +253,8 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
         _buildOverviewCard(isAdmin),
         const SizedBox(height: 24),
         _buildContactDetailsCard(isAdmin),
+        const SizedBox(height: 24),
+        _buildInstallationHistoryCard(isAdmin),
         if (isAdmin) ...[
           const SizedBox(height: 24),
           _buildPaymentHistoryCard(),
@@ -814,5 +817,187 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildInstallationHistoryCard(bool isAdmin) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Installation History',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const Divider(height: 24),
+            BlocBuilder<InstallationBloc, InstallationState>(
+              builder: (context, state) {
+                if (state is InstallationLoading) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (state is InstallationError) {
+                  return Text('Error loading installations: ${state.message}');
+                }
+                if (state is InstallationLoaded) {
+                  final list = state.installations;
+                  if (list.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12.0),
+                      child: Text(
+                        'No installation records found for this subscriber.',
+                        style: TextStyle(
+                          color: AppTheme.mediumGray,
+                          fontSize: 13,
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const Divider(height: 16),
+                    itemBuilder: (context, index) {
+                      final inst = list[index];
+                      String materialsSummary = 'No materials logged';
+                      if (inst.itemsUsed != null &&
+                          inst.itemsUsed!.isNotEmpty) {
+                        materialsSummary = inst.itemsUsed!
+                            .map((i) => '${i.itemName} (x${i.quantity})')
+                            .join(', ');
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Installation on ${DateTimeUtils.formatDate(inst.installationDate)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getInstallationStatusColor(
+                                      inst.status,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    inst.status.displayName,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: _getInstallationStatusColor(
+                                        inst.status,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Installer: ${inst.assignedEmployeeName ?? "Unassigned"}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.darkGray,
+                              ),
+                            ),
+                            Text(
+                              'BOM: $materialsSummary',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.mediumGray,
+                              ),
+                            ),
+                            Text(
+                              'Billed Fee: ${DateTimeUtils.formatCurrency(inst.installationCost)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.darkGray,
+                              ),
+                            ),
+                            if (isAdmin && inst.materialCost != null) ...[
+                              Text(
+                                'Material Cost: ${DateTimeUtils.formatCurrency(inst.materialCost!)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.darkGray,
+                                ),
+                              ),
+                              Text(
+                                'Profit: ${DateTimeUtils.formatCurrency(inst.profit!)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: inst.profit! > 0
+                                      ? AppTheme.successColor
+                                      : AppTheme.errorColor,
+                                ),
+                              ),
+                            ],
+                            if (inst.remarks != null &&
+                                inst.remarks!.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Remarks: ${inst.remarks}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: AppTheme.mediumGray,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                }
+                return const Text('Initial state');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getInstallationStatusColor(InstallationStatus status) {
+    switch (status) {
+      case InstallationStatus.pending:
+        return AppTheme.warningColor;
+      case InstallationStatus.inProgress:
+        return AppColors.primaryBlue;
+      case InstallationStatus.completed:
+        return AppTheme.successColor;
+      case InstallationStatus.cancelled:
+        return AppTheme.errorColor;
+    }
   }
 }

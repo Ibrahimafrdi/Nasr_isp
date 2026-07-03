@@ -41,9 +41,9 @@ class MyApp extends StatelessWidget {
         BlocProvider<PaymentsBloc>(create: (_) => getIt<PaymentsBloc>()),
         BlocProvider<ExpensesBloc>(create: (_) => getIt<ExpensesBloc>()),
         BlocProvider<ReportsBloc>(create: (_) => getIt<ReportsBloc>()),
-        BlocProvider<EmployeesBloc>(create: (_) => getIt<EmployeesBloc>()),
-        BlocProvider<InstallationsBloc>(
-          create: (_) => getIt<InstallationsBloc>(),
+        BlocProvider<EmployeeBloc>(create: (_) => getIt<EmployeeBloc>()),
+        BlocProvider<InstallationBloc>(
+          create: (_) => getIt<InstallationBloc>(),
         ),
         BlocProvider<SettingsBloc>(create: (_) => getIt<SettingsBloc>()),
       ],

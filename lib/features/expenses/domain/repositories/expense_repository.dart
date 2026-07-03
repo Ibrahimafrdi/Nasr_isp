@@ -1,8 +1,8 @@
-import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/expenses/domain/entities/expense_entity.dart';
 
 abstract class ExpenseRepository {
-  Future<void> addExpense(ExpenseModel expense);
-  Future<List<ExpenseModel>> getExpenses();
-  Future<void> updateExpense(ExpenseModel expense);
+  Future<void> addExpense(ExpenseEntity expense);
+  Future<List<ExpenseEntity>> getExpenses();
+  Future<void> updateExpense(ExpenseEntity expense);
   Future<void> deleteExpense(String id);
 }

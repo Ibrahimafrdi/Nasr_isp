@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nasr_isp/features/payments/data/datasources/payment_remote_data_source.dart';
 import 'package:nasr_isp/features/payments/data/models/payment_model.dart';
 import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
@@ -8,56 +9,67 @@ class PaymentRepositoryImpl implements PaymentRepository {
 
   PaymentRepositoryImpl({required this.remoteDataSource});
 
+  PaymentModel _toModel(PaymentEntity e) => PaymentModel(
+        id: e.id,
+        customerId: e.customerId,
+        customerName: e.customerName,
+        amount: e.amount,
+        paidAmount: e.paidAmount,
+        status: e.status,
+        dueDate: e.dueDate,
+        completedDate: e.completedDate,
+        method: e.method,
+        notes: e.notes,
+        billingMonth: e.billingMonth,
+        createdAt: e.createdAt,
+      );
+
   @override
   Future<void> addPayment(PaymentEntity payment) async {
-    final model = PaymentModel(
-      id: payment.id,
-      customerId: payment.customerId,
-      customerName: payment.customerName,
-      amount: payment.amount,
-      paidAmount: payment.paidAmount,
-      status: payment.status,
-      dueDate: payment.dueDate,
-      completedDate: payment.completedDate,
-      method: payment.method,
-      notes: payment.notes,
-      billingMonth: payment.billingMonth,
-      createdAt: payment.createdAt,
+    await remoteDataSource.addPayment(_toModel(payment));
+  }
+
+  @override
+  Future<List<PaymentEntity>> getPayments({
+    int limit = 10,
+    DocumentSnapshot? lastDocument,
+    String? searchQuery,
+    List<String>? filterStatuses,
+    DateTime? dateRangeStart,
+    DateTime? dateRangeEnd,
+  }) async {
+    return await remoteDataSource.getPayments(
+      limit: limit,
+      lastDocument: lastDocument,
+      searchQuery: searchQuery,
+      filterStatuses: filterStatuses,
+      dateRangeStart: dateRangeStart,
+      dateRangeEnd: dateRangeEnd,
     );
-    await remoteDataSource.addPayment(model);
   }
 
   @override
-  Future<List<PaymentEntity>> getPayments() async {
-    return await remoteDataSource.getPayments();
-  }
-
-  @override
-  Future<List<PaymentEntity>> getPaymentsByCustomer(String customerId) async {
-    return await remoteDataSource.getPaymentsByCustomer(customerId);
-  }
+  Future<int> getTotalPaymentsCount() =>
+      remoteDataSource.getTotalPaymentsCount();
 
   @override
   Future<void> updatePayment(PaymentEntity payment) async {
-    final model = PaymentModel(
-      id: payment.id,
-      customerId: payment.customerId,
-      customerName: payment.customerName,
-      amount: payment.amount,
-      paidAmount: payment.paidAmount,
-      status: payment.status,
-      dueDate: payment.dueDate,
-      completedDate: payment.completedDate,
-      method: payment.method,
-      notes: payment.notes,
-      billingMonth: payment.billingMonth,
-      createdAt: payment.createdAt,
-    );
-    await remoteDataSource.updatePayment(model);
+    await remoteDataSource.updatePayment(_toModel(payment));
   }
 
   @override
   Future<void> deletePayment(String id) async {
     await remoteDataSource.deletePayment(id);
+  }
+
+  @override
+  Future<PaymentEntity?> getPaymentByCustomerAndMonth(
+    String customerId,
+    String billingMonth,
+  ) async {
+    return await remoteDataSource.getPaymentByCustomerAndMonth(
+      customerId,
+      billingMonth,
+    );
   }
 }

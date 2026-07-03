@@ -6,6 +6,7 @@ class UserEntity {
   final String role;
   final String? profileImage;
   final bool isActive;
+  final DateTime? createdAt;
 
   const UserEntity({
     required this.id,
@@ -15,6 +16,7 @@ class UserEntity {
     required this.role,
     this.profileImage,
     this.isActive = true,
+    this.createdAt,
   });
 
   bool get isAdmin => role == 'admin';

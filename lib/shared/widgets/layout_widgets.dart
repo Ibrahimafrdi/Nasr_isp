@@ -92,16 +92,13 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
         subItems: [
           const SidebarSubItem(label: 'Payments', route: RoutePaths.payments),
           // Khataa — admin only
+          // if (isAdmin)
+          //   const SidebarSubItem(
+          //     label: 'Khataa Ledger',
+          //     route: RoutePaths.khataa,
+          //   ),
           if (isAdmin)
-            const SidebarSubItem(
-              label: 'Khataa Ledger',
-              route: RoutePaths.khataa,
-            ),
-          if (isAdmin)
-            const SidebarSubItem(
-              label: 'Expenses',
-              route: RoutePaths.expenses,
-            ),
+            const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
         ],
       ),
       // Management group — admin only (employees see no items here)
@@ -115,10 +112,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
               label: 'Employees',
               route: RoutePaths.employees,
             ),
-            const SidebarSubItem(
-              label: 'Settings',
-              route: RoutePaths.settings,
-            ),
+            const SidebarSubItem(label: 'Settings', route: RoutePaths.settings),
           ],
         ),
     ];
@@ -301,7 +295,9 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                     children: [
                       CircleAvatar(
                         radius: 16,
-                        backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.2),
+                        backgroundColor: AppColors.primaryBlue.withValues(
+                          alpha: 0.2,
+                        ),
                         child: Text(
                           widget.currentUser.name.characters.first
                               .toUpperCase(),
@@ -411,7 +407,9 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
 
     final Color tileBgColor = widget.isGroupActive
         ? Colors.white.withValues(alpha: 0.08)
-        : (isHovered ? Colors.white.withValues(alpha: 0.04) : Colors.transparent);
+        : (isHovered
+              ? Colors.white.withValues(alpha: 0.04)
+              : Colors.transparent);
 
     final Color iconAndTextColor = widget.isGroupActive
         ? AppColors.primaryBlue
@@ -581,7 +579,9 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.2),
+                      backgroundColor: AppColors.primaryBlue.withValues(
+                        alpha: 0.2,
+                      ),
                       child: Text(
                         currentUser!.name.characters.first.toUpperCase(),
                         style: AppFonts.labelMedium.copyWith(

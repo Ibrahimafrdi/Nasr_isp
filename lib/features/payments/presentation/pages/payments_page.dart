@@ -1,11 +1,15 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/responsive/responsive_layout.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
@@ -148,11 +152,12 @@ class _PaymentsPageState extends State<PaymentsPage> {
               AppStatusChipGroup(
                 options: const ['paid', 'unpaid', 'partial'],
                 selected: _statusFilter,
+                // In AppStatusChipGroup onChanged:
                 onChanged: (val) {
                   setState(() => _statusFilter = val);
                   context.read<PaymentsBloc>().add(
                     LoadPaymentsEvent(
-                      filterStatuses: val != null ? [val] : [],
+                      filterStatuses: val != null ? [val] : null, // null not []
                       searchQuery: _searchQuery,
                     ),
                   );
@@ -185,14 +190,41 @@ class _PaymentsPageState extends State<PaymentsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Breadcrumb
-                  Breadcrumb(
-                    items: [
-                      BreadcrumbItem(
-                        label: 'Home',
-                        onTap: () => context.go(RoutePaths.dashboard),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Breadcrumb(
+                          items: [
+                            BreadcrumbItem(
+                              label: 'Home',
+                              onTap: () => context.go(RoutePaths.dashboard),
+                            ),
+                            BreadcrumbItem(label: 'Payments'),
+                          ],
+                        ),
                       ),
-                      BreadcrumbItem(label: 'Payments'),
+                      if (authState.user.role == 'admin')
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddPaymentDialog(context),
+                          icon: const Icon(
+                            Icons.add,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          label: const Text('Add Payment'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -241,11 +273,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             ),
                           ),
 
-                    if (state.totalPages > 1) ...[
+                    if (state.totalPages > 1 || state.hasMore) ...[
                       const SizedBox(height: 24),
                       PaginationBar(
                         currentPage: state.currentPage,
                         totalPages: state.totalPages,
+                        filterStatuses: _statusFilter != null
+                            ? [_statusFilter!]
+                            : null,
                         onPageChanged: (page) {
                           context.read<PaymentsBloc>().add(
                             LoadPaymentsEvent(
@@ -254,6 +289,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               filterStatuses: _statusFilter != null
                                   ? [_statusFilter!]
                                   : [],
+                              dateRangeStart: _dateRangeStart,
+                              dateRangeEnd: _dateRangeEnd,
                             ),
                           );
                         },
@@ -337,6 +374,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
     return DataTableWrapper(
       columns: [
         const DataColumn(label: Text('Customer Account')),
+        const DataColumn(label: Text('Billing Month')),
         if (isAdmin) ...[
           const DataColumn(label: Text('Plan Price')),
           const DataColumn(label: Text('Amount Collected')),
@@ -360,6 +398,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 ),
               ),
             ),
+            DataCell(Text(payment.billingMonth ?? '—')),
             if (isAdmin) ...[
               DataCell(Text(DateTimeUtils.formatCurrency(payment.amount))),
               DataCell(Text(DateTimeUtils.formatCurrency(payment.paidAmount))),
@@ -519,6 +558,337 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
   }
 
+  // ── Add payment dialog ────────────────────────────────────────────────────
+  void _showAddPaymentDialog(BuildContext context) {
+    context.read<CustomersBloc>().add(const LoadCustomersEvent());
+    final formKey = GlobalKey<FormState>();
+    final amountController = TextEditingController();
+    String selectedMethod = 'cash';
+    String notes = '';
+    DateTime paymentDate = DateTime.now();
+    bool isSubmitting = false;
+    List<CustomerModel> customers = [];
+
+    // Get customers who have partial payments
+    final paymentsState = context.read<PaymentsBloc>().state;
+    final partialCustomerIds = paymentsState is PaymentsLoaded
+        ? paymentsState.payments
+              .where((p) => p.status == 'partial')
+              .map((p) => p.customerId)
+              .toSet()
+        : <String>{};
+
+    CustomerModel? selectedCustomer;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return BlocListener<CustomersBloc, CustomersState>(
+              listener: (context, state) {
+                if (state is CustomersLoaded) {
+                  final allCustomers = state.customers;
+
+                  final now = DateTime.now();
+                  customers = allCustomers.where((c) {
+                    // Include if they have an outstanding partial payment
+                    if (partialCustomerIds.contains(c.id)) return true;
+
+                    // Include if their nextDueDate is today or past
+                    if (c.nextDueDate == null) return true;
+                    return c.nextDueDate!.isBefore(now) ||
+                        c.nextDueDate!.difference(now).inDays <= 3;
+                  }).toList();
+                  setDialogState(() {});
+                }
+              },
+              child: AlertDialog(
+                title: const Text('Add Payment'),
+                content: Form(
+                  key: formKey,
+                  child: SizedBox(
+                    width: 450,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DropdownButtonFormField<CustomerModel>(
+                            value: selectedCustomer,
+                            decoration: const InputDecoration(
+                              labelText: 'Select Customer',
+                            ),
+                            items: customers.map((c) {
+                              final isPartial = partialCustomerIds.contains(
+                                c.id,
+                              );
+                              return DropdownMenuItem(
+                                value: c,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${c.name} — ${c.id.toUpperCase()}',
+                                      ),
+                                    ),
+                                    if (isPartial)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Partial',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.orange,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (c) {
+                              if (c != null) {
+                                setDialogState(() {
+                                  selectedCustomer = c;
+
+                                  // Check if they have a partial payment — prefill remaining amount
+                                  final partialPayment =
+                                      paymentsState is PaymentsLoaded
+                                      ? paymentsState.payments
+                                            .where(
+                                              (p) =>
+                                                  p.customerId == c.id &&
+                                                  p.status == 'partial',
+                                            )
+                                            .firstOrNull
+                                      : null;
+
+                                  if (partialPayment != null) {
+                                    amountController.text = partialPayment
+                                        .remainingAmount
+                                        .toString();
+                                  } else {
+                                    amountController.text = c.monthlyBill
+                                        .toString();
+                                  }
+                                });
+                              }
+                            },
+                            validator: (v) =>
+                                v == null ? 'Please select a customer' : null,
+                          ),
+                          if (customers.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Text(
+                                'No customers are currently due for payment.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: amountController,
+                            decoration: InputDecoration(
+                              labelText: 'Amount Received (PKR)',
+                              hintText:
+                                  'Full bill: PKR ${selectedCustomer?.monthlyBill ?? ''}',
+                              prefixText: 'PKR ',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Please enter amount';
+                              }
+                              if (double.tryParse(v) == null) {
+                                return 'Enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: selectedMethod,
+                            decoration: const InputDecoration(
+                              labelText: 'Payment Method',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'cash',
+                                child: Text('Cash'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'bankTransfer',
+                                child: Text('Bank Transfer'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'easypaisa',
+                                child: Text('EasyPaisa'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'jazzcash',
+                                child: Text('JazzCash'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(() => selectedMethod = val);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(
+                              Icons.calendar_today,
+                              color: AppColors.primaryBlue,
+                            ),
+                            title: const Text(
+                              'Payment Date',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                            subtitle: Text(
+                              DateTimeUtils.formatDate(paymentDate),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: paymentDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now(),
+                              );
+                              if (picked != null) {
+                                setDialogState(() => paymentDate = picked);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'Notes (Optional)',
+                            ),
+                            onChanged: (val) => notes = val,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (formKey.currentState!.validate()) {
+                              setDialogState(() => isSubmitting = true);
+
+                              final billingMonth =
+                                  '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}';
+                              final customer = selectedCustomer!;
+                              final fullAmount = customer.monthlyBill
+                                  .toDouble();
+                              final enteredAmount = double.parse(
+                                amountController.text.trim(),
+                              );
+                              final isPaidInFull = enteredAmount >= fullAmount;
+                              final currentBillingMonth = billingMonth;
+                              final nextDueDate = DateTime(
+                                paymentDate.year,
+                                paymentDate.month + 1,
+                                paymentDate.day,
+                              );
+
+                              final payment = PaymentModel(
+                                id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
+                                customerId: customer.id,
+                                customerName: customer.name,
+                                amount: fullAmount,
+                                paidAmount: enteredAmount,
+                                status: isPaidInFull ? 'paid' : 'partial',
+                                dueDate: nextDueDate,
+                                completedDate: isPaidInFull
+                                    ? paymentDate
+                                    : null,
+                                method: selectedMethod,
+                                notes: notes.isEmpty ? null : notes,
+                                billingMonth: currentBillingMonth,
+                                createdAt: DateTime.now(),
+                                paymentDate: paymentDate,
+                              );
+
+                              context.read<PaymentsBloc>().add(
+                                CreatePaymentEvent(payment),
+                              );
+
+                              // Only update nextDueDate on customer if fully paid
+                              if (isPaidInFull) {
+                                final updatedCustomer = customer.copyWith(
+                                  nextDueDate: nextDueDate,
+                                );
+                                context.read<CustomersBloc>().add(
+                                  UpdateCustomerEvent(updatedCustomer),
+                                );
+                              }
+
+                              await Future.delayed(
+                                const Duration(milliseconds: 800),
+                              );
+                              if (!ctx.mounted) return;
+
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Payment recorded successfully!',
+                                  ),
+                                  backgroundColor: AppTheme.successColor,
+                                ),
+                              );
+                            }
+                          },
+                    icon: isSubmitting
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check, size: 16),
+                    label: Text(isSubmitting ? 'Saving...' : 'Record Payment'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ── Record payment dialog ─────────────────────────────────────────────────
   void _showRecordPaymentDialog(BuildContext context, PaymentModel payment) {
     final formKey = GlobalKey<FormState>();
@@ -648,10 +1018,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                 backgroundColor: AppTheme.successColor,
                               ),
                             );
-                            final newPaid = payment.paidAmount + double.parse(amountController.text);
+                            final newPaid =
+                                payment.paidAmount +
+                                double.parse(amountController.text);
                             final updatedPayment = payment.copyWith(
                               paidAmount: newPaid,
-                              status: newPaid >= payment.amount ? 'paid' : 'partial',
+                              status: newPaid >= payment.amount
+                                  ? 'paid'
+                                  : 'partial',
                               completedDate: DateTime.now(),
                               method: selectedMethod,
                               notes: notes.isNotEmpty ? notes : null,

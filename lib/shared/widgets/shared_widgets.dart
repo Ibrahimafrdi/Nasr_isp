@@ -13,10 +13,7 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return sb.StatusBadge(
-      status: status,
-      label: label,
-    );
+    return sb.StatusBadge(status: status, label: label);
   }
 }
 
@@ -27,9 +24,7 @@ class PaymentStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return sb.StatusBadge(
-      status: status,
-    );
+    return sb.StatusBadge(status: status);
   }
 }
 
@@ -66,7 +61,9 @@ class _DashboardCardState extends State<DashboardCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -117,11 +114,7 @@ class _DashboardCardState extends State<DashboardCard> {
                         color: primaryColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Icon(
-                        widget.icon,
-                        color: primaryColor,
-                        size: 16,
-                      ),
+                      child: Icon(widget.icon, color: primaryColor, size: 16),
                     ),
                 ],
               ),
@@ -291,6 +284,7 @@ class PaginationBar extends StatelessWidget {
     required this.currentPage,
     required this.totalPages,
     required this.onPageChanged,
+    List<String>? filterStatuses,
   }) : super(key: key);
 
   @override

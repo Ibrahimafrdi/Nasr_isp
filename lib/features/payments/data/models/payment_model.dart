@@ -15,6 +15,7 @@ class PaymentModel extends PaymentEntity {
     super.notes,
     super.billingMonth,
     super.createdAt,
+    super.paymentDate,
   });
 
   factory PaymentModel.fromMap(Map<String, dynamic> map) {
@@ -43,6 +44,11 @@ class PaymentModel extends PaymentEntity {
           : (map['createdAt'] != null
                 ? DateTime.tryParse(map['createdAt'].toString())
                 : null),
+      paymentDate: map['paymentDate'] is Timestamp
+          ? (map['paymentDate'] as Timestamp).toDate()
+          : (map['paymentDate'] != null
+                ? DateTime.tryParse(map['paymentDate'].toString())
+                : null),
     );
   }
 
@@ -54,13 +60,16 @@ class PaymentModel extends PaymentEntity {
       'amount': amount,
       'paidAmount': paidAmount,
       'status': status,
-      'dueDate': dueDate,
-      'completedDate': completedDate,
+      'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
+      'completedDate': completedDate != null
+          ? Timestamp.fromDate(completedDate!)
+          : null,
       'method': method,
-      'paymentMethod': method, // write to both for compatibility
+      'paymentMethod': method,
       'notes': notes,
       'billingMonth': billingMonth,
-      'createdAt': createdAt,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'paymentDate': paymentDate != null ? Timestamp.fromDate(paymentDate!) : null,
     };
   }
 
@@ -83,7 +92,6 @@ class PaymentModel extends PaymentEntity {
     String? notes,
     String? billingMonth,
     DateTime? createdAt,
-
     DateTime? paymentDate,
   }) {
     return PaymentModel(
@@ -99,6 +107,7 @@ class PaymentModel extends PaymentEntity {
       notes: notes ?? this.notes,
       billingMonth: billingMonth ?? this.billingMonth,
       createdAt: createdAt ?? this.createdAt,
+      paymentDate: paymentDate ?? this.paymentDate,
     );
   }
 }

@@ -1,116 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
+import 'package:nasr_isp/features/inventory/domain/entities/stock_movement_entity.dart';
+import 'package:nasr_isp/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 
-class InventoryPage extends StatefulWidget {
+class InventoryPage extends StatelessWidget {
   const InventoryPage({Key? key}) : super(key: key);
 
   @override
-  State<InventoryPage> createState() => _InventoryPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => getIt<InventoryBloc>()..add(LoadInventoryItems()),
+      child: const _InventoryView(),
+    );
+  }
 }
 
-class _InventoryPageState extends State<InventoryPage> {
+class _InventoryView extends StatefulWidget {
+  const _InventoryView();
+
+  @override
+  State<_InventoryView> createState() => _InventoryViewState();
+}
+
+class _InventoryViewState extends State<_InventoryView> {
   late TextEditingController _searchController;
-
-  /// null = "All" is active (default). Otherwise holds the selected
-  /// category label, e.g. 'ONU Devices', 'Routers', 'Switches', etc.
-  String? _selectedCategory;
-
-  static const List<String> _categories = [
-    'ONU Devices',
-    'Routers',
-    'Switches',
-    'Cables',
-    'Connectors',
-  ];
-
-  // Sample static data representing local inventory
-  final List<Map<String, dynamic>> _inventoryItems = [
-    {
-      'id': '1',
-      'name': 'Fiber Home GPON ONU',
-      'category': 'ONU Devices',
-      'total': 150,
-      'available': 45,
-      'used': 105,
-      'minThreshold': 20,
-    },
-    {
-      'id': '2',
-      'name': 'Tenda F3 Wireless Router',
-      'category': 'Routers',
-      'total': 80,
-      'available': 8,
-      'used': 72,
-      'minThreshold': 15,
-    },
-    {
-      'id': '3',
-      'name': 'TP-Link 8-Port PoE Switch',
-      'category': 'Switches',
-      'total': 25,
-      'available': 12,
-      'used': 13,
-      'minThreshold': 5,
-    },
-    {
-      'id': '4',
-      'name': 'Cat6 Fiber Patch Cord 3m',
-      'category': 'Cables',
-      'total': 500,
-      'available': 180,
-      'used': 320,
-      'minThreshold': 50,
-    },
-    {
-      'id': '5',
-      'name': 'SC/UPC Fiber Connectors',
-      'category': 'Connectors',
-      'total': 1000,
-      'available': 0,
-      'used': 1000,
-      'minThreshold': 100,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _historyLogs = [
-    {
-      'date': 'May 20, 2026',
-      'name': 'Tenda F3 Wireless Router',
-      'qty': '+50',
-      'action': 'Restock',
-      'operator': 'Nasr Ullah',
-    },
-    {
-      'date': 'May 18, 2026',
-      'name': 'SC/UPC Fiber Connectors',
-      'qty': '-120',
-      'action': 'Dispatched',
-      'operator': 'Ahmad Ali (Tech)',
-    },
-    {
-      'date': 'May 15, 2026',
-      'name': 'Fiber Home GPON ONU',
-      'qty': '+30',
-      'action': 'Restock',
-      'operator': 'Nasr Ullah',
-    },
-  ];
+  InventoryCategory? _selectedCategory;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _selectedCategory = null; // All
   }
 
   @override
@@ -126,9 +57,8 @@ class _InventoryPageState extends State<InventoryPage> {
     });
   }
 
-  void _onCategoryChanged(String? category) {
-    setState(() => _selectedCategory = category);
-  }
+  String _categoryLabel(InventoryCategory c) =>
+      c == InventoryCategory.equipment ? 'Equipment' : 'Consumable';
 
   Widget _buildFilterPanel() {
     final activeFilterCount =
@@ -143,16 +73,14 @@ class _InventoryPageState extends State<InventoryPage> {
         children: [
           FilterPanelHeader(
             searchController: _searchController,
-            onSearchChanged: (query) {
-              setState(() {});
-            },
+            onSearchChanged: (_) => setState(() {}),
             onClearFilters: activeFilterCount > 0 ? _clearFilters : null,
             activeFilterCount: activeFilterCount,
             title: 'Active Filters',
           ),
           SizedBox(height: AppSpacing.lg),
           const Text(
-            'Equipment Category',
+            'Category',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -161,24 +89,54 @@ class _InventoryPageState extends State<InventoryPage> {
           ),
           SizedBox(height: AppSpacing.md),
           AppStatusChipGroup(
-            options: _categories,
-            selected: _selectedCategory,
-            onChanged: _onCategoryChanged,
+            options: InventoryCategory.values.map(_categoryLabel).toList(),
+            selected: _selectedCategory != null
+                ? _categoryLabel(_selectedCategory!)
+                : null,
+            onChanged: (label) {
+              setState(() {
+                _selectedCategory = label == null
+                    ? null
+                    : InventoryCategory.values.firstWhere(
+                        (c) => _categoryLabel(c) == label,
+                      );
+              });
+            },
           ),
         ],
       ),
     );
   }
 
-  void _showAddStockDialog() {
+  // ---------- Add / Edit Item Dialog ----------
+
+  void _showItemDialog(
+    BuildContext pageContext, {
+    InventoryItemEntity? existing,
+  }) {
+    final bloc = pageContext.read<InventoryBloc>();
     final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final qtyController = TextEditingController();
-    String category = 'ONU Devices';
+    final nameController = TextEditingController(text: existing?.name ?? '');
+    final unitController = TextEditingController(text: existing?.unit ?? 'pcs');
+    final quantityController = TextEditingController(
+      text: existing != null ? existing.quantityInStock.toString() : '',
+    );
+    final reorderController = TextEditingController(
+      text: existing != null ? existing.reorderLevel.toString() : '',
+    );
+    final unitCostController = TextEditingController(
+      text: existing != null ? existing.unitCost.toString() : '',
+    );
+    final supplierController = TextEditingController(
+      text: existing?.supplier ?? '',
+    );
+    final notesController = TextEditingController(text: existing?.notes ?? '');
+    InventoryCategory category =
+        existing?.category ?? InventoryCategory.equipment;
 
     showDialog(
-      context: context,
-      builder: (context) {
+      context: pageContext,
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
@@ -186,76 +144,121 @@ class _InventoryPageState extends State<InventoryPage> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              title: const Text(
-                'Add New Equipment Stock',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              title: Text(
+                existing == null ? 'Add Inventory Item' : 'Edit Inventory Item',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               content: Form(
                 key: formKey,
                 child: SizedBox(
-                  width: 400,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AppFormField(
-                        label: 'Equipment / Device Name',
-                        controller: nameController,
-                        hintText: 'e.g. Huawei GPON ONU',
-                        isRequired: true,
-                        validator: (v) => v == null || v.isEmpty
-                            ? 'Device name required'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: category,
-                        decoration: const InputDecoration(
-                          labelText: 'Equipment Category',
+                  width: 420,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppFormField(
+                          label: 'Item Name',
+                          controller: nameController,
+                          hintText: 'e.g. TP-Link Router AC1200',
+                          isRequired: true,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Name required' : null,
                         ),
-                        items:
-                            [
-                                  'ONU Devices',
-                                  'Routers',
-                                  'Switches',
-                                  'Cables',
-                                  'Connectors',
-                                  'Other',
-                                ]
-                                .map(
-                                  (c) => DropdownMenuItem(
-                                    value: c,
-                                    child: Text(c),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() => category = val);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      AppFormField(
-                        label: 'Quantity Added',
-                        controller: qtyController,
-                        hintText: 'e.g. 50',
-                        keyboardType: TextInputType.number,
-                        isRequired: true,
-                        validator: (v) {
-                          if (v == null || v.isEmpty)
-                            return 'Quantity required';
-                          if (int.tryParse(v) == null || int.parse(v) <= 0)
-                            return 'Enter valid positive count';
-                          return null;
-                        },
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<InventoryCategory>(
+                          value: category,
+                          decoration: const InputDecoration(
+                            labelText: 'Category',
+                          ),
+                          items: InventoryCategory.values
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(_categoryLabel(c)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null)
+                              setDialogState(() => category = val);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'Unit',
+                          controller: unitController,
+                          hintText: 'pcs / meters / box',
+                          isRequired: true,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Unit required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'Quantity in Stock',
+                          controller: quantityController,
+                          hintText: 'e.g. 10',
+                          keyboardType: TextInputType.number,
+                          isRequired: true,
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Quantity required';
+                            if (int.tryParse(v) == null || int.parse(v) < 0)
+                              return 'Enter a valid number';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'Reorder Level',
+                          controller: reorderController,
+                          hintText: 'e.g. 5',
+                          keyboardType: TextInputType.number,
+                          isRequired: true,
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Reorder level required';
+                            if (int.tryParse(v) == null || int.parse(v) < 0)
+                              return 'Enter a valid number';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'Unit Cost',
+                          controller: unitCostController,
+                          hintText: 'e.g. 4500',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          isRequired: true,
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Unit cost required';
+                            if (double.tryParse(v) == null)
+                              return 'Enter a valid amount';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'Supplier',
+                          controller: supplierController,
+                          hintText: 'Optional',
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
+                          label: 'Notes',
+                          controller: notesController,
+                          hintText: 'Optional',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text(
                     'Cancel',
                     style: TextStyle(color: AppTheme.mediumGray),
@@ -263,54 +266,41 @@ class _InventoryPageState extends State<InventoryPage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    if (formKey.currentState!.validate()) {
-                      setState(() {
-                        final addedQty = int.parse(qtyController.text);
-                        // Search if item already exists
-                        final existingIndex = _inventoryItems.indexWhere(
-                          (item) =>
-                              item['name'].toString().toLowerCase() ==
-                              nameController.text.trim().toLowerCase(),
-                        );
-                        if (existingIndex != -1) {
-                          _inventoryItems[existingIndex]['total'] =
-                              _inventoryItems[existingIndex]['total'] +
-                              addedQty;
-                          _inventoryItems[existingIndex]['available'] =
-                              _inventoryItems[existingIndex]['available'] +
-                              addedQty;
-                        } else {
-                          _inventoryItems.add({
-                            'id': DateTime.now().millisecondsSinceEpoch
-                                .toString(),
-                            'name': nameController.text.trim(),
-                            'category': category,
-                            'total': addedQty,
-                            'available': addedQty,
-                            'used': 0,
-                            'minThreshold': 10,
-                          });
-                        }
-
-                        // Add to history
-                        _historyLogs.insert(0, {
-                          'date': 'Today',
-                          'name': nameController.text.trim(),
-                          'qty': '+$addedQty',
-                          'action': 'Restock',
-                          'operator': 'Nasr Ullah',
-                        });
-                      });
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Stock logged successfully!'),
-                          backgroundColor: AppTheme.successColor,
-                        ),
-                      );
+                    if (!formKey.currentState!.validate()) return;
+                    final now = DateTime.now();
+                    final item = InventoryItemEntity(
+                      id: existing?.id ?? now.millisecondsSinceEpoch.toString(),
+                      name: nameController.text.trim(),
+                      category: category,
+                      unit: unitController.text.trim(),
+                      quantityInStock: int.parse(quantityController.text),
+                      reorderLevel: int.parse(reorderController.text),
+                      unitCost: double.parse(unitCostController.text),
+                      supplier: supplierController.text.trim().isEmpty
+                          ? null
+                          : supplierController.text.trim(),
+                      notes: notesController.text.trim().isEmpty
+                          ? null
+                          : notesController.text.trim(),
+                      createdAt: existing?.createdAt ?? now,
+                      updatedAt: now,
+                    );
+                    if (existing == null) {
+                      bloc.add(AddInventoryItemEvent(item));
+                    } else {
+                      bloc.add(UpdateInventoryItemEvent(item));
                     }
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(pageContext).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          existing == null ? 'Item added' : 'Item updated',
+                        ),
+                        backgroundColor: AppTheme.successColor,
+                      ),
+                    );
                   },
-                  child: const Text('Save Stock'),
+                  child: const Text('Save'),
                 ),
               ],
             );
@@ -320,293 +310,296 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, authState) {
-        if (authState is! AuthAuthenticated) {
-          return const Center(child: Text('Not authenticated'));
-        }
+  // ---------- Adjust Stock Dialog ----------
 
-        final filteredItems = _inventoryItems.where((item) {
-          final matchesSearch = item['name'].toString().toLowerCase().contains(
-            _searchController.text.toLowerCase(),
-          );
-          final matchesCategory =
-              _selectedCategory == null ||
-              item['category'] == _selectedCategory;
-          return matchesSearch && matchesCategory;
-        }).toList();
+  void _showAdjustStockDialog(
+    BuildContext pageContext,
+    InventoryItemEntity item,
+  ) {
+    final bloc = pageContext.read<InventoryBloc>();
+    final formKey = GlobalKey<FormState>();
+    final qtyController = TextEditingController();
+    StockMovementType type = StockMovementType.stockIn;
+    String reason = 'Purchase';
 
-        // Calculations for header counters
-        final int totalDevices = _inventoryItems
-            .where(
-              (i) =>
-                  i['category'] == 'ONU Devices' || i['category'] == 'Routers',
-            )
-            .fold(0, (sum, i) => sum + (i['available'] as int));
+    const reasons = [
+      'Purchase',
+      'Used in installation',
+      'Damaged',
+      'Adjustment',
+    ];
 
-        final int lowStockCount = _inventoryItems
-            .where((i) => (i['available'] as int) <= (i['minThreshold'] as int))
-            .length;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppConstants.paddingLarge),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Breadcrumb
-              Breadcrumb(
-                items: [
-                  BreadcrumbItem(
-                    label: 'Home',
-                    onTap: () => context.go(RoutePaths.dashboard),
-                  ),
-                  BreadcrumbItem(label: 'Inventory'),
-                ],
+    showDialog(
+      context: pageContext,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.whiteColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 16),
-
-              // Header Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hardware & Device Inventory',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Track equipment distribution, ONU routers stock, and technician issues.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _showAddStockDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Stock'),
-                  ),
-                ],
+              title: Text(
+                'Adjust Stock — ${item.name}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 24),
-
-              // KPI Stock metrics summary cards
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isDesktop = constraints.maxWidth > 800;
-                  return GridView.count(
-                    crossAxisCount: isDesktop ? 4 : 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: isDesktop ? 1.8 : 1.3,
-                    children: [
-                      _buildMetricCard(
-                        'Total Devices Available',
-                        '$totalDevices',
-                        'ONUs & Routers',
-                        Icons.router,
-                        AppTheme.primaryColor,
-                      ),
-                      _buildMetricCard(
-                        'Low Stock Alerts',
-                        '$lowStockCount Items',
-                        'Below minimum warning limit',
-                        Icons.warning_amber_rounded,
-                        lowStockCount > 0
-                            ? AppTheme.errorColor
-                            : AppTheme.successColor,
-                      ),
-                      _buildMetricCard(
-                        'Active Switches',
-                        '${_inventoryItems.firstWhere((i) => i['category'] == 'Switches')['available']}',
-                        'Ready in office storage',
-                        Icons.settings_input_component,
-                        Colors.purple,
-                      ),
-                      _buildMetricCard(
-                        'Cables Stock (Meters)',
-                        '${_inventoryItems.firstWhere((i) => i['category'] == 'Cables')['available']}m',
-                        'Available for field installation',
-                        Icons.cable,
-                        Colors.teal,
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Premium Filter Panel (Search + Category, reusable across modules)
-              _buildFilterPanel(),
-              const SizedBox(height: 24),
-
-              // Main Inventory List Card
-              Card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Office Stock Inventory Directory',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    const Divider(),
-                    DataTableWrapper(
-                      columns: const [
-                        DataColumn(label: Text('Equipment Name')),
-                        DataColumn(label: Text('Category')),
-                        DataColumn(label: Text('Total Ledger')),
-                        DataColumn(label: Text('Available Stock')),
-                        DataColumn(label: Text('Used/Issued')),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: filteredItems.map((item) {
-                        final avail = item['available'] as int;
-                        final min = item['minThreshold'] as int;
-                        final total = item['total'] as int;
-                        final used = item['used'] as int;
-
-                        String statusText = 'Available';
-                        Color statusColor = AppTheme.successColor;
-                        if (avail == 0) {
-                          statusText = 'Out of Stock';
-                          statusColor = AppTheme.errorColor;
-                        } else if (avail <= min) {
-                          statusText = 'Low Stock';
-                          statusColor = AppTheme.warningColor;
-                        }
-
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Text(
-                                item['name'] as String,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            DataCell(Text(item['category'] as String)),
-                            DataCell(Text('$total')),
-                            DataCell(
-                              Text(
-                                '$avail',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
-                            DataCell(Text('$used')),
-                            DataCell(
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  statusText,
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                    if (filteredItems.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(child: Text('No matching items found.')),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Restock & Logs timeline
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+              content: Form(
+                key: formKey,
+                child: SizedBox(
+                  width: 380,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Recent Stock Activities',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        'Current stock: ${item.quantityInStock} ${item.unit}',
+                        style: const TextStyle(color: AppTheme.mediumGray),
                       ),
-                      const Divider(height: 24),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _historyLogs.length,
-                        itemBuilder: (context, index) {
-                          final log = _historyLogs[index];
-                          final isAdd = log['qty'].toString().contains('+');
-                          return ListTile(
-                            dense: true,
-                            leading: CircleAvatar(
-                              backgroundColor: isAdd
-                                  ? AppTheme.successColor.withOpacity(0.1)
-                                  : AppTheme.errorColor.withOpacity(0.1),
-                              child: Icon(
-                                isAdd
-                                    ? Icons.arrow_downward
-                                    : Icons.arrow_upward,
-                                color: isAdd
-                                    ? AppTheme.successColor
-                                    : AppTheme.errorColor,
-                                size: 16,
-                              ),
-                            ),
-                            title: Text(
-                              log['name'] as String,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'Logged by ${log['operator']} on ${log['date']}',
-                            ),
-                            trailing: Text(
-                              log['qty'] as String,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isAdd
-                                    ? AppTheme.successColor
-                                    : AppTheme.errorColor,
-                                fontSize: 14,
-                              ),
-                            ),
-                          );
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<StockMovementType>(
+                        value: type,
+                        decoration: const InputDecoration(
+                          labelText: 'Movement Type',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: StockMovementType.stockIn,
+                            child: Text('Stock In (+)'),
+                          ),
+                          DropdownMenuItem(
+                            value: StockMovementType.stockOut,
+                            child: Text('Stock Out (-)'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setDialogState(() => type = val);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      AppFormField(
+                        label: 'Quantity',
+                        controller: qtyController,
+                        hintText: 'e.g. 10',
+                        keyboardType: TextInputType.number,
+                        isRequired: true,
+                        validator: (v) {
+                          if (v == null || v.isEmpty)
+                            return 'Quantity required';
+                          final n = int.tryParse(v);
+                          if (n == null || n <= 0)
+                            return 'Enter a valid positive number';
+                          if (type == StockMovementType.stockOut &&
+                              n > item.quantityInStock) {
+                            return 'Cannot remove more than current stock (${item.quantityInStock})';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: reason,
+                        decoration: const InputDecoration(labelText: 'Reason'),
+                        items: reasons
+                            .map(
+                              (r) => DropdownMenuItem(value: r, child: Text(r)),
+                            )
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setDialogState(() => reason = val);
                         },
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: AppTheme.mediumGray),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (!formKey.currentState!.validate()) return;
+                    final authState = pageContext.read<AuthBloc>().state;
+                    final userId = authState is AuthAuthenticated
+                        ? authState.user.id
+                        : 'unknown';
+                    final movement = StockMovementEntity(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      itemId: item.id,
+                      type: type,
+                      quantity: int.parse(qtyController.text),
+                      reason: reason,
+                      date: DateTime.now(),
+                      performedBy: userId,
+                    );
+                    bloc.add(AddStockMovementEvent(item.id, movement));
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(pageContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Stock updated'),
+                        backgroundColor: AppTheme.successColor,
+                      ),
+                    );
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDelete(BuildContext pageContext, InventoryItemEntity item) {
+    final bloc = pageContext.read<InventoryBloc>();
+    showDialog(
+      context: pageContext,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Item'),
+        content: Text(
+          'Delete "${item.name}" and all its stock history? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+            ),
+            onPressed: () {
+              bloc.add(DeleteInventoryItemEvent(item.id));
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Item Detail Side Sheet ----------
+
+  void _showItemDetail(BuildContext pageContext, InventoryItemEntity item) {
+    pageContext.read<InventoryBloc>().add(LoadStockMovements(item.id));
+    showGeneralDialog(
+      context: pageContext,
+      barrierDismissible: true,
+      barrierLabel: 'Item Detail',
+      pageBuilder: (_, __, ___) {
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            child: Container(
+              width: 420,
+              height: double.infinity,
+              color: AppTheme.whiteColor,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(pageContext),
+                          ),
+                        ],
+                      ),
+                      const Divider(),
+                      Text('Category: ${_categoryLabel(item.category)}'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Quantity in Stock: ${item.quantityInStock} ${item.unit}',
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Reorder Level: ${item.reorderLevel} ${item.unit}'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Unit Cost: PKR ${item.unitCost.toStringAsFixed(0)}',
+                      ),
+                      if (item.supplier != null &&
+                          item.supplier!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text('Supplier: ${item.supplier}'),
+                      ],
+                      if (item.notes != null && item.notes!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text('Notes: ${item.notes}'),
+                      ],
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Stock Movement History',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: BlocBuilder<InventoryBloc, InventoryState>(
+                          builder: (context, state) {
+                            if (state is StockMovementsLoaded &&
+                                state.itemId == item.id) {
+                              if (state.movements.isEmpty) {
+                                return const Center(
+                                  child: Text('No movements recorded yet.'),
+                                );
+                              }
+                              return ListView.builder(
+                                itemCount: state.movements.length,
+                                itemBuilder: (context, index) {
+                                  final m = state.movements[index];
+                                  final isIn =
+                                      m.type == StockMovementType.stockIn;
+                                  return ListTile(
+                                    dense: true,
+                                    leading: Icon(
+                                      isIn
+                                          ? Icons.arrow_downward
+                                          : Icons.arrow_upward,
+                                      color: isIn
+                                          ? AppTheme.successColor
+                                          : AppTheme.errorColor,
+                                    ),
+                                    title: Text(
+                                      '${isIn ? '+' : '-'}${m.quantity} ${item.unit} — ${m.reason}',
+                                    ),
+                                    subtitle: Text(
+                                      '${m.date.toLocal()}'.split('.').first,
+                                    ),
+                                  );
+                                },
+                              );
+                            }
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         );
       },
@@ -669,6 +662,289 @@ class _InventoryPageState extends State<InventoryPage> {
           ],
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        if (authState is! AuthAuthenticated) {
+          return const Center(child: Text('Not authenticated'));
+        }
+
+        return BlocConsumer<InventoryBloc, InventoryState>(
+          listener: (context, state) {
+            if (state is InventoryError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+          },
+          builder: (context, state) {
+            if (state is InventoryLoading || state is InventoryInitial) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            List<InventoryItemEntity> allItems = [];
+            List<InventoryItemEntity> lowStockItems = [];
+            if (state is InventoryLoaded) {
+              allItems = state.items;
+              lowStockItems = state.lowStockItems;
+            }
+
+            final filteredItems = allItems.where((item) {
+              final matchesSearch = item.name.toLowerCase().contains(
+                _searchController.text.toLowerCase(),
+              );
+              final matchesCategory =
+                  _selectedCategory == null ||
+                  item.category == _selectedCategory;
+              return matchesSearch && matchesCategory;
+            }).toList();
+
+            final totalEquipment = allItems
+                .where((i) => i.category == InventoryCategory.equipment)
+                .fold(0, (sum, i) => sum + i.quantityInStock);
+            final totalConsumables = allItems
+                .where((i) => i.category == InventoryCategory.consumable)
+                .fold(0, (sum, i) => sum + i.quantityInStock);
+            final totalValue = allItems.fold(
+              0.0,
+              (sum, i) => sum + (i.unitCost * i.quantityInStock),
+            );
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Breadcrumb(
+                    items: [
+                      BreadcrumbItem(
+                        label: 'Home',
+                        onTap: () => context.go(RoutePaths.dashboard),
+                      ),
+                      BreadcrumbItem(label: 'Inventory'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Inventory Management',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Track equipment and consumable stock levels.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showItemDialog(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Item'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isDesktop = constraints.maxWidth > 800;
+                      return GridView.count(
+                        crossAxisCount: isDesktop ? 4 : 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        childAspectRatio: isDesktop ? 1.8 : 1.3,
+                        children: [
+                          _buildMetricCard(
+                            'Total Items',
+                            '${allItems.length}',
+                            'Tracked SKUs',
+                            Icons.inventory_2,
+                            AppTheme.primaryColor,
+                          ),
+                          _buildMetricCard(
+                            'Low Stock Alerts',
+                            '${lowStockItems.length} Items',
+                            'At or below reorder level',
+                            Icons.warning_amber_rounded,
+                            lowStockItems.isNotEmpty
+                                ? AppTheme.errorColor
+                                : AppTheme.successColor,
+                          ),
+                          _buildMetricCard(
+                            'Equipment Stock',
+                            '$totalEquipment',
+                            'Units available',
+                            Icons.router,
+                            Colors.purple,
+                          ),
+                          _buildMetricCard(
+                            'Stock Value',
+                            'PKR ${totalValue.toStringAsFixed(0)}',
+                            'Total inventory cost',
+                            Icons.payments,
+                            Colors.teal,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildFilterPanel(),
+                  const SizedBox(height: 24),
+                  Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Inventory Directory',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        const Divider(),
+                        DataTableWrapper(
+                          columns: const [
+                            DataColumn(label: Text('Name')),
+                            DataColumn(label: Text('Category')),
+                            DataColumn(label: Text('Quantity')),
+                            DataColumn(label: Text('Reorder Level')),
+                            DataColumn(label: Text('Unit Cost')),
+                            DataColumn(label: Text('Status')),
+                            DataColumn(label: Text('Actions')),
+                          ],
+                          rows: filteredItems.map((item) {
+                            final isLow =
+                                item.quantityInStock <= item.reorderLevel;
+                            final statusText = item.quantityInStock == 0
+                                ? 'Out of Stock'
+                                : (isLow ? 'Low Stock' : 'Available');
+                            final statusColor = item.quantityInStock == 0
+                                ? AppTheme.errorColor
+                                : (isLow
+                                      ? AppTheme.warningColor
+                                      : AppTheme.successColor);
+
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  onTap: () => _showItemDetail(context, item),
+                                ),
+                                DataCell(Text(_categoryLabel(item.category))),
+                                DataCell(
+                                  Text(
+                                    '${item.quantityInStock} ${item.unit}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  Text('${item.reorderLevel} ${item.unit}'),
+                                ),
+                                DataCell(
+                                  Text(
+                                    'PKR ${item.unitCost.toStringAsFixed(0)}',
+                                  ),
+                                ),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      statusText,
+                                      style: TextStyle(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.tune, size: 18),
+                                        tooltip: 'Adjust Stock',
+                                        onPressed: () => _showAdjustStockDialog(
+                                          context,
+                                          item,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit, size: 18),
+                                        tooltip: 'Edit',
+                                        onPressed: () => _showItemDialog(
+                                          context,
+                                          existing: item,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete,
+                                          size: 18,
+                                          color: AppTheme.errorColor,
+                                        ),
+                                        tooltip: 'Delete',
+                                        onPressed: () =>
+                                            _confirmDelete(context, item),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                        if (filteredItems.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(
+                              child: Text('No matching items found.'),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

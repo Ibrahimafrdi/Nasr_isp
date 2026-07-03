@@ -1,9 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_payment_by_customer_and_month.dart';
 
 // ──────────────────────────────────────────────
 // Events
@@ -23,6 +27,7 @@ class LoadPaymentsEvent extends PaymentsEvent {
   final List<String>? filterStatuses;
   final DateTime? dateRangeStart;
   final DateTime? dateRangeEnd;
+  final DocumentSnapshot? lastDocument;
 
   const LoadPaymentsEvent({
     this.page = 1,
@@ -31,6 +36,7 @@ class LoadPaymentsEvent extends PaymentsEvent {
     this.filterStatuses,
     this.dateRangeStart,
     this.dateRangeEnd,
+    this.lastDocument,
   });
 
   @override
@@ -87,6 +93,8 @@ class PaymentsLoaded extends PaymentsState {
   final int totalPages;
   final double totalAmount;
   final double collectedAmount;
+  final DocumentSnapshot? lastDocument;
+  final bool hasMore;
 
   const PaymentsLoaded({
     required this.payments,
@@ -94,6 +102,8 @@ class PaymentsLoaded extends PaymentsState {
     required this.totalPages,
     required this.totalAmount,
     required this.collectedAmount,
+    this.lastDocument,
+    this.hasMore = false,
   });
 
   @override
@@ -103,6 +113,7 @@ class PaymentsLoaded extends PaymentsState {
     totalPages,
     totalAmount,
     collectedAmount,
+    hasMore,
   ];
 }
 
@@ -120,15 +131,20 @@ class PaymentsError extends PaymentsState {
 // ──────────────────────────────────────────────
 
 class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
+  final GetPayments getPayments;
+  final AddPayment addPayment;
+  final UpdatePayment updatePayment;
   final GetCustomers getCustomers;
   final UpdateCustomer updateCustomer;
-  
-  // In-memory list to accumulate created or updated payments during this session
-  final List<PaymentModel> _createdPayments = [];
+  final GetPaymentByCustomerAndMonth getPaymentByCustomerAndMonth;
 
   PaymentsBloc({
+    required this.getPayments,
+    required this.addPayment,
+    required this.updatePayment,
     required this.getCustomers,
     required this.updateCustomer,
+    required this.getPaymentByCustomerAndMonth,
   }) : super(const PaymentsInitial()) {
     on<LoadPaymentsEvent>(_onLoadPayments);
     on<CreatePaymentEvent>(_onCreatePayment);
@@ -139,46 +155,118 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
     CreatePaymentEvent event,
     Emitter<PaymentsState> emit,
   ) async {
-    // Persist created payment in memory for this session
-    _createdPayments.add(event.payment);
-    // Reload with the new payment included
-    await _onLoadPayments(const LoadPaymentsEvent(), emit);
+    try {
+      final billingMonth = event.payment.billingMonth;
+      if (billingMonth != null) {
+        final existingPayment = await getPaymentByCustomerAndMonth(
+          event.payment.customerId,
+          billingMonth,
+        );
+
+        if (existingPayment != null) {
+          final updatedPaidAmount =
+              existingPayment.paidAmount + event.payment.paidAmount;
+          final isPaidInFull = updatedPaidAmount >= existingPayment.amount;
+
+          final paymentModel = existingPayment is PaymentModel
+              ? existingPayment
+              : PaymentModel(
+                  id: existingPayment.id,
+                  customerId: existingPayment.customerId,
+                  customerName: existingPayment.customerName,
+                  amount: existingPayment.amount,
+                  paidAmount: existingPayment.paidAmount,
+                  status: existingPayment.status,
+                  dueDate: existingPayment.dueDate,
+                  completedDate: existingPayment.completedDate,
+                  method: existingPayment.method,
+                  notes: existingPayment.notes,
+                  billingMonth: existingPayment.billingMonth,
+                  createdAt: existingPayment.createdAt,
+                  paymentDate: existingPayment.paymentDate,
+                );
+
+          final updatedPayment = paymentModel.copyWith(
+            paidAmount: updatedPaidAmount,
+            status: isPaidInFull ? 'paid' : 'partial',
+            completedDate: isPaidInFull
+                ? (event.payment.paymentDate ?? DateTime.now())
+                : null,
+            method: event.payment.method,
+            notes: event.payment.notes,
+            paymentDate: event.payment.paymentDate ?? DateTime.now(),
+          );
+
+          await updatePayment(updatedPayment);
+
+          if (isPaidInFull) {
+            final paymentDate = event.payment.paymentDate ?? DateTime.now();
+            final newNextDueDate = DateTime(
+              paymentDate.year,
+              paymentDate.month + 1,
+              paymentDate.day,
+            );
+            try {
+              final customers = await getCustomers();
+              final customer = customers.firstWhere(
+                (c) => c.id == event.payment.customerId,
+              );
+              final updatedCustomer = (customer as CustomerModel).copyWith(
+                nextDueDate: newNextDueDate,
+              );
+              await updateCustomer(updatedCustomer);
+            } catch (e) {
+              print('Warning: Could not update customer nextDueDate: $e');
+            }
+          }
+
+          await Future.delayed(const Duration(milliseconds: 300));
+          await _onLoadPayments(const LoadPaymentsEvent(), emit);
+          return;
+        }
+      }
+
+      await addPayment(event.payment);
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _onLoadPayments(const LoadPaymentsEvent(), emit);
+    } catch (e) {
+      emit(PaymentsError(message: 'Failed to create payment: $e'));
+    }
   }
 
   Future<void> _onUpdatePayment(
     UpdatePaymentEvent event,
     Emitter<PaymentsState> emit,
   ) async {
-    final updatedPayment = event.payment;
+    try {
+      await updatePayment(event.payment);
 
-    if (updatedPayment.status == 'paid' && updatedPayment.completedDate != null) {
-      final newNextDueDate = DateTime(
-        updatedPayment.completedDate!.year,
-        updatedPayment.completedDate!.month + 1,
-        updatedPayment.completedDate!.day,
-      );
-
-      try {
-        // Load existing customer and update nextDueDate
-        final customers = await getCustomers();
-        final customer = customers.firstWhere((c) => c.id == updatedPayment.customerId);
-        final updatedCustomer = (customer as CustomerModel).copyWith(
-          nextDueDate: newNextDueDate,
+      if (event.payment.status == 'paid' &&
+          event.payment.completedDate != null) {
+        final newNextDueDate = DateTime(
+          event.payment.completedDate!.year,
+          event.payment.completedDate!.month + 1,
+          event.payment.completedDate!.day,
         );
-        await updateCustomer(updatedCustomer);
-      } catch (e) {
-        print('Error updating customer nextDueDate: $e');
+        try {
+          final customers = await getCustomers();
+          final customer = customers.firstWhere(
+            (c) => c.id == event.payment.customerId,
+          );
+          final updatedCustomer = (customer as CustomerModel).copyWith(
+            nextDueDate: newNextDueDate,
+          );
+          await updateCustomer(updatedCustomer);
+        } catch (e) {
+          print('Warning: Could not update customer nextDueDate: $e');
+        }
       }
-    }
 
-    // Persist created/updated payment in memory for this session
-    final idx = _createdPayments.indexWhere((p) => p.id == updatedPayment.id);
-    if (idx != -1) {
-      _createdPayments[idx] = updatedPayment;
-    } else {
-      _createdPayments.add(updatedPayment);
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _onLoadPayments(const LoadPaymentsEvent(), emit);
+    } catch (e) {
+      emit(PaymentsError(message: 'Failed to update payment: $e'));
     }
-    await _onLoadPayments(const LoadPaymentsEvent(), emit);
   }
 
   Future<void> _onLoadPayments(
@@ -186,103 +274,69 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
     Emitter<PaymentsState> emit,
   ) async {
     emit(const PaymentsLoading());
-
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
+      const pageSize = 10;
 
-      // Combine mock payments with session-created ones, prioritizing session updates
-      final mockList = _generateMockPayments();
-      final Map<String, PaymentModel> paymentMap = {
-        for (var p in mockList) p.id: p,
-      };
-      for (var p in _createdPayments) {
-        paymentMap[p.id] = p;
-      }
-      var payments = paymentMap.values.toList();
+      final entities = await getPayments(
+        limit: pageSize + 1,
+        lastDocument: event.lastDocument,
+        searchQuery: event.searchQuery,
+        filterStatuses: event.filterStatuses ??
+            (event.filterStatus != null ? [event.filterStatus!] : null),
+        dateRangeStart: event.dateRangeStart,
+        dateRangeEnd: event.dateRangeEnd,
+      );
 
-      // Apply search filter
+      final hasMore = entities.length > pageSize;
+      final pageEntities =
+          hasMore ? entities.sublist(0, pageSize) : entities;
+
+      var payments = pageEntities.map((e) {
+        if (e is PaymentModel) return e;
+        return PaymentModel(
+          id: e.id,
+          customerId: e.customerId,
+          customerName: e.customerName,
+          amount: e.amount,
+          paidAmount: e.paidAmount,
+          status: e.status,
+          dueDate: e.dueDate,
+          completedDate: e.completedDate,
+          method: e.method,
+          notes: e.notes,
+          billingMonth: e.billingMonth,
+          createdAt: e.createdAt,
+          paymentDate: e.paymentDate,
+        );
+      }).toList();
+
       final query = event.searchQuery?.trim().toLowerCase();
       if (query != null && query.isNotEmpty) {
         payments = payments
-            .where((p) => p.customerName.toLowerCase().contains(query))
+            .where((p) =>
+                p.customerName.toLowerCase().contains(query) ||
+                p.customerId.toLowerCase().contains(query))
             .toList();
       }
 
-      // Apply multi-status filter (case-insensitive check)
-      if (event.filterStatuses != null && event.filterStatuses!.isNotEmpty) {
-        payments = payments
-            .where((p) => event.filterStatuses!
-                .any((status) => status.toLowerCase() == p.status.toLowerCase()))
-            .toList();
-      }
+      final totalAmount =
+          payments.fold<double>(0, (sum, p) => sum + p.amount);
+      final collectedAmount =
+          payments.fold<double>(0, (sum, p) => sum + p.paidAmount);
 
-      // Keep single-status filter too
-      if (event.filterStatus != null) {
-        payments = payments
-            .where((p) => p.status.toLowerCase() == event.filterStatus!.toLowerCase())
-            .toList();
-      }
+      final currentPage = event.page;
+      final totalPages = hasMore ? currentPage + 1 : currentPage;
 
-      // Compute totals on the full filtered list
-      final totalAmount = payments.fold<double>(0, (sum, p) => sum + p.amount);
-      final collectedAmount = payments.fold<double>(
-        0,
-        (sum, p) => sum + p.paidAmount,
-      );
-
-      // Paginate
-      final itemsPerPage = AppConstants.itemsPerPage;
-      final totalPages = payments.isEmpty
-          ? 1
-          : (payments.length / itemsPerPage).ceil();
-
-      // Clamp page to valid range
-      final page = event.page.clamp(1, totalPages);
-      final start = (page - 1) * itemsPerPage;
-      final end = (start + itemsPerPage).clamp(0, payments.length);
-      final paginated = payments.sublist(start, end);
-
-      emit(
-        PaymentsLoaded(
-          payments: paginated,
-          currentPage: page,
-          totalPages: totalPages,
-          totalAmount: totalAmount,
-          collectedAmount: collectedAmount,
-        ),
-      );
+      emit(PaymentsLoaded(
+        payments: payments,
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalAmount: totalAmount,
+        collectedAmount: collectedAmount,
+        hasMore: hasMore,
+      ));
     } catch (e) {
       emit(PaymentsError(message: 'Failed to load payments: $e'));
     }
-  }
-
-  // ── Mock data helper ───────────────────────
-
-  List<PaymentModel> _generateMockPayments() {
-    final baseDate = DateTime.now();
-    final statuses = [
-      'paid',
-      'unpaid',
-      'partial',
-      'failed',
-    ];
-
-    return List.generate(80, (i) {
-      return PaymentModel(
-        id: 'pay_$i',
-        customerId: 'cust_${i % 30}',
-        customerName: 'Customer ${i % 30 + 1}',
-        amount: 1500,
-        paidAmount: i % 4 == 0 ? 1500 : (i % 4 == 1 ? 0 : (i % 4 == 2 ? 750 : 0)),
-        status: statuses[i % statuses.length],
-        dueDate: baseDate.subtract(Duration(days: 30 - (i % 30))),
-        completedDate: i % 4 == 0
-            ? baseDate.subtract(Duration(days: 20 - (i % 20)))
-            : null,
-        method: i % 2 == 0 ? 'Bank Transfer' : 'Cash',
-        notes: 'Monthly subscription payment',
-        createdAt: baseDate.subtract(Duration(days: 40 - (i % 40))),
-      );
-    });
   }
 }

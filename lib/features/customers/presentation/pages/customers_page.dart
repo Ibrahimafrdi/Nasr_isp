@@ -88,17 +88,11 @@ class _CustomersPageState extends State<CustomersPage> {
     if (packageId == null || packageId.isEmpty) return 'No Package';
     final state = context.read<PackagesBloc>().state;
     if (state is PackagesLoaded) {
-      final pkg = state.packages.firstWhere(
-        (p) => p.id == packageId,
-        orElse: () => const PackageModel(
-          id: '',
-          name: '',
-          speed: 0,
-          price: 0.0,
-          description: '',
-        ),
-      );
-      if (pkg.id.isNotEmpty) return pkg.name;
+      for (final pkg in state.packages) {
+        if (pkg.id == packageId) {
+          return pkg.name;
+        }
+      }
     }
     return 'Plan ID: $packageId';
   }

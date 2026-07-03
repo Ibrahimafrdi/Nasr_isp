@@ -118,30 +118,33 @@ enum PaymentStatus {
 
 /// Expense category
 enum ExpenseCategory {
-  rent,
-  electricity,
   fuel,
-  internetUpstream,
-  salaries,
-  repairs,
-  equipment;
+  equipment,
+  salary,
+  maintenance,
+  rent,
+  internet,
+  electricity,
+  other;
 
   String get label {
     switch (this) {
-      case ExpenseCategory.rent:
-        return 'Rent';
-      case ExpenseCategory.electricity:
-        return 'Electricity';
       case ExpenseCategory.fuel:
         return 'Fuel';
-      case ExpenseCategory.internetUpstream:
-        return 'Internet Upstream';
-      case ExpenseCategory.salaries:
-        return 'Salaries';
-      case ExpenseCategory.repairs:
-        return 'Repairs';
       case ExpenseCategory.equipment:
         return 'Equipment';
+      case ExpenseCategory.salary:
+        return 'Salary';
+      case ExpenseCategory.maintenance:
+        return 'Maintenance';
+      case ExpenseCategory.rent:
+        return 'Rent';
+      case ExpenseCategory.internet:
+        return 'Internet';
+      case ExpenseCategory.electricity:
+        return 'Electricity';
+      case ExpenseCategory.other:
+        return 'Other';
     }
   }
 }
@@ -162,4 +165,76 @@ enum ConnectionType {
 
   String get displayName => label;
 }
+
+/// Inventory category
+enum InventoryCategory {
+  equipment,
+  consumable;
+
+  String get label {
+    switch (this) {
+      case InventoryCategory.equipment:
+        return 'Equipment';
+      case InventoryCategory.consumable:
+        return 'Consumable';
+    }
+  }
+}
+
+/// Stock movement type
+enum StockMovementType {
+  stockIn,
+  stockOut;
+
+  String get label {
+    switch (this) {
+      case StockMovementType.stockIn:
+        return 'Stock In';
+      case StockMovementType.stockOut:
+        return 'Stock Out';
+    }
+  }
+}
+
+/// Installation status
+enum InstallationStatus {
+  pending,
+  inProgress,
+  completed,
+  cancelled;
+
+  String get label {
+    switch (this) {
+      case InstallationStatus.pending:
+        return 'Pending';
+      case InstallationStatus.inProgress:
+        return 'In Progress';
+      case InstallationStatus.completed:
+        return 'Completed';
+      case InstallationStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  String get displayName => label;
+}
+
+/// Employee status
+enum EmployeeStatus {
+  active,
+  inactive;
+
+  String get label {
+    switch (this) {
+      case EmployeeStatus.active:
+        return 'Active';
+      case EmployeeStatus.inactive:
+        return 'Inactive';
+    }
+  }
+
+  String get displayName => label;
+}
+
+
 

@@ -17,7 +17,6 @@ import 'package:nasr_isp/features/packages/presentation/pages/packages_page.dart
 import 'package:nasr_isp/features/payments/presentation/pages/payments_page.dart';
 import 'package:nasr_isp/features/settings/presentation/pages/settings_page.dart';
 import 'package:nasr_isp/features/inventory/presentation/pages/inventory_page.dart';
-import 'package:nasr_isp/features/khataa/presentation/pages/khataa_page.dart';
 import 'package:nasr_isp/shared/widgets/app_shell.dart';
 
 GoRouter createAppRouter(AuthBloc authBloc) {
@@ -112,11 +111,11 @@ GoRouter createAppRouter(AuthBloc authBloc) {
           ),
 
           // Khataa (admin-only)
-          GoRoute(
-            path: RoutePaths.khataa,
-            builder: (context, state) => const KhataaPage(),
-            redirect: _adminOnlyRedirect,
-          ),
+          // GoRoute(
+          //   path: RoutePaths.khataa,
+          //   builder: (context, state) => const KhataaPage(),
+          //   redirect: _adminOnlyRedirect,
+          // ),
 
           // Settings (admin-only)
           GoRoute(

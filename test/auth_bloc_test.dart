@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/auth/data/models/user_model.dart';
 import 'package:nasr_isp/features/auth/domain/repositories/auth_repository.dart';

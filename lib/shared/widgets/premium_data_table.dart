@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/core/theme/app_typography.dart';
 
 class PremiumDataColumn {

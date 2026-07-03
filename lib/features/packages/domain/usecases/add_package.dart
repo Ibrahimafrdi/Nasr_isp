@@ -6,7 +6,7 @@ class AddPackage {
 
   AddPackage(this.repository);
 
-  Future<void> call(PackageEntity package) async {
-    return repository.addPackage(package);
-  }
+  /// Returns the Firestore-generated document id of the new package.
+  Future<String> call(PackageEntity package) =>
+      repository.addPackage(package);
 }

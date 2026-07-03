@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/expenses/data/models/expense_model.dart';
 
 abstract class ExpenseRemoteDataSource {
   Future<void> addExpense(ExpenseModel expense);
@@ -19,50 +18,22 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
 
   @override
   Future<void> addExpense(ExpenseModel expense) async {
-    await _col.doc(expense.id).set({
-      'description': expense.description,
-      'category': expense.category.name,
-      'amount': expense.amount,
-      'date': Timestamp.fromDate(expense.date),
-      'notes': expense.notes,
-      'attachmentUrl': expense.attachmentUrl,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    final docRef = expense.id.isNotEmpty ? _col.doc(expense.id) : _col.doc();
+    final modelToSave = expense.id.isNotEmpty
+        ? expense
+        : expense.copyWith(id: docRef.id);
+    await docRef.set(modelToSave.toMap());
   }
 
   @override
   Future<List<ExpenseModel>> getExpenses() async {
     final snapshot = await _col.orderBy('date', descending: true).get();
-    return snapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return ExpenseModel(
-        id: doc.id,
-        description: data['description'] as String,
-        category: ExpenseCategory.values.firstWhere(
-          (e) => e.name == data['category'],
-          orElse: () => ExpenseCategory.equipment,
-        ),
-        amount: (data['amount'] as num).toDouble(),
-        date: (data['date'] as Timestamp).toDate(),
-        notes: data['notes'] as String?,
-        attachmentUrl: data['attachmentUrl'] as String?,
-        createdAt: data['createdAt'] != null
-            ? (data['createdAt'] as Timestamp).toDate()
-            : DateTime.now(),
-      );
-    }).toList();
+    return snapshot.docs.map((doc) => ExpenseModel.fromFirestore(doc)).toList();
   }
 
   @override
   Future<void> updateExpense(ExpenseModel expense) async {
-    await _col.doc(expense.id).update({
-      'description': expense.description,
-      'category': expense.category.name,
-      'amount': expense.amount,
-      'date': Timestamp.fromDate(expense.date),
-      'notes': expense.notes,
-      'attachmentUrl': expense.attachmentUrl,
-    });
+    await _col.doc(expense.id).update(expense.toMap());
   }
 
   @override

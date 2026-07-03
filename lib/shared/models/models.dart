@@ -1,5 +1,4 @@
 import 'package:equatable/equatable.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
 
 export 'package:nasr_isp/features/customers/data/models/customer_model.dart';
 export 'package:nasr_isp/features/packages/data/models/package_model.dart';
@@ -7,61 +6,14 @@ export 'package:nasr_isp/features/auth/data/models/user_model.dart';
 export 'package:nasr_isp/features/payments/data/models/payment_model.dart';
 export 'package:nasr_isp/features/employees/data/models/employee_model.dart';
 export 'package:nasr_isp/features/installations/data/models/installation_model.dart';
+export 'package:nasr_isp/features/expenses/data/models/expense_model.dart';
+export 'package:nasr_isp/features/dashboard/data/models/dashboard_stats_model.dart';
+export 'package:nasr_isp/features/settings/data/models/app_settings_model.dart';
+export 'package:nasr_isp/features/inventory/data/models/inventory_item_model.dart';
+export 'package:nasr_isp/features/inventory/data/models/stock_movement_model.dart';
+export 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
+export 'package:nasr_isp/features/inventory/domain/entities/stock_movement_entity.dart';
 
-class ExpenseModel extends Equatable {
-  final String id;
-  final String description;
-  final ExpenseCategory category;
-  final double amount;
-  final DateTime date;
-  final String? notes;
-  final String? attachmentUrl;
-  final DateTime createdAt;
-
-  const ExpenseModel({
-    required this.id,
-    required this.description,
-    required this.category,
-    required this.amount,
-    required this.date,
-    this.notes,
-    this.attachmentUrl,
-    required this.createdAt,
-  });
-
-  @override
-  List<Object?> get props => [id, category];
-}
-
-class DashboardStatsModel extends Equatable {
-  final int totalCustomers;
-  final int activeCustomers;
-  final int expiredCustomers;
-  final int expiringsoon;
-  final double monthlyRevenue;
-  final double monthlyExpenses;
-  final double netProfit;
-  final double pendingPayments;
-
-  const DashboardStatsModel({
-    required this.totalCustomers,
-    required this.activeCustomers,
-    required this.expiredCustomers,
-    required this.expiringsoon,
-    required this.monthlyRevenue,
-    required this.monthlyExpenses,
-    required this.netProfit,
-    required this.pendingPayments,
-  });
-
-  @override
-  List<Object?> get props => [
-    totalCustomers,
-    activeCustomers,
-    monthlyRevenue,
-    netProfit,
-  ];
-}
 
 /// Generic filter model to hold common filter state
 class FilterModel extends Equatable {

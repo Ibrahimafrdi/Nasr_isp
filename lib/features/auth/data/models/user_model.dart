@@ -10,6 +10,7 @@ class UserModel extends UserEntity {
     required super.role,
     super.profileImage,
     super.isActive = true,
+    super.createdAt,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -21,7 +22,14 @@ class UserModel extends UserEntity {
       role: map['role'] as String? ?? '',
       profileImage: map['profileImage'] as String?,
       isActive: map['isActive'] as bool? ?? true,
+      createdAt: _parseDate(map['createdAt']),
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Map<String, dynamic> toMap() {
@@ -33,6 +41,7 @@ class UserModel extends UserEntity {
       'role': role,
       'profileImage': profileImage,
       'isActive': isActive,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
     };
   }
 
@@ -49,6 +58,7 @@ class UserModel extends UserEntity {
     String? role,
     String? profileImage,
     bool? isActive,
+    DateTime? createdAt,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -58,6 +68,7 @@ class UserModel extends UserEntity {
       role: role ?? this.role,
       profileImage: profileImage ?? this.profileImage,
       isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

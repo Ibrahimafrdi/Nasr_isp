@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart';
 
 class EmployeeModel extends EmployeeEntity {
@@ -9,6 +10,7 @@ class EmployeeModel extends EmployeeEntity {
     required super.email,
     required super.address,
     required super.designation,
+    required super.sectorArea,
     required super.status,
     required super.salary,
     super.joinDate,
@@ -23,15 +25,25 @@ class EmployeeModel extends EmployeeEntity {
       email: map['email'] as String? ?? '',
       address: map['address'] as String? ?? '',
       designation: map['designation'] as String? ?? '',
-      status: map['status'] as String? ?? '',
+      sectorArea: map['sectorArea'] as String? ?? '',
+      status: _parseStatus(map['status']),
       salary: (map['salary'] as num?)?.toDouble() ?? 0.0,
-      joinDate: map['joinDate'] is Timestamp
-          ? (map['joinDate'] as Timestamp).toDate()
-          : (map['joinDate'] != null ? DateTime.tryParse(map['joinDate'].toString()) : null),
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : (map['createdAt'] != null ? DateTime.tryParse(map['createdAt'].toString()) : null),
+      joinDate: _parseDate(map['joinDate']),
+      createdAt: _parseDate(map['createdAt']),
     );
+  }
+
+  static EmployeeStatus _parseStatus(dynamic value) {
+    if (value == null) return EmployeeStatus.active;
+    final valStr = value.toString().toLowerCase();
+    if (valStr == 'inactive') return EmployeeStatus.inactive;
+    return EmployeeStatus.active;
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Map<String, dynamic> toMap() {
@@ -42,10 +54,11 @@ class EmployeeModel extends EmployeeEntity {
       'email': email,
       'address': address,
       'designation': designation,
-      'status': status,
+      'sectorArea': sectorArea,
+      'status': status.name,
       'salary': salary,
-      'joinDate': joinDate,
-      'createdAt': createdAt,
+      'joinDate': joinDate != null ? Timestamp.fromDate(joinDate!) : null,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
     };
   }
 
@@ -64,7 +77,8 @@ class EmployeeModel extends EmployeeEntity {
     String? email,
     String? address,
     String? designation,
-    String? status,
+    String? sectorArea,
+    EmployeeStatus? status,
     double? salary,
     DateTime? joinDate,
     DateTime? createdAt,
@@ -76,6 +90,7 @@ class EmployeeModel extends EmployeeEntity {
       email: email ?? this.email,
       address: address ?? this.address,
       designation: designation ?? this.designation,
+      sectorArea: sectorArea ?? this.sectorArea,
       status: status ?? this.status,
       salary: salary ?? this.salary,
       joinDate: joinDate ?? this.joinDate,
@@ -83,3 +98,4 @@ class EmployeeModel extends EmployeeEntity {
     );
   }
 }
+

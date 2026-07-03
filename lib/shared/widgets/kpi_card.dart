@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+
 /// KPICard - Redesigned modern SaaS-style KPI statistic card.
 /// Features:
 /// - Minimal white background with subtle border
@@ -64,11 +65,12 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final List<double> chartPoints = widget.sparklineData ?? [5, 6, 5, 7, 6, 8, 9, 8, 10];
-    
+    final List<double> chartPoints =
+        widget.sparklineData ?? [5, 6, 5, 7, 6, 8, 9, 8, 10];
+
     // Extract accent color from the first color in the gradient, defaulting to primary blue
-    final Color accentColor = widget.gradient.isNotEmpty 
-        ? widget.gradient.first 
+    final Color accentColor = widget.gradient.isNotEmpty
+        ? widget.gradient.first
         : AppColors.primaryBlue;
 
     return MouseRegion(
@@ -80,7 +82,9 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
         setState(() => _isHovered = false);
         _controller.reverse();
       },
-      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: widget.onTap,
         child: ScaleTransition(
@@ -155,7 +159,9 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: accentColor.withOpacity(_isHovered ? 0.14 : 0.08),
+                            color: accentColor.withOpacity(
+                              _isHovered ? 0.14 : 0.08,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -187,40 +193,50 @@ class _KPICardState extends State<KPICard> with SingleTickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              widget.trendWidget ?? (widget.trend != null
-                                  ? Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: (widget.isTrendPositive ? AppColors.successGreen : AppColors.errorRed).withOpacity(0.08),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            widget.isTrendPositive
-                                                ? Icons.trending_up
-                                                : Icons.trending_down,
-                                            color: widget.isTrendPositive
-                                                ? AppColors.successGreen
-                                                : AppColors.errorRed,
-                                            size: 12,
+                              widget.trendWidget ??
+                                  (widget.trend != null
+                                      ? Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 3,
                                           ),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            widget.trend!,
-                                            style: GoogleFonts.inter(
-                                              color: widget.isTrendPositive
-                                                  ? AppColors.successGreen
-                                                  : AppColors.errorRed,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
+                                          decoration: BoxDecoration(
+                                            color:
+                                                (widget.isTrendPositive
+                                                        ? AppColors.successGreen
+                                                        : AppColors.errorRed)
+                                                    .withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    )
-                                  : const SizedBox.shrink()),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                widget.isTrendPositive
+                                                    ? Icons.trending_up
+                                                    : Icons.trending_down,
+                                                color: widget.isTrendPositive
+                                                    ? AppColors.successGreen
+                                                    : AppColors.errorRed,
+                                                size: 12,
+                                              ),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                widget.trend!,
+                                                style: GoogleFonts.inter(
+                                                  color: widget.isTrendPositive
+                                                      ? AppColors.successGreen
+                                                      : AppColors.errorRed,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : const SizedBox.shrink()),
                             ],
                           ),
                         ),
@@ -255,25 +271,28 @@ class AnimatedCounter extends StatelessWidget {
   final String value;
   final TextStyle style;
 
-  const AnimatedCounter({
-    Key? key,
-    required this.value,
-    required this.style,
-  }) : super(key: key);
+  const AnimatedCounter({Key? key, required this.value, required this.style})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final RegExp numRegex = RegExp(r'[0-9]+(?:\.[0-9]+)?');
-    final String numericString = numRegex.firstMatch(value.replaceAll(',', ''))?.group(0) ?? '';
+    final String numericString =
+        numRegex.firstMatch(value.replaceAll(',', ''))?.group(0) ?? '';
     final double targetValue = double.tryParse(numericString) ?? 0.0;
 
     final int numberStartIdx = value.indexOf(RegExp(r'[0-9]'));
-    final String prefix = numberStartIdx > 0 ? value.substring(0, numberStartIdx) : '';
-    
+    final String prefix = numberStartIdx > 0
+        ? value.substring(0, numberStartIdx)
+        : '';
+
     final String cleanValueForSuffix = value.replaceAll(',', '');
-    final int numberEndIdx = cleanValueForSuffix.indexOf(numericString) + numericString.length;
+    final int numberEndIdx =
+        cleanValueForSuffix.indexOf(numericString) + numericString.length;
     final String suffix = numberEndIdx < cleanValueForSuffix.length
-        ? value.substring(value.indexOf(cleanValueForSuffix.substring(numberEndIdx)))
+        ? value.substring(
+            value.indexOf(cleanValueForSuffix.substring(numberEndIdx)),
+          )
         : '';
 
     final bool isInteger = !numericString.contains('.');
@@ -289,10 +308,7 @@ class AnimatedCounter extends StatelessWidget {
         } else {
           formattedValue = val.toStringAsFixed(1);
         }
-        return Text(
-          '$prefix$formattedValue$suffix',
-          style: style,
-        );
+        return Text('$prefix$formattedValue$suffix', style: style);
       },
     );
   }

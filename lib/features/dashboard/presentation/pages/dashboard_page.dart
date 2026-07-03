@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
@@ -18,14 +19,6 @@ import 'package:nasr_isp/shared/widgets/mobile_dashboard_card.dart';
 import 'package:nasr_isp/shared/widgets/analytics_card.dart';
 import 'package:nasr_isp/shared/widgets/activity_timeline_widget.dart';
 
-/// Production-level SaaS Dashboard Page (Frontend-only, static placeholder data)
-///
-/// NOTE: Data is currently hardcoded for UI/UX finalization. Once approved,
-/// values here will be swapped to read from `DashboardLoaded` state
-/// (state.stats, state.expiringCustomers, state.recentPayments) without
-/// any layout changes required.
-///
-/// Supports Desktop Web, Tablet, and Mobile responsive experiences.
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
 
@@ -37,10 +30,41 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _showExpiringAlert = true;
   bool _showOverdueAlert = true;
 
+  // Installation counts for the dashboard KPI section
+  Future<Map<String, int>> _installationCountsFuture = Future.value({'pending': 0, 'completed': 0});
+
   @override
   void initState() {
     super.initState();
     context.read<DashboardBloc>().add(const LoadDashboardEvent());
+    _installationCountsFuture = _fetchInstallationCounts();
+  }
+
+  Future<Map<String, int>> _fetchInstallationCounts() async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final pendingSnap = await firestore
+          .collection('installations')
+          .where('status', isEqualTo: 'pending')
+          .count()
+          .get();
+      final inProgressSnap = await firestore
+          .collection('installations')
+          .where('status', isEqualTo: 'inProgress')
+          .count()
+          .get();
+      final completedSnap = await firestore
+          .collection('installations')
+          .where('status', isEqualTo: 'completed')
+          .count()
+          .get();
+      return {
+        'pending': (pendingSnap.count ?? 0) + (inProgressSnap.count ?? 0),
+        'completed': completedSnap.count ?? 0,
+      };
+    } catch (_) {
+      return {'pending': 0, 'completed': 0};
+    }
   }
 
   @override
@@ -137,19 +161,24 @@ class _DashboardPageState extends State<DashboardPage> {
 
                   // ===== ALERTS (Admin Only) =====
                   if (isAdmin && state is DashboardLoaded) ...[
-                    if (_showExpiringAlert && state.expiringCustomers.isNotEmpty)
+                    if (_showExpiringAlert &&
+                        state.expiringCustomers.isNotEmpty)
                       AlertPanel(
                         type: AlertType.warning,
-                        title: '${state.expiringCustomers.length} Customers Expiring Soon',
+                        title:
+                            '${state.expiringCustomers.length} Customers Expiring Soon',
                         message:
                             'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
                         icon: Icons.warning_amber,
                         actionLabel: 'Review',
                         onActionTap: () => context.go(RoutePaths.customers),
-                        onDismiss: () => setState(() => _showExpiringAlert = false),
+                        onDismiss: () =>
+                            setState(() => _showExpiringAlert = false),
                       ),
-                    if (_showOverdueAlert && state.pendingPayments.isNotEmpty) ...[
-                      if (_showExpiringAlert && state.expiringCustomers.isNotEmpty)
+                    if (_showOverdueAlert &&
+                        state.pendingPayments.isNotEmpty) ...[
+                      if (_showExpiringAlert &&
+                          state.expiringCustomers.isNotEmpty)
                         const SizedBox(height: 16),
                       AlertPanel(
                         type: AlertType.error,
@@ -159,7 +188,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         icon: Icons.error_outline,
                         actionLabel: 'Collect Now',
                         onActionTap: () => context.go(RoutePaths.payments),
-                        onDismiss: () => setState(() => _showOverdueAlert = false),
+                        onDismiss: () =>
+                            setState(() => _showOverdueAlert = false),
                       ),
                     ],
                     if ((state.expiringCustomers.isNotEmpty ||
@@ -270,6 +300,57 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 16),
                     _buildRecentPaymentsTable(
                       state is DashboardLoaded ? state.recentPayments : [],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ===== INSTALLATION COUNTS (Admin Only) =====
+                    Text(
+                      'Installation Overview',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FutureBuilder<Map<String, int>>(
+                      future: _installationCountsFuture,
+                      builder: (context, snapshot) {
+                        final counts = snapshot.data ?? {'pending': 0, 'completed': 0};
+                        final pending = counts['pending'] ?? 0;
+                        final completed = counts['completed'] ?? 0;
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: KPICard(
+                                title: 'Pending Installs',
+                                value: pending.toString(),
+                                subtitle: 'Awaiting & in-progress jobs',
+                                trend: '',
+                                isTrendPositive: false,
+                                icon: Icons.construction,
+                                gradient: AppColors.orangeGradient,
+                                sparklineData: [2, 1, 3, 2, 4, 3, 2, 3, 2, pending.toDouble() + 1],
+                                onTap: () => context.go(RoutePaths.installations),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: KPICard(
+                                title: 'Completed Installs',
+                                value: completed.toString(),
+                                subtitle: 'Successfully provisioned lines',
+                                trend: '',
+                                isTrendPositive: true,
+                                icon: Icons.check_circle_outline,
+                                gradient: AppColors.greenGradient,
+                                sparklineData: [5, 6, 5, 7, 8, 7, 9, 8, 10, completed.toDouble() + 1],
+                                onTap: () => context.go(RoutePaths.installations),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -530,10 +611,14 @@ class _DashboardPageState extends State<DashboardPage> {
         PremiumDataColumn(label: 'Action', width: 0.15),
       ],
       rows: customers.map((customer) {
-        final due = customer.nextDueDate ??
+        final due =
+            customer.nextDueDate ??
             (customer.createdAt != null
-                ? DateTime(customer.createdAt!.year,
-                    customer.createdAt!.month + 1, customer.createdAt!.day)
+                ? DateTime(
+                    customer.createdAt!.year,
+                    customer.createdAt!.month + 1,
+                    customer.createdAt!.day,
+                  )
                 : now);
         final daysLeft = due.difference(now).inDays;
 
@@ -550,9 +635,7 @@ class _DashboardPageState extends State<DashboardPage> {
               customer.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
               style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
-            Text(
-              '${due.day}/${due.month}/${due.year}',
-            ),
+            Text('${due.day}/${due.month}/${due.year}'),
             Text(
               daysLeft <= 0 ? 'Today' : '$daysLeft days',
               style: GoogleFonts.inter(
@@ -580,10 +663,14 @@ class _DashboardPageState extends State<DashboardPage> {
       }).toList(),
       mobileItemBuilder: (context, index) {
         final customer = customers[index];
-        final due = customer.nextDueDate ??
+        final due =
+            customer.nextDueDate ??
             (customer.createdAt != null
-                ? DateTime(customer.createdAt!.year,
-                    customer.createdAt!.month + 1, customer.createdAt!.day)
+                ? DateTime(
+                    customer.createdAt!.year,
+                    customer.createdAt!.month + 1,
+                    customer.createdAt!.day,
+                  )
                 : now);
         final daysLeft = due.difference(now).inDays;
 

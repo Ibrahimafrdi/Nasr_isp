@@ -108,7 +108,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // Fetch all data in parallel
       final results = await Future.wait([
         getCustomers(),
-        getPayments(),
+        getPayments(limit: 5000),
         getExpenses(),
       ]);
 
@@ -150,12 +150,16 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       }).toList();
 
       final monthlyRevenue = currentMonthPayments
-          .where((p) => p.status == 'completed')
+          .where((p) => p.status == 'paid' || p.status == 'completed')
           .fold(0.0, (sum, p) => sum + p.paidAmount);
 
       final pendingPaymentsAmount = allPayments
-          .where((p) => p.status == 'pending' || p.status == 'partial')
-          .fold(0.0, (sum, p) => sum + p.amount);
+          .where((p) =>
+              p.status == 'unpaid' ||
+              p.status == 'partial' ||
+              p.status == 'pending' ||
+              p.status == 'failed')
+          .fold(0.0, (sum, p) => sum + p.remainingAmount);
 
       // Expense stats — current month only
       final currentMonthExpenses = allExpenses.where((e) {
@@ -180,7 +184,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // Recent payments (last 5 completed)
       final recentPayments = allPayments
-          .where((p) => p.status == 'completed')
+          .where((p) => p.status == 'paid' || p.status == 'completed')
           .toList()
         ..sort((a, b) {
           final aDate = a.completedDate ?? a.createdAt ?? DateTime(2000);
@@ -190,7 +194,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // Pending payments
       final pendingPayments = allPayments
-          .where((p) => p.status == 'pending' || p.status == 'partial')
+          .where((p) =>
+              p.status == 'unpaid' ||
+              p.status == 'partial' ||
+              p.status == 'pending' ||
+              p.status == 'failed')
           .toList()
         ..sort((a, b) {
           final aDate = a.dueDate ?? DateTime(2000);
@@ -206,7 +214,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // Build a list of 6 doubles: index 0 = 6 months ago, index 5 = current month
       final List<double> monthlyRevenue6 = List.filled(6, 0.0);
       for (final p in allPayments) {
-        if (p.status != 'completed') continue;
+        if (p.status != 'paid' && p.status != 'completed') continue;
         final date = p.completedDate ?? p.createdAt;
         if (date == null) continue;
         for (int i = 0; i < 6; i++) {
@@ -242,7 +250,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // ── Payment by Method (completed payments only) ──────
       final Map<String, double> paymentByMethod = {};
       for (final p in allPayments) {
-        if (p.status != 'completed') continue;
+        if (p.status != 'paid' && p.status != 'completed') continue;
         final method = (p.method ?? 'other').toLowerCase().trim();
         paymentByMethod[method] =
             (paymentByMethod[method] ?? 0) + p.paidAmount;

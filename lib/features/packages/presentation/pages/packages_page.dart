@@ -22,10 +22,19 @@ class PackagesPage extends StatefulWidget {
 }
 
 class _PackagesPageState extends State<PackagesPage> {
+  ConnectionType? _filterType;
+  bool _activeOnly = false;
+
+  void _reload() {
+    context.read<PackagesBloc>().add(
+          LoadPackages(filterByType: _filterType, activeOnly: _activeOnly ? true : null),
+        );
+  }
+
   @override
   void initState() {
     super.initState();
-    context.read<PackagesBloc>().add(const LoadPackagesEvent());
+    _reload();
   }
 
   @override
@@ -35,17 +44,33 @@ class _PackagesPageState extends State<PackagesPage> {
         if (authState is! AuthAuthenticated) {
           return const Center(child: Text('Not authenticated'));
         }
-
         final isAdmin = AuthHelpers.isAdmin(authState.user);
 
-        return BlocBuilder<PackagesBloc, PackagesState>(
+        return BlocConsumer<PackagesBloc, PackagesState>(
+          listener: (context, state) {
+            if (state is PackageActionSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppTheme.successColor,
+                ),
+              );
+            } else if (state is PackagesError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+          },
           builder: (context, state) {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(AppConstants.paddingLarge),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Header ─────────────────────────────────────────────
+                  // ── Header ───────────────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -62,7 +87,8 @@ class _PackagesPageState extends State<PackagesPage> {
                       ),
                       if (isAdmin)
                         ElevatedButton.icon(
-                          onPressed: () => _showAddPackageDialog(context),
+                          onPressed: () =>
+                              _showPackageFormSheet(context, isAdmin: isAdmin),
                           icon: const Icon(Icons.add, size: 18, color: Colors.white),
                           label: const Text('Add Package'),
                           style: ElevatedButton.styleFrom(
@@ -70,47 +96,24 @@ class _PackagesPageState extends State<PackagesPage> {
                             foregroundColor: Colors.white,
                             elevation: 2,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 14,
-                            ),
+                                horizontal: 20, vertical: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                                borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // ── Filter bar ───────────────────────────────────────────
+                  _buildFilterBar(),
+                  const SizedBox(height: 20),
 
                   // ── Content ──────────────────────────────────────────────
                   if (state is PackagesLoading)
                     const LoadingWidget(message: 'Loading packages...')
                   else if (state is PackagesError)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.error,
-                              color: AppTheme.errorColor,
-                              size: 40,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(state.message),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                context.read<PackagesBloc>().add(
-                                  const LoadPackagesEvent(),
-                                );
-                              },
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
+                    _buildError(state.message)
                   else if (state is PackagesLoaded)
                     state.packages.isEmpty
                         ? const EmptyStateWidget(
@@ -119,18 +122,15 @@ class _PackagesPageState extends State<PackagesPage> {
                             subtitle: 'Add a new package to begin.',
                           )
                         : ResponsiveLayout(
-                            mobile: _buildPackageCards(
-                              state.packages,
-                              isAdmin,
-                            ),
+                            mobile: _buildCards(state.packages, isAdmin),
                             desktop: Card(
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
-                                child: _buildPackagesTable(
-                                  state.packages,
-                                  isAdmin,
-                                  context,
-                                ),
+                                child: _buildTable(
+                                    state.packages, isAdmin, context),
                               ),
                             ),
                           ),
@@ -143,206 +143,254 @@ class _PackagesPageState extends State<PackagesPage> {
     );
   }
 
-  // ── Desktop: DataTable ──────────────────────────────────────────────────────
+  // ── Filter bar ─────────────────────────────────────────────────────────────
 
-  Widget _buildPackagesTable(List<PackageEntity> packages, bool isAdmin, BuildContext context) {
+  Widget _buildFilterBar() {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // Connection type filter
+        DropdownButtonHideUnderline(
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButton<ConnectionType?>(
+              value: _filterType,
+              hint: const Text('All Types', style: TextStyle(fontSize: 13)),
+              onChanged: (v) {
+                setState(() => _filterType = v);
+                _reload();
+              },
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Types')),
+                ...ConnectionType.values.map((t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(t.label),
+                    )),
+              ],
+            ),
+          ),
+        ),
+
+        // Active-only toggle
+        FilterChip(
+          label: const Text('Active Only', style: TextStyle(fontSize: 12)),
+          selected: _activeOnly,
+          onSelected: (v) {
+            setState(() => _activeOnly = v);
+            _reload();
+          },
+          selectedColor: AppColors.primaryBlue.withValues(alpha: 0.12),
+          checkmarkColor: AppColors.primaryBlue,
+        ),
+
+        // Clear filters
+        if (_filterType != null || _activeOnly)
+          TextButton.icon(
+            icon: const Icon(Icons.clear, size: 14),
+            label: const Text('Clear', style: TextStyle(fontSize: 12)),
+            onPressed: () {
+              setState(() {
+                _filterType = null;
+                _activeOnly = false;
+              });
+              _reload();
+            },
+          ),
+      ],
+    );
+  }
+
+  // ── Desktop table ──────────────────────────────────────────────────────────
+
+  Widget _buildTable(
+      List<PackageEntity> packages, bool isAdmin, BuildContext ctx) {
     return DataTableWrapper(
       columns: [
         const DataColumn(label: Text('Package Name')),
+        const DataColumn(label: Text('Type')),
         const DataColumn(label: Text('Speed')),
-        if (isAdmin) const DataColumn(label: Text('Monthly Price')),
-        const DataColumn(label: Text('Description')),
+        if (isAdmin) const DataColumn(label: Text('Price / mo')),
+        const DataColumn(label: Text('Status')),
         if (isAdmin) const DataColumn(label: Text('Actions')),
       ],
       rows: packages.map((pkg) {
         return DataRow(
           cells: [
-            DataCell(
-              Text(
-                pkg.name,
+            DataCell(Text(pkg.name,
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ),
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '${pkg.speed} Mbps',
-                  style: const TextStyle(
-                    fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryBlue,
+                    color: AppTheme.primaryColor))),
+            DataCell(_connectionChip(pkg.connectionType)),
+            DataCell(_speedChip(pkg.speedMbps)),
+            if (isAdmin)
+              DataCell(Text(
+                'PKR ${pkg.price.toStringAsFixed(0)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              )),
+            DataCell(StatusBadge(status: pkg.isActive ? 'active' : 'inactive')),
+            if (isAdmin)
+              DataCell(Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18),
+                    color: Colors.orange,
+                    tooltip: 'Edit',
+                    onPressed: () => _showPackageFormSheet(ctx,
+                        existing: pkg, isAdmin: isAdmin),
                   ),
-                ),
-              ),
-            ),
-            if (isAdmin)
-              DataCell(
-                Text(
-                  'PKR ${pkg.price.toStringAsFixed(0)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            DataCell(
-              SizedBox(
-                width: 200,
-                child: Text(
-                  pkg.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            if (isAdmin)
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 18),
-                      color: Colors.orange,
-                      tooltip: 'Edit Package',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Edit functionality coming soon'),
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, size: 18),
-                      color: AppTheme.errorColor,
-                      tooltip: 'Delete Package',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Delete functionality coming soon'),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 18),
+                    color: AppTheme.errorColor,
+                    tooltip: 'Delete',
+                    onPressed: () => _confirmDelete(ctx, pkg),
+                  ),
+                ],
+              )),
           ],
         );
       }).toList(),
     );
   }
 
-  // ── Mobile: Card list ───────────────────────────────────────────────────────
+  // ── Mobile cards ───────────────────────────────────────────────────────────
 
-  Widget _buildPackageCards(List<PackageEntity> packages, bool isAdmin) {
+  Widget _buildCards(List<PackageEntity> packages, bool isAdmin) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: packages.map((pkg) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppTheme.lightGray.withValues(alpha: 0.6),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+      children: packages
+          .map((pkg) => _buildCard(pkg, isAdmin))
+          .toList(),
+    );
+  }
+
+  Widget _buildCard(PackageEntity pkg, bool isAdmin) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border:
+            Border.all(color: AppTheme.lightGray.withValues(alpha: 0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              // Name
-              Text(
-                pkg.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: AppTheme.primaryColor,
-                ),
+              Expanded(
+                child: Text(pkg.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppTheme.primaryColor)),
               ),
-              const SizedBox(height: 10),
-              // Info chips
-              Wrap(
-                spacing: 16,
-                runSpacing: 6,
-                children: [
-                  _infoChip(Icons.speed, '${pkg.speed} Mbps'),
-                  if (isAdmin)
-                    _infoChip(
-                      Icons.monetization_on,
-                      'PKR ${pkg.price.toStringAsFixed(0)}/mo',
-                    ),
-                ],
-              ),
-              if (pkg.description.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  pkg.description,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.mediumGray,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              if (isAdmin) ...[
-                const SizedBox(height: 8),
-                const Divider(height: 1),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      icon: const Icon(Icons.edit, size: 16),
-                      label: const Text('Edit', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Edit functionality coming soon'),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      icon: const Icon(Icons.delete, size: 16),
-                      label: const Text(
-                        'Delete',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppTheme.errorColor,
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Delete functionality coming soon'),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
+              StatusBadge(status: pkg.isActive ? 'active' : 'inactive'),
             ],
           ),
-        );
-      }).toList(),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _connectionChip(pkg.connectionType),
+              _speedChip(pkg.speedMbps),
+              if (isAdmin)
+                _infoChip(Icons.monetization_on,
+                    'PKR ${pkg.price.toStringAsFixed(0)}/mo'),
+            ],
+          ),
+          if (pkg.description != null && pkg.description!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              pkg.description!,
+              style: const TextStyle(fontSize: 11, color: AppTheme.mediumGray),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (isAdmin) ...[
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                  onPressed: () =>
+                      _showPackageFormSheet(context, existing: pkg, isAdmin: isAdmin),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  icon: const Icon(Icons.delete, size: 16),
+                  label: const Text('Delete', style: TextStyle(fontSize: 12)),
+                  style:
+                      TextButton.styleFrom(foregroundColor: AppTheme.errorColor),
+                  onPressed: () => _confirmDelete(context, pkg),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Chip helpers ───────────────────────────────────────────────────────────
+
+  Widget _connectionChip(ConnectionType type) {
+    final isWireless = type == ConnectionType.wireless;
+    final color = isWireless ? Colors.teal : AppColors.primaryBlue;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(isWireless ? Icons.wifi : Icons.cable, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(type.label,
+              style: TextStyle(
+                  fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _speedChip(int mbps) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text('$mbps Mbps',
+          style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryBlue)),
     );
   }
 
@@ -352,86 +400,304 @@ class _PackagesPageState extends State<PackagesPage> {
       children: [
         Icon(icon, size: 12, color: AppTheme.mediumGray),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppTheme.mediumGray,
-          ),
-        ),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 11, color: AppTheme.mediumGray)),
       ],
     );
   }
 
-  // ── Add Package Dialog (admin only) ────────────────────────────────────────
+  // ── Error widget ───────────────────────────────────────────────────────────
 
-  void _showAddPackageDialog(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final speedController = TextEditingController();
-    final priceController = TextEditingController();
-    final descController = TextEditingController();
-    bool isSaving = false;
+  Widget _buildError(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            const Icon(Icons.error, color: AppTheme.errorColor, size: 40),
+            const SizedBox(height: 12),
+            Text(message),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _reload, child: const Text('Retry')),
+          ],
+        ),
+      ),
+    );
+  }
 
-    showDialog(
+  // ── Delete confirmation ────────────────────────────────────────────────────
+
+  Future<void> _confirmDelete(BuildContext ctx, PackageEntity pkg) async {
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Delete Package'),
+        content: Text(
+            'Are you sure you want to delete "${pkg.name}"?\nThis action cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Delete',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && ctx.mounted) {
+      ctx.read<PackagesBloc>().add(DeletePackageRequested(pkg.id));
+    }
+  }
+
+  // ── Form side-sheet (Add / Edit) ───────────────────────────────────────────
+
+  void _showPackageFormSheet(
+    BuildContext context, {
+    PackageEntity? existing,
+    required bool isAdmin,
+  }) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Add New Internet Package'),
-              content: Form(
-                key: formKey,
-                child: SizedBox(
-                  width: 450,
-                  child: SingleChildScrollView(
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BlocProvider.value(
+        value: context.read<PackagesBloc>(),
+        child: PackageFormSheet(
+          existing: existing,
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Package Form Sheet
+// ══════════════════════════════════════════════════════════════════════════════
+
+class PackageFormSheet extends StatefulWidget {
+  final PackageEntity? existing;
+
+  const PackageFormSheet({super.key, this.existing});
+
+  @override
+  State<PackageFormSheet> createState() => _PackageFormSheetState();
+}
+
+class _PackageFormSheetState extends State<PackageFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _speedCtrl;
+  late final TextEditingController _priceCtrl;
+  late final TextEditingController _descCtrl;
+
+  late ConnectionType _connectionType;
+  late bool _isActive;
+  bool _isSaving = false;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _nameCtrl = TextEditingController(text: e?.name ?? '');
+    _speedCtrl =
+        TextEditingController(text: e != null ? e.speedMbps.toString() : '');
+    _priceCtrl =
+        TextEditingController(text: e != null ? e.price.toString() : '');
+    _descCtrl = TextEditingController(text: e?.description ?? '');
+    _connectionType = e?.connectionType ?? ConnectionType.wireless;
+    _isActive = e?.isActive ?? true;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _speedCtrl.dispose();
+    _priceCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSaving = true);
+
+    final now = DateTime.now();
+    final package = PackageEntity(
+      id: widget.existing?.id ?? '',
+      name: _nameCtrl.text.trim(),
+      speedMbps: int.parse(_speedCtrl.text.trim()),
+      price: double.parse(_priceCtrl.text.trim()),
+      connectionType: _connectionType,
+      description:
+          _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+      isActive: _isActive,
+      createdAt: widget.existing?.createdAt ?? now,
+      updatedAt: now,
+    );
+
+    if (_isEdit) {
+      context.read<PackagesBloc>().add(UpdatePackageRequested(package));
+    } else {
+      context.read<PackagesBloc>().add(AddPackageRequested(package));
+    }
+
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    // On wide screens behave like a right-side drawer; narrow = full-width sheet
+    final sheetWidth = screenWidth > 720 ? 480.0 : screenWidth;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: sheetWidth,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 20,
+                  offset: Offset(-4, 0)),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue,
+                  borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(20)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isEdit ? Icons.edit : Icons.add_circle_outline,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _isEdit ? 'Edit Package' : 'Add New Package',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Form body
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Form(
+                    key: _formKey,
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Package Name
                         TextFormField(
-                          controller: nameController,
+                          controller: _nameCtrl,
                           decoration: const InputDecoration(
-                            labelText: 'Package Name',
+                            labelText: 'Package Name *',
+                            hintText: 'e.g. 20 Mbps Home',
+                            prefixIcon: Icon(Icons.wifi),
                           ),
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Name is required' : null,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Name is required'
+                              : null,
                         ),
                         const SizedBox(height: 16),
+
+                        // Connection Type
+                        DropdownButtonFormField<ConnectionType>(
+                          value: _connectionType,
+                          decoration: const InputDecoration(
+                            labelText: 'Connection Type *',
+                            prefixIcon: Icon(Icons.cable),
+                          ),
+                          items: ConnectionType.values
+                              .map((t) => DropdownMenuItem(
+                                    value: t,
+                                    child: Text(t.label),
+                                  ))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) {
+                              setState(() => _connectionType = v);
+                            }
+                          },
+                          validator: (_) => null,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Speed + Price side by side
                         Row(
                           children: [
                             Expanded(
                               child: TextFormField(
-                                controller: speedController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Speed (Mbps)',
-                                ),
+                                controller: _speedCtrl,
                                 keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'Speed (Mbps) *',
+                                  suffixText: 'Mbps',
+                                  prefixIcon: Icon(Icons.speed),
+                                ),
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Speed is required';
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Required';
                                   }
-                                  if (int.tryParse(v) == null) {
-                                    return 'Enter a valid speed integer';
+                                  final n = int.tryParse(v.trim());
+                                  if (n == null || n <= 0) {
+                                    return '> 0';
                                   }
                                   return null;
                                 },
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: TextFormField(
-                                controller: priceController,
+                                controller: _priceCtrl,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
                                 decoration: const InputDecoration(
-                                  labelText: 'Monthly Price (PKR)',
+                                  labelText: 'Price (PKR) *',
                                   prefixText: 'PKR ',
+                                  prefixIcon: Icon(Icons.monetization_on),
                                 ),
-                                keyboardType: TextInputType.number,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Price is required';
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Required';
                                   }
-                                  if (double.tryParse(v) == null) {
-                                    return 'Enter a valid number';
+                                  final n = double.tryParse(v.trim());
+                                  if (n == null || n <= 0) {
+                                    return '> 0';
                                   }
                                   return null;
                                 },
@@ -440,71 +706,121 @@ class _PackagesPageState extends State<PackagesPage> {
                           ],
                         ),
                         const SizedBox(height: 16),
+
+                        // Description (optional)
                         TextFormField(
-                          controller: descController,
+                          controller: _descCtrl,
+                          maxLines: 3,
                           decoration: const InputDecoration(
-                            labelText: 'Description',
+                            labelText: 'Description (Optional)',
+                            hintText: 'e.g. Unlimited internet, no FUP',
+                            prefixIcon: Icon(Icons.notes),
+                            alignLabelWithHint: true,
                           ),
-                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Is Active switch
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.toggle_on_outlined,
+                                  color: AppColors.primaryBlue),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Active',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600)),
+                                    Text(
+                                      _isActive
+                                          ? 'Package is visible & assignable'
+                                          : 'Package is hidden from customers',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _isActive,
+                                onChanged: (v) =>
+                                    setState(() => _isActive = v),
+                                activeColor: AppColors.primaryBlue,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Action buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _isSaving
+                                    ? null
+                                    : () => Navigator.pop(context),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: _isSaving ? null : _submit,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primaryBlue,
+                                  foregroundColor: Colors.white,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: _isSaving
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Icon(
+                                        _isEdit
+                                            ? Icons.save
+                                            : Icons.check,
+                                        size: 16),
+                                label: Text(
+                                  _isSaving
+                                      ? 'Saving...'
+                                      : (_isEdit
+                                          ? 'Save Changes'
+                                          : 'Add Package'),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (formKey.currentState!.validate()) {
-                            setState(() => isSaving = true);
-                            final entity = PackageEntity(
-                              id: 'pkg_${DateTime.now().millisecondsSinceEpoch}',
-                              name: nameController.text,
-                              speed: int.parse(speedController.text),
-                              price: double.parse(priceController.text),
-                              description: descController.text,
-                            );
-                            context.read<PackagesBloc>().add(
-                              AddPackageEvent(entity),
-                            );
-                            await Future.delayed(
-                              const Duration(milliseconds: 500),
-                            );
-                            if (!ctx.mounted) return;
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Package "${nameController.text}" added!',
-                                ),
-                                backgroundColor: AppTheme.successColor,
-                              ),
-                            );
-                          }
-                        },
-                  icon: isSaving
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check, size: 16),
-                  label: Text(isSaving ? 'Saving...' : 'Add Package'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

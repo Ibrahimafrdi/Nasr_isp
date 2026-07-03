@@ -1,3 +1,4 @@
+import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/packages/data/datasources/package_remote_data_source.dart';
 import 'package:nasr_isp/features/packages/data/models/package_model.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
@@ -8,21 +9,44 @@ class PackageRepositoryImpl implements PackageRepository {
 
   PackageRepositoryImpl({required this.remoteDataSource});
 
-  @override
-  Future<void> addPackage(PackageEntity package) async {
-    final model = PackageModel(
-      id: package.id,
-      name: package.name,
-      speed: package.speed,
-      price: package.price,
-      description: package.description,
-      createdAt: package.createdAt,
-    );
-    await remoteDataSource.addPackage(model);
-  }
+  // ── Entity → Model mapping ─────────────────────────────────────────────────
+
+  PackageModel _toModel(PackageEntity e) => PackageModel(
+        id: e.id,
+        name: e.name,
+        speedMbps: e.speedMbps,
+        price: e.price,
+        connectionType: e.connectionType,
+        description: e.description,
+        isActive: e.isActive,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      );
+
+  // ── Repository implementation ──────────────────────────────────────────────
 
   @override
-  Future<List<PackageEntity>> getPackages() async {
-    return await remoteDataSource.getPackages();
-  }
+  Future<List<PackageEntity>> getPackages({
+    ConnectionType? filterByType,
+    bool? activeOnly,
+  }) =>
+      remoteDataSource.getPackages(
+        filterByType: filterByType,
+        activeOnly: activeOnly,
+      );
+
+  @override
+  Future<PackageEntity> getPackageById(String id) =>
+      remoteDataSource.getPackageById(id);
+
+  @override
+  Future<String> addPackage(PackageEntity package) =>
+      remoteDataSource.addPackage(_toModel(package));
+
+  @override
+  Future<void> updatePackage(PackageEntity package) =>
+      remoteDataSource.updatePackage(_toModel(package));
+
+  @override
+  Future<void> deletePackage(String id) => remoteDataSource.deletePackage(id);
 }
