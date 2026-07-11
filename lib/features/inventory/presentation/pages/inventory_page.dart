@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
@@ -10,6 +11,8 @@ import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
 import 'package:nasr_isp/features/inventory/domain/entities/stock_movement_entity.dart';
 import 'package:nasr_isp/features/inventory/presentation/bloc/inventory_bloc.dart';
+import 'package:nasr_isp/features/inventory/presentation/widgets/inventory_card_list.dart';
+import 'package:nasr_isp/features/inventory/presentation/widgets/inventory_filter_panel.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -60,53 +63,6 @@ class _InventoryViewState extends State<_InventoryView> {
   String _categoryLabel(InventoryCategory c) =>
       c == InventoryCategory.equipment ? 'Equipment' : 'Consumable';
 
-  Widget _buildFilterPanel() {
-    final activeFilterCount =
-        (_selectedCategory != null ? 1 : 0) +
-        (_searchController.text.isNotEmpty ? 1 : 0);
-
-    return AppFilterContainer(
-      title: 'Search & Filter Inventory',
-      titleIcon: Icons.filter_list,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FilterPanelHeader(
-            searchController: _searchController,
-            onSearchChanged: (_) => setState(() {}),
-            onClearFilters: activeFilterCount > 0 ? _clearFilters : null,
-            activeFilterCount: activeFilterCount,
-            title: 'Active Filters',
-          ),
-          SizedBox(height: AppSpacing.lg),
-          const Text(
-            'Category',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.charcoal,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          AppStatusChipGroup(
-            options: InventoryCategory.values.map(_categoryLabel).toList(),
-            selected: _selectedCategory != null
-                ? _categoryLabel(_selectedCategory!)
-                : null,
-            onChanged: (label) {
-              setState(() {
-                _selectedCategory = label == null
-                    ? null
-                    : InventoryCategory.values.firstWhere(
-                        (c) => _categoryLabel(c) == label,
-                      );
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   // ---------- Add / Edit Item Dialog ----------
 
@@ -804,7 +760,16 @@ class _InventoryViewState extends State<_InventoryView> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  _buildFilterPanel(),
+                  InventoryFilterPanel(
+                    searchController: _searchController,
+                    selectedCategory: _selectedCategory,
+                    activeFilterCount: (_selectedCategory != null ? 1 : 0) +
+                        (_searchController.text.isNotEmpty ? 1 : 0),
+                    categoryLabel: _categoryLabel,
+                    onSearchChanged: (_) => setState(() {}),
+                    onCategoryChanged: (cat) => setState(() => _selectedCategory = cat),
+                    onClearFilters: _clearFilters,
+                  ),
                   const SizedBox(height: 24),
                   Card(
                     child: Column(
@@ -821,113 +786,123 @@ class _InventoryViewState extends State<_InventoryView> {
                           ),
                         ),
                         const Divider(),
-                        DataTableWrapper(
-                          columns: const [
-                            DataColumn(label: Text('Name')),
-                            DataColumn(label: Text('Category')),
-                            DataColumn(label: Text('Quantity')),
-                            DataColumn(label: Text('Reorder Level')),
-                            DataColumn(label: Text('Unit Cost')),
-                            DataColumn(label: Text('Status')),
-                            DataColumn(label: Text('Actions')),
-                          ],
-                          rows: filteredItems.map((item) {
-                            final isLow =
-                                item.quantityInStock <= item.reorderLevel;
-                            final statusText = item.quantityInStock == 0
-                                ? 'Out of Stock'
-                                : (isLow ? 'Low Stock' : 'Available');
-                            final statusColor = item.quantityInStock == 0
-                                ? AppTheme.errorColor
-                                : (isLow
-                                      ? AppTheme.warningColor
-                                      : AppTheme.successColor);
+                        ResponsiveLayout(
+                          mobile: InventoryCardList(
+                            items: filteredItems,
+                            categoryLabel: _categoryLabel,
+                            onViewDetail: (item) => _showItemDetail(context, item),
+                            onAdjustStock: (item) => _showAdjustStockDialog(context, item),
+                            onEdit: (item) => _showItemDialog(context, existing: item),
+                            onDelete: (item) => _confirmDelete(context, item),
+                          ),
+                          desktop: DataTableWrapper(
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Category')),
+                              DataColumn(label: Text('Quantity')),
+                              DataColumn(label: Text('Reorder Level')),
+                              DataColumn(label: Text('Unit Cost')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Actions')),
+                            ],
+                            rows: filteredItems.map((item) {
+                              final isLow =
+                                  item.quantityInStock <= item.reorderLevel;
+                              final statusText = item.quantityInStock == 0
+                                  ? 'Out of Stock'
+                                  : (isLow ? 'Low Stock' : 'Available');
+                              final statusColor = item.quantityInStock == 0
+                                  ? AppTheme.errorColor
+                                  : (isLow
+                                        ? AppTheme.warningColor
+                                        : AppTheme.successColor);
 
-                            return DataRow(
-                              cells: [
-                                DataCell(
-                                  Text(
-                                    item.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  onTap: () => _showItemDetail(context, item),
-                                ),
-                                DataCell(Text(_categoryLabel(item.category))),
-                                DataCell(
-                                  Text(
-                                    '${item.quantityInStock} ${item.unit}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: statusColor,
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  Text('${item.reorderLevel} ${item.unit}'),
-                                ),
-                                DataCell(
-                                  Text(
-                                    'PKR ${item.unitCost.toStringAsFixed(0)}',
-                                  ),
-                                ),
-                                DataCell(
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      statusText,
-                                      style: TextStyle(
-                                        color: statusColor,
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    Text(
+                                      item.name,
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    onTap: () => _showItemDetail(context, item),
+                                  ),
+                                  DataCell(Text(_categoryLabel(item.category))),
+                                  DataCell(
+                                    Text(
+                                      '${item.quantityInStock} ${item.unit}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: statusColor,
                                       ),
                                     ),
                                   ),
-                                ),
-                                DataCell(
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.tune, size: 18),
-                                        tooltip: 'Adjust Stock',
-                                        onPressed: () => _showAdjustStockDialog(
-                                          context,
-                                          item,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit, size: 18),
-                                        tooltip: 'Edit',
-                                        onPressed: () => _showItemDialog(
-                                          context,
-                                          existing: item,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.delete,
-                                          size: 18,
-                                          color: AppTheme.errorColor,
-                                        ),
-                                        tooltip: 'Delete',
-                                        onPressed: () =>
-                                            _confirmDelete(context, item),
-                                      ),
-                                    ],
+                                  DataCell(
+                                    Text('${item.reorderLevel} ${item.unit}'),
                                   ),
-                                ),
-                              ],
-                            );
-                          }).toList(),
+                                  DataCell(
+                                    Text(
+                                      'PKR ${item.unitCost.toStringAsFixed(0)}',
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        statusText,
+                                        style: TextStyle(
+                                          color: statusColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.tune, size: 18),
+                                          tooltip: 'Adjust Stock',
+                                          onPressed: () => _showAdjustStockDialog(
+                                            context,
+                                            item,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, size: 18),
+                                          tooltip: 'Edit',
+                                          onPressed: () => _showItemDialog(
+                                            context,
+                                            existing: item,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.delete,
+                                            size: 18,
+                                            color: AppTheme.errorColor,
+                                          ),
+                                          tooltip: 'Delete',
+                                          onPressed: () =>
+                                              _confirmDelete(context, item),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
                         ),
                         if (filteredItems.isEmpty)
                           const Padding(

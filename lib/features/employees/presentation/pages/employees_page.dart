@@ -9,6 +9,8 @@ import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart';
 import 'package:nasr_isp/features/employees/data/models/employee_model.dart';
 import 'package:nasr_isp/features/employees/presentation/bloc/employees_bloc.dart';
+import 'package:nasr_isp/features/employees/presentation/widgets/employee_card_list.dart';
+import 'package:nasr_isp/features/employees/presentation/widgets/employee_metric_cards.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -524,11 +526,11 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       const SizedBox(height: 20),
 
                       // ─── Metric Cards ──────────────────────────────────────
-                      _buildMetricCards(
-                        employeesList.length,
-                        activeTechs.length,
-                        totalSubsAssigned,
-                        isMobile,
+                      EmployeeMetricCards(
+                        totalCount: employeesList.length,
+                        activeCount: activeTechs.length,
+                        totalSubsAssigned: totalSubsAssigned,
+                        isMobile: isMobile,
                       ),
                       const SizedBox(height: 28),
 
@@ -617,67 +619,6 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
-  // ─── Metric Cards ──────────────────────────────────────────────────────────
-
-  Widget _buildMetricCards(
-    int totalCount,
-    int activeCount,
-    int totalSubsAssigned,
-    bool isMobile,
-  ) {
-    final double avgSubs = activeCount > 0 ? (totalSubsAssigned / activeCount) : 0.0;
-
-    final cards = [
-      DashboardCard(
-        label: 'Total Field Personnel',
-        value: activeCount.toString(),
-        icon: Icons.groups_outlined,
-        subtitle: 'Out of $totalCount total registered',
-      ),
-      DashboardCard(
-        label: 'Subscribers Assigned',
-        value: totalSubsAssigned.toString(),
-        icon: Icons.supervised_user_circle_outlined,
-        subtitle: '${avgSubs.toStringAsFixed(0)} avg/tech (active only)',
-      ),
-      DashboardCard(
-        label: 'Avg Billing Efficiency',
-        value: '—',
-        icon: Icons.assignment_turned_in_outlined,
-        backgroundColor: Colors.white,
-        subtitle: 'Attribution feature coming soon',
-        // TODO: Wire to real collection-efficiency data once payment-to-employee
-        // attribution exists. Currently no field links a Payment to the employee
-        // who collected it. Do not fabricate this number from unrelated data.
-      ),
-    ];
-
-    if (isMobile) {
-      return Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 12),
-              Expanded(child: cards[1]),
-            ],
-          ),
-          const SizedBox(height: 12),
-          cards[2],
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(child: cards[0]),
-        const SizedBox(width: 16),
-        Expanded(child: cards[1]),
-        const SizedBox(width: 16),
-        Expanded(child: cards[2]),
-      ],
-    );
-  }
 
   // ─── Employee Table Card ───────────────────────────────────────────────────
 
@@ -716,130 +657,33 @@ class _EmployeesPageState extends State<EmployeesPage> {
               )
             else
               isMobile
-                  ? _buildEmployeeCardList(employees, installationCounts)
+                  ? EmployeeCardList(
+                      employees: employees,
+                      installationCounts: installationCounts,
+                      onViewDetail: (emp) => _showEmployeeDetailsDialog(context, emp),
+                      onEdit: (emp) => _showAddEditEmployeeDialog(context, emp),
+                      onToggleStatus: (emp) {
+                        final isInactive = emp.status == EmployeeStatus.inactive;
+                        final updated = EmployeeModel(
+                          id: emp.id,
+                          name: emp.name,
+                          phone: emp.phone,
+                          email: emp.email,
+                          address: emp.address,
+                          designation: emp.designation,
+                          sectorArea: emp.sectorArea,
+                          status: isInactive ? EmployeeStatus.active : EmployeeStatus.inactive,
+                          salary: emp.salary,
+                          joinDate: emp.joinDate,
+                          createdAt: emp.createdAt,
+                        );
+                        context.read<EmployeeBloc>().add(UpdateEmployeeEvent(updated));
+                      },
+                    )
                   : _buildEmployeesTable(employees, installationCounts),
           ],
         ),
       ),
-    );
-  }
-
-  /// Mobile: Card list
-  Widget _buildEmployeeCardList(List<EmployeeEntity> employees, Map<String, int> installationCounts) {
-    return Column(
-      children: employees.map((emp) {
-        final subs = installationCounts[emp.id] ?? 0;
-        final isInactive = emp.status == EmployeeStatus.inactive;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.veryLightGray,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  InkWell(
-                    onTap: () => _showEmployeeDetailsDialog(context, emp),
-                    child: Text(
-                      emp.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppTheme.primaryColor,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isInactive 
-                          ? AppTheme.errorColor.withOpacity(0.1) 
-                          : AppTheme.successColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      emp.status.displayName,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: isInactive ? AppTheme.errorColor : AppTheme.successColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                emp.designation,
-                style: const TextStyle(fontSize: 12, color: AppTheme.mediumGray),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
-                children: [
-                  _infoChip(Icons.location_on, emp.sectorArea),
-                  _infoChip(Icons.phone, emp.phone),
-                  _infoChip(Icons.people, '$subs assigned'),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 18, color: AppTheme.primaryColor),
-                    onPressed: () => _showAddEditEmployeeDialog(context, emp),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      isInactive ? Icons.check_circle_outline : Icons.block,
-                      size: 18,
-                      color: isInactive ? AppTheme.successColor : AppTheme.errorColor,
-                    ),
-                    onPressed: () {
-                      final updated = EmployeeModel(
-                        id: emp.id,
-                        name: emp.name,
-                        phone: emp.phone,
-                        email: emp.email,
-                        address: emp.address,
-                        designation: emp.designation,
-                        sectorArea: emp.sectorArea,
-                        status: isInactive ? EmployeeStatus.active : EmployeeStatus.inactive,
-                        salary: emp.salary,
-                        joinDate: emp.joinDate,
-                        createdAt: emp.createdAt,
-                      );
-                      context.read<EmployeeBloc>().add(UpdateEmployeeEvent(updated));
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _infoChip(IconData icon, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: AppTheme.mediumGray),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: AppTheme.mediumGray),
-        ),
-      ],
     );
   }
 

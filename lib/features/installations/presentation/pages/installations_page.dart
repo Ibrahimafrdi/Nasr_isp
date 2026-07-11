@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
@@ -13,6 +14,8 @@ import 'package:nasr_isp/features/inventory/domain/usecases/get_inventory_items.
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_item_used_entity.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/installations/presentation/widgets/installation_card_list.dart';
+import 'package:nasr_isp/features/installations/presentation/widgets/installation_filter_panel.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -613,7 +616,31 @@ class _InstallationsPageState extends State<InstallationsPage> {
               const SizedBox(height: 16),
 
               // Search & Filter Panel
-              _buildFilterPanel(),
+              InstallationFilterPanel(
+                searchController: _searchController,
+                selectedStatus: _selectedStatus,
+                selectedConnectionType: _selectedConnectionType,
+                selectedEmployeeId: _selectedEmployeeId,
+                employeesList: _employeesList,
+                activeFilterCount: (_selectedStatus != null ? 1 : 0) +
+                    (_selectedConnectionType != null ? 1 : 0) +
+                    (_selectedEmployeeId != null ? 1 : 0) +
+                    (_searchController.text.isNotEmpty ? 1 : 0),
+                onSearchChanged: (query) => _triggerLoad(),
+                onConnectionTypeChanged: (val) {
+                  setState(() => _selectedConnectionType = val);
+                  _triggerLoad();
+                },
+                onEmployeeChanged: (val) {
+                  setState(() => _selectedEmployeeId = val);
+                  _triggerLoad();
+                },
+                onStatusChanged: (status) {
+                  setState(() => _selectedStatus = status);
+                  _triggerLoad();
+                },
+                onClearFilters: _clearFilters,
+              ),
               const SizedBox(height: 24),
 
               // Main Bloc Builder for logs
@@ -714,7 +741,41 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                         title: 'No Installations Found',
                                         subtitle: 'Adjust your filters or log a new installation to begin.',
                                       )
-                                    : _buildInstallationsTable(list, isAdmin),
+                                    : ResponsiveLayout(
+                                        mobile: InstallationCardList(
+                                          installations: list,
+                                          isAdmin: isAdmin,
+                                          onEdit: (inst) => _showAddEditInstallationDialog(context, existing: inst),
+                                          onDelete: (inst) => showDialog(
+                                            context: context,
+                                            builder: (dCtx) => AlertDialog(
+                                              title: const Text('Delete Log'),
+                                              content: const Text('Are you sure you want to permanently delete this installation log? This action cannot be undone.'),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(dCtx),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+                                                  onPressed: () {
+                                                    context.read<InstallationBloc>().add(DeleteInstallationEvent(
+                                                      inst.id,
+                                                      status: _selectedStatus,
+                                                      connectionType: _selectedConnectionType,
+                                                      employeeId: _selectedEmployeeId,
+                                                      searchQuery: _searchController.text.trim(),
+                                                    ));
+                                                    Navigator.pop(dCtx);
+                                                  },
+                                                  child: const Text('Delete'),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        desktop: _buildInstallationsTable(list, isAdmin),
+                                      ),
                               ],
                             ),
                           ),
@@ -742,87 +803,6 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
-  Widget _buildFilterPanel() {
-    return AppFilterContainer(
-      title: 'Search & Filter Installations',
-      titleIcon: Icons.construction,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FilterPanelHeader(
-            searchController: _searchController,
-            onSearchChanged: (query) => _triggerLoad(),
-            onClearFilters: _clearFilters,
-            activeFilterCount: (_selectedStatus != null ? 1 : 0) +
-                (_selectedConnectionType != null ? 1 : 0) +
-                (_selectedEmployeeId != null ? 1 : 0) +
-                (_searchController.text.isNotEmpty ? 1 : 0),
-            title: 'Filters',
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              // Connection Type Dropdown Filter
-              Expanded(
-                child: DropdownButtonFormField<String?>(
-                  value: _selectedConnectionType,
-                  decoration: const InputDecoration(labelText: 'Connection Line'),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Connections')),
-                    ...ConnectionType.values.map((t) => DropdownMenuItem(
-                          value: t.name,
-                          child: Text(t.displayName),
-                        ))
-                  ],
-                  onChanged: (val) {
-                    setState(() => _selectedConnectionType = val);
-                    _triggerLoad();
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Assigned Employee Dropdown Filter
-              Expanded(
-                child: DropdownButtonFormField<String?>(
-                  value: _selectedEmployeeId,
-                  decoration: const InputDecoration(labelText: 'Technician Filter'),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Technicians')),
-                    ..._employeesList.map((e) => DropdownMenuItem(
-                          value: e['id'] as String,
-                          child: Text(e['name'] as String),
-                        ))
-                  ],
-                  onChanged: (val) {
-                    setState(() => _selectedEmployeeId = val);
-                    _triggerLoad();
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          const Text(
-            'Installation Status',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.charcoal,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppStatusChipGroup(
-            options: const ['pending', 'inProgress', 'completed', 'cancelled'],
-            selected: _selectedStatus,
-            onChanged: (status) {
-              setState(() => _selectedStatus = status);
-              _triggerLoad();
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildInstallationsTable(List<InstallationEntity> installations, bool isAdmin) {
     return DataTableWrapper(

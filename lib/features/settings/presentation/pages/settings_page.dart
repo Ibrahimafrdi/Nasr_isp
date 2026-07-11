@@ -198,6 +198,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                 ),
                 child: TabBar(
                   controller: _tabController,
+                  isScrollable: true,
                   indicatorColor: AppColors.primaryBlue,
                   labelColor: AppColors.primaryBlue,
                   unselectedLabelColor: AppColors.darkGray,

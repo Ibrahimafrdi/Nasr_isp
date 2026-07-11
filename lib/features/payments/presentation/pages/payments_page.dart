@@ -11,6 +11,8 @@ import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
+import 'package:nasr_isp/features/payments/presentation/widgets/payment_card_list.dart';
+import 'package:nasr_isp/features/payments/presentation/widgets/payment_stats_cards.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
@@ -232,7 +234,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   if (state is PaymentsLoaded) ...[
                     // Stats cards — admin only
                     if (authState.user.role == 'admin') ...[
-                      _buildStatsCards(state),
+                      PaymentStatsCards(
+                        totalAmount: state.totalAmount,
+                        collectedAmount: state.collectedAmount,
+                      ),
                       const SizedBox(height: 24),
                     ],
 
@@ -249,9 +254,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                 'Modify filters or search term to discover records.',
                           )
                         : ResponsiveLayout(
-                            mobile: _buildPaymentCards(
-                              state.payments,
-                              authState.user.role == 'admin',
+                            mobile: PaymentCardList(
+                              payments: state.payments,
+                              isAdmin: authState.user.role == 'admin',
+                              onRecordPayment: (p) => _showRecordPaymentDialog(context, p),
                             ),
                             desktop: Card(
                               elevation: 1,
@@ -315,59 +321,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
   }
 
-  // ── Stats cards ──────────────────────────────────────────────────────────
-  Widget _buildStatsCards(PaymentsLoaded state) {
-    final cards = [
-      DashboardCard(
-        label: 'Current Billing Target',
-        value: DateTimeUtils.formatCurrency(state.totalAmount),
-        icon: Icons.monetization_on,
-      ),
-      DashboardCard(
-        label: 'Collections Realized',
-        value: DateTimeUtils.formatCurrency(state.collectedAmount),
-        icon: Icons.check_circle_outline,
-        backgroundColor: AppTheme.successColor.withValues(alpha: 0.05),
-      ),
-      DashboardCard(
-        label: 'Total Outstanding Dues',
-        value: DateTimeUtils.formatCurrency(
-          state.totalAmount - state.collectedAmount,
-        ),
-        icon: Icons.pending_actions,
-        backgroundColor: AppTheme.errorColor.withValues(alpha: 0.05),
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          return Column(
-            children: [
-              cards[0],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: cards[1]),
-                  const SizedBox(width: 12),
-                  Expanded(child: cards[2]),
-                ],
-              ),
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: cards[0]),
-            const SizedBox(width: 16),
-            Expanded(child: cards[1]),
-            const SizedBox(width: 16),
-            Expanded(child: cards[2]),
-          ],
-        );
-      },
-    );
-  }
+  // ── Stats cards — extracted → PaymentStatsCards widget ──────────────────────
+  // ── Mobile cards — extracted → PaymentCardList widget ───────────────────────
+  // ── Info chip  — extracted → shared InfoChip widget ──────────────────────────
 
   // ── Desktop: Payments table ───────────────────────────────────────────────
   Widget _buildPaymentsTable(List<PaymentModel> payments, bool isAdmin) {

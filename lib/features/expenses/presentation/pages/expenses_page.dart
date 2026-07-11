@@ -9,6 +9,8 @@ import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/expenses/domain/entities/expense_entity.dart';
 import 'package:nasr_isp/features/expenses/presentation/bloc/expenses_bloc.dart';
+import 'package:nasr_isp/features/expenses/presentation/widgets/expense_card_list.dart';
+import 'package:nasr_isp/features/expenses/presentation/widgets/expense_filter_panel.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -81,103 +83,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
   }
 
-  Widget _buildFilterPanel() {
-    final hasDateRange = _dateRangeStart != null && _dateRangeEnd != null;
-    final categoryLabels = ExpenseCategory.values.map((c) => c.label).toList();
-
-    return AppFilterContainer(
-      title: 'Search & Filter Expenses',
-      titleIcon: Icons.receipt_long,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSearchField(
-            controller: _searchController,
-            hintText: 'Search by title, paid by, or notes...',
-            onChanged: (val) {
-              setState(() => _searchQuery = val);
-              context.read<ExpensesBloc>().add(
-                    LoadExpensesEvent(
-                      searchQuery: val,
-                      filterCategories:
-                          _categoryFilter != null ? [_categoryFilter!] : [],
-                    ),
-                  );
-            },
-            onClear: () {
-              setState(() => _searchQuery = '');
-              context.read<ExpensesBloc>().add(
-                    LoadExpensesEvent(
-                      searchQuery: '',
-                      filterCategories:
-                          _categoryFilter != null ? [_categoryFilter!] : [],
-                    ),
-                  );
-            },
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _pickDateRange,
-                icon: const Icon(Icons.date_range_rounded, size: 16),
-                label: Text(
-                  hasDateRange
-                      ? '${DateTimeUtils.formatDate(_dateRangeStart!)}  →  ${DateTimeUtils.formatDate(_dateRangeEnd!)}'
-                      : 'Select Date Range',
-                  style: const TextStyle(fontSize: 12.5),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-              if (hasDateRange)
-                IconButton(
-                  tooltip: 'Clear date range',
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  onPressed: () => setState(() {
-                    _dateRangeStart = null;
-                    _dateRangeEnd = null;
-                  }),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              AppStatusChipGroup(
-                options: categoryLabels,
-                selected: _categoryFilter,
-                allLabel: 'All Categories',
-                onChanged: (val) {
-                  setState(() => _categoryFilter = val);
-                  context.read<ExpensesBloc>().add(
-                        LoadExpensesEvent(
-                          searchQuery: _searchQuery,
-                          filterCategories: val != null ? [val] : [],
-                        ),
-                      );
-                },
-              ),
-              AppFilterBadge(count: _activeFilterCount),
-              AppClearFilterButton(
-                isVisible: _activeFilterCount > 0,
-                onClear: _clearFilters,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,7 +128,39 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   ),
                   const SizedBox(height: 16),
                   if (state is ExpensesLoaded) ...[
-                    _buildFilterPanel(),
+                    ExpenseFilterPanel(
+                      searchController: _searchController,
+                      categoryFilter: _categoryFilter,
+                      hasDateRange: _dateRangeStart != null && _dateRangeEnd != null,
+                      dateRangeStart: _dateRangeStart,
+                      dateRangeEnd: _dateRangeEnd,
+                      activeFilterCount: _activeFilterCount,
+                      onSearchChanged: (val) {
+                        setState(() => _searchQuery = val);
+                        context.read<ExpensesBloc>().add(
+                              LoadExpensesEvent(
+                                searchQuery: val,
+                                filterCategories:
+                                    _categoryFilter != null ? [_categoryFilter!] : [],
+                              ),
+                            );
+                      },
+                      onPickDateRange: _pickDateRange,
+                      onClearDateRange: () => setState(() {
+                        _dateRangeStart = null;
+                        _dateRangeEnd = null;
+                      }),
+                      onCategoryFilterChanged: (val) {
+                        setState(() => _categoryFilter = val);
+                        context.read<ExpensesBloc>().add(
+                              LoadExpensesEvent(
+                                searchQuery: _searchQuery,
+                                filterCategories: val != null ? [val] : [],
+                              ),
+                            );
+                      },
+                      onClearFilters: _clearFilters,
+                    ),
                     const SizedBox(height: 24),
                     LayoutBuilder(
                       builder: (context, constraints) {
@@ -288,9 +225,14 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                     title: 'No expenses recorded',
                                   )
                                 : ResponsiveLayout(
-                                    mobile: _buildExpenseCards(
-                                      state.expenses,
-                                      isAdmin,
+                                    mobile: ExpenseCardList(
+                                      expenses: state.expenses,
+                                      isAdmin: isAdmin,
+                                      onEdit: (expense) =>
+                                          _showAddOrEditExpenseDialog(context,
+                                              expense: expense),
+                                      onDelete: (expense) =>
+                                          _confirmDeleteExpense(context, expense),
                                     ),
                                     desktop: _buildExpensesTable(
                                       state.expenses,
@@ -585,140 +527,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  Widget _buildExpenseCards(List<ExpenseEntity> expenses, bool isAdmin) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: expenses.map((e) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppTheme.lightGray.withValues(alpha: 0.6),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      e.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      e.category.label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateTimeUtils.formatCurrency(e.amount),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.errorColor,
-                    ),
-                  ),
-                  Text(
-                    DateTimeUtils.formatDate(e.date),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.mediumGray,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.person_outline,
-                      size: 14, color: AppTheme.mediumGray),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Paid by: ${e.paidBy}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.mediumGray,
-                    ),
-                  ),
-                ],
-              ),
-              if (e.notes != null && e.notes!.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Notes: ${e.notes}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: AppTheme.darkGray,
-                  ),
-                ),
-              ],
-              if (isAdmin) ...[
-                const Divider(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () =>
-                          _showAddOrEditExpenseDialog(context, expense: e),
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('Edit'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => _confirmDeleteExpense(context, e),
-                      icon: const Icon(Icons.delete_outline,
-                          size: 16, color: AppTheme.errorColor),
-                      label: const Text(
-                        'Delete',
-                        style: TextStyle(color: AppTheme.errorColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
 
   void _confirmDeleteExpense(BuildContext context, ExpenseEntity expense) {
     showDialog(
