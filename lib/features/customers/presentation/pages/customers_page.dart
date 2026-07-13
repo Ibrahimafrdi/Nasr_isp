@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
@@ -8,17 +10,15 @@ import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_card_list.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_details_side_sheet.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/customer_filter_panel.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/shared/models/models.dart';
-import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
-import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
-import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 
 class CustomersPage extends StatefulWidget {
   const CustomersPage({Key? key}) : super(key: key);
@@ -32,6 +32,7 @@ class _CustomersPageState extends State<CustomersPage> {
   String? _selectedStatus;
   String? _selectedConnectionType; // null = All, 'wireless', 'fiber'
   CustomerModel? _selectedCustomerForDetail;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -45,11 +46,13 @@ class _CustomersPageState extends State<CustomersPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   void _clearFilters() {
+    _searchDebounce?.cancel();
     setState(() {
       _searchController.clear();
       _selectedStatus = null;
@@ -59,6 +62,7 @@ class _CustomersPageState extends State<CustomersPage> {
   }
 
   void _onStatusChanged(String? status) {
+    _searchDebounce?.cancel();
     setState(() => _selectedStatus = status);
     final filterStatus = status == null
         ? null
@@ -73,6 +77,7 @@ class _CustomersPageState extends State<CustomersPage> {
   }
 
   void _onConnectionTypeChanged(String? type) {
+    _searchDebounce?.cancel();
     setState(() => _selectedConnectionType = type);
     final filterStatus = _selectedStatus == null
         ? null
@@ -86,6 +91,24 @@ class _CustomersPageState extends State<CustomersPage> {
     );
   }
 
+  void _onSearchChanged(String query) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(AppConstants.debounceDelay, () {
+      if (!mounted) return;
+      final filterStatus = _selectedStatus == null
+          ? null
+          : CustomerStatus.values.firstWhere((s) => s.label == _selectedStatus);
+      context.read<CustomersBloc>().add(
+        LoadCustomersEvent(
+          searchQuery: query,
+          filterStatus: filterStatus,
+          filterConnectionType: _selectedConnectionType,
+        ),
+      );
+    });
+  }
+
   String _getPackageName(String? packageId) {
     if (packageId == null || packageId.isEmpty) return 'No Package';
     final state = context.read<PackagesBloc>().state;
@@ -97,109 +120,6 @@ class _CustomersPageState extends State<CustomersPage> {
       }
     }
     return 'Plan ID: $packageId';
-  }
-
-  Widget _buildFilterPanel() {
-    final activeFilterCount =
-        (_selectedStatus != null ? 1 : 0) +
-        (_searchController.text.isNotEmpty ? 1 : 0) +
-        (_selectedConnectionType != null ? 1 : 0);
-
-    return AppFilterContainer(
-      title: 'Search & Filter Customers',
-      titleIcon: Icons.filter_list,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Search field with header
-          FilterPanelHeader(
-            searchController: _searchController,
-            onSearchChanged: (query) {
-              setState(() {});
-              final filterStatus = _selectedStatus == null
-                  ? null
-                  : CustomerStatus.values.firstWhere(
-                      (s) => s.label == _selectedStatus,
-                    );
-              context.read<CustomersBloc>().add(
-                LoadCustomersEvent(
-                  searchQuery: query,
-                  filterStatus: filterStatus,
-                  filterConnectionType: _selectedConnectionType,
-                ),
-              );
-            },
-            onClearFilters: activeFilterCount > 0 ? _clearFilters : null,
-            activeFilterCount: activeFilterCount,
-            title: 'Active Filters',
-          ),
-          SizedBox(height: AppSpacing.lg),
-
-          // Status Filter Chips (All + statuses, single-select, reusable)
-          const Text(
-            'Subscription Status',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.charcoal,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          AppStatusChipGroup(
-            options: CustomerStatus.values.map((s) => s.label).toList(),
-            selected: _selectedStatus,
-            onChanged: _onStatusChanged,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Connection Type',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.charcoal,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _buildConnectionChip('All', null),
-              const SizedBox(width: 8),
-              _buildConnectionChip('Wireless', 'wireless'),
-              const SizedBox(width: 8),
-              _buildConnectionChip('Fiber', 'fiber'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConnectionChip(String label, String? value) {
-    final isSelected = _selectedConnectionType == value;
-    final color = value == 'fiber' ? Colors.purple : AppColors.primaryBlue;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: value == null
-          ? AppColors.primaryBlue.withOpacity(0.15)
-          : color.withOpacity(0.15),
-      labelStyle: TextStyle(
-        color: isSelected
-            ? (value == null ? AppColors.primaryBlue : color)
-            : AppColors.charcoal,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        fontSize: 13,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected
-              ? (value == null ? AppColors.primaryBlue : color)
-              : Colors.grey.shade300,
-        ),
-      ),
-      onSelected: (_) => _onConnectionTypeChanged(value),
-    );
   }
 
   @override
@@ -257,7 +177,19 @@ class _CustomersPageState extends State<CustomersPage> {
                   const SizedBox(height: 16),
 
                   // Premium Filter Panel
-                  _buildFilterPanel(),
+                  CustomerFilterPanel(
+                    searchController: _searchController,
+                    selectedStatus: _selectedStatus,
+                    selectedConnectionType: _selectedConnectionType,
+                    activeFilterCount:
+                        (_selectedStatus != null ? 1 : 0) +
+                        (_searchController.text.isNotEmpty ? 1 : 0) +
+                        (_selectedConnectionType != null ? 1 : 0),
+                    onSearchChanged: _onSearchChanged,
+                    onStatusChanged: _onStatusChanged,
+                    onConnectionTypeChanged: _onConnectionTypeChanged,
+                    onClearFilters: _clearFilters,
+                  ),
                   const SizedBox(height: 24),
 
                   // Main Directory Table
@@ -307,7 +239,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                   ),
                                 ),
                               )
-                            : ResponsiveDashboard(
+                            : ResponsiveSwitcher(
                                 mobile: CustomerCardList(
                                   customers: state.customers,
                                   currentUser: authState.user,
@@ -402,7 +334,7 @@ class _CustomersPageState extends State<CustomersPage> {
   }
 
   /// Returns nextDueDate if set, otherwise falls back to createdAt + 1 month.
-  /// This is display-only â€” never written back to Firestore.
+  /// This is display-only — never written back to Firestore.
   DateTime? _getEffectiveDueDate(CustomerModel customer) {
     if (customer.nextDueDate != null) return customer.nextDueDate;
     if (customer.createdAt != null) {
@@ -510,7 +442,7 @@ class _CustomersPageState extends State<CustomersPage> {
             DataCell(() {
               if (dueDate == null) {
                 return const Text(
-                  'â€”',
+                  '—',
                   style: TextStyle(color: AppTheme.mediumGray),
                 );
               }
@@ -619,7 +551,7 @@ class _CustomersPageState extends State<CustomersPage> {
 
   // _buildCustomerCardList, _buildDetailsSideSheet, _mobileInfoChip,
   // _sideSheetSectionTitle, _buildDetailRow have been extracted into:
-  //   â€¢ CustomerCardList       (features/customers/presentation/widgets/)
-  //   â€¢ CustomerDetailsSideSheet (features/customers/presentation/widgets/)
-  //   â€¢ InfoChip               (shared/widgets/info_chip.dart)
+  //   • CustomerCardList       (features/customers/presentation/widgets/)
+  //   • CustomerDetailsSideSheet (features/customers/presentation/widgets/)
+  //   • InfoChip               (shared/widgets/info_chip.dart)
 }

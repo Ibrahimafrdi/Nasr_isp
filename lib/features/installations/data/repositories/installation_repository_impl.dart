@@ -29,6 +29,8 @@ class InstallationRepositoryImpl implements InstallationRepository {
           )).toList(),
       createdAt: e.createdAt,
       completedAt: e.completedAt,
+      equipmentCost: e.equipmentCost,
+      laborCost: e.laborCost,
     );
   }
 

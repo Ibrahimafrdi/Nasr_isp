@@ -5,7 +5,6 @@ abstract class EmployeeRemoteDataSource {
   Future<void> addEmployee(EmployeeModel employee);
   Future<List<EmployeeModel>> getEmployees();
   Future<void> updateEmployee(EmployeeModel employee);
-  Future<void> deleteEmployee(String id);
 }
 
 class EmployeeRemoteDataSourceImpl implements EmployeeRemoteDataSource {
@@ -36,10 +35,5 @@ class EmployeeRemoteDataSourceImpl implements EmployeeRemoteDataSource {
     data.remove('id');
     data.remove('createdAt');
     await _col.doc(employee.id).update(data);
-  }
-
-  @override
-  Future<void> deleteEmployee(String id) async {
-    await _col.doc(id).delete();
   }
 }

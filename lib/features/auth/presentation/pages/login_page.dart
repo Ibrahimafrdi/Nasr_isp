@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -93,7 +94,10 @@ class _LoginPageState extends State<LoginPage>
             // Main content
             Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.isMobile(context) ? 16 : 24,
+                  vertical: 24,
+                ),
                 child: FadeTransition(
                   opacity: _fadeAnim,
                   child: SlideTransition(
@@ -143,7 +147,12 @@ class _LoginPageState extends State<LoginPage>
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 32, 28, 32),
+            padding: EdgeInsets.fromLTRB(
+              Responsive.isMobile(context) ? 20 : 28,
+              32,
+              Responsive.isMobile(context) ? 20 : 28,
+              32,
+            ),
             child: Form(
               key: _formKey,
               child: Column(

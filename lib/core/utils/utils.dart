@@ -1,6 +1,11 @@
 import 'package:intl/intl.dart';
 
 class DateTimeUtils {
+  /// Company-configurable currency symbol. Kept in sync with AppSettings by
+  /// SettingsBloc whenever settings are loaded/saved; defaults to the
+  /// original hardcoded value so behavior is unchanged until Settings loads.
+  static String currencySymbol = 'Rs ';
+
   static String formatDate(DateTime date) {
     return DateFormat('MMM dd, yyyy').format(date);
   }
@@ -16,7 +21,7 @@ class DateTimeUtils {
   static String formatCurrency(double amount) {
     return NumberFormat.currency(
       locale: 'ur_PK',
-      symbol: 'Rs ',
+      symbol: currencySymbol,
       decimalDigits: 0,
     ).format(amount);
   }

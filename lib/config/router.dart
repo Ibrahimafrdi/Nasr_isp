@@ -6,9 +6,11 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/utils/auth_helpers.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/auth/presentation/pages/login_page.dart';
+import 'package:nasr_isp/features/customers/presentation/pages/add_customer_choice_page.dart';
 import 'package:nasr_isp/features/customers/presentation/pages/add_customer_page.dart';
 import 'package:nasr_isp/features/customers/presentation/pages/customer_details_page.dart';
 import 'package:nasr_isp/features/customers/presentation/pages/customers_page.dart';
+import 'package:nasr_isp/features/customers/presentation/pages/new_customer_installation_page.dart';
 import 'package:nasr_isp/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:nasr_isp/features/employees/presentation/pages/employees_page.dart';
 import 'package:nasr_isp/features/expenses/presentation/pages/expenses_page.dart';
@@ -50,7 +52,17 @@ GoRouter createAppRouter(AuthBloc authBloc) {
             routes: [
               GoRoute(
                 path: 'add',
-                builder: (context, state) => const AddCustomerPage(),
+                builder: (context, state) => const AddCustomerChoicePage(),
+                routes: [
+                  GoRoute(
+                    path: 'existing',
+                    builder: (context, state) => const AddCustomerPage(),
+                  ),
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const NewCustomerInstallationPage(),
+                  ),
+                ],
               ),
               GoRoute(
                 path: ':id',

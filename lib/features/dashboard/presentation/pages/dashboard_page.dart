@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
@@ -18,6 +17,7 @@ import 'package:nasr_isp/shared/widgets/responsive_table.dart';
 import 'package:nasr_isp/shared/widgets/mobile_dashboard_card.dart';
 import 'package:nasr_isp/shared/widgets/analytics_card.dart';
 import 'package:nasr_isp/shared/widgets/activity_timeline_widget.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -30,41 +30,18 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _showExpiringAlert = true;
   bool _showOverdueAlert = true;
 
-  // Installation counts for the dashboard KPI section
-  Future<Map<String, int>> _installationCountsFuture = Future.value({'pending': 0, 'completed': 0});
-
   @override
   void initState() {
     super.initState();
     context.read<DashboardBloc>().add(const LoadDashboardEvent());
-    _installationCountsFuture = _fetchInstallationCounts();
   }
 
-  Future<Map<String, int>> _fetchInstallationCounts() async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      final pendingSnap = await firestore
-          .collection('installations')
-          .where('status', isEqualTo: 'pending')
-          .count()
-          .get();
-      final inProgressSnap = await firestore
-          .collection('installations')
-          .where('status', isEqualTo: 'inProgress')
-          .count()
-          .get();
-      final completedSnap = await firestore
-          .collection('installations')
-          .where('status', isEqualTo: 'completed')
-          .count()
-          .get();
-      return {
-        'pending': (pendingSnap.count ?? 0) + (inProgressSnap.count ?? 0),
-        'completed': completedSnap.count ?? 0,
-      };
-    } catch (_) {
-      return {'pending': 0, 'completed': 0};
-    }
+  Future<void> _onRefresh() async {
+    final bloc = context.read<DashboardBloc>();
+    bloc.add(const RefreshDashboardEvent());
+    await bloc.stream.firstWhere(
+      (s) => s is DashboardLoaded || s is DashboardError,
+    );
   }
 
   @override
@@ -120,7 +97,10 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             }
 
-            return SingleChildScrollView(
+            return RefreshIndicator(
+              onRefresh: _onRefresh,
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +146,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       AlertPanel(
                         type: AlertType.warning,
                         title:
-                            '${state.expiringCustomers.length} Customers Expiring Soon',
+                            '${state.stats.expiringsoon} Customers Expiring Soon',
                         message:
                             'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
                         icon: Icons.warning_amber,
@@ -184,7 +164,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         type: AlertType.error,
                         title: 'Payments Overdue',
                         message:
-                            '${state.pendingPayments.length} customers have unpaid invoices totaling ${_formatCurrency(state.stats.pendingPayments)}.',
+                            '${state.stats.pendingPaymentsCount} customers have unpaid invoices totaling ${_formatCurrency(state.stats.pendingPayments)}.',
                         icon: Icons.error_outline,
                         actionLabel: 'Collect Now',
                         onActionTap: () => context.go(RoutePaths.payments),
@@ -221,6 +201,12 @@ class _DashboardPageState extends State<DashboardPage> {
                             monthlyExpenses: 0,
                             netProfit: 0,
                             pendingPayments: 0,
+                            pendingPaymentsCount: 0,
+                            pendingInstallations: 0,
+                            completedInstallations: 0,
+                            monthlyInstallationRevenue: 0,
+                            monthlyInstallationCost: 0,
+                            monthlyInstallationProfit: 0,
                           ),
                   ),
                   const SizedBox(height: 32),
@@ -313,51 +299,67 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    FutureBuilder<Map<String, int>>(
-                      future: _installationCountsFuture,
-                      builder: (context, snapshot) {
-                        final counts = snapshot.data ?? {'pending': 0, 'completed': 0};
-                        final pending = counts['pending'] ?? 0;
-                        final completed = counts['completed'] ?? 0;
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: KPICard(
-                                title: 'Pending Installs',
-                                value: pending.toString(),
-                                subtitle: 'Awaiting & in-progress jobs',
-                                trend: '',
-                                isTrendPositive: false,
-                                icon: Icons.construction,
-                                gradient: AppColors.orangeGradient,
-                                sparklineData: [2, 1, 3, 2, 4, 3, 2, 3, 2, pending.toDouble() + 1],
-                                onTap: () => context.go(RoutePaths.installations),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: KPICard(
-                                title: 'Completed Installs',
-                                value: completed.toString(),
-                                subtitle: 'Successfully provisioned lines',
-                                trend: '',
-                                isTrendPositive: true,
-                                icon: Icons.check_circle_outline,
-                                gradient: AppColors.greenGradient,
-                                sparklineData: [5, 6, 5, 7, 8, 7, 9, 8, 10, completed.toDouble() + 1],
-                                onTap: () => context.go(RoutePaths.installations),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    _buildInstallationOverview(
+                      state is DashboardLoaded
+                          ? state.stats.pendingInstallations
+                          : 0,
+                      state is DashboardLoaded
+                          ? state.stats.completedInstallations
+                          : 0,
                     ),
                     const SizedBox(height: 24),
                   ],
                 ],
               ),
+              ),
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildInstallationOverview(int pending, int completed) {
+    final pendingCard = KPICard(
+      title: 'Pending Installs',
+      value: pending.toString(),
+      subtitle: 'Awaiting & in-progress jobs',
+      trend: '',
+      isTrendPositive: false,
+      icon: Icons.construction,
+      gradient: AppColors.orangeGradient,
+      sparklineData: [2, 1, 3, 2, 4, 3, 2, 3, 2, pending.toDouble() + 1],
+      onTap: () => context.go(RoutePaths.installations),
+    );
+    final completedCard = KPICard(
+      title: 'Completed Installs',
+      value: completed.toString(),
+      subtitle: 'Successfully provisioned lines',
+      trend: '',
+      isTrendPositive: true,
+      icon: Icons.check_circle_outline,
+      gradient: AppColors.greenGradient,
+      sparklineData: [5, 6, 5, 7, 8, 7, 9, 8, 10, completed.toDouble() + 1],
+      onTap: () => context.go(RoutePaths.installations),
+    );
+
+    return ResponsiveBuilder(
+      builder: (context, deviceType) {
+        if (deviceType == DeviceType.mobile) {
+          return Column(
+            children: [
+              SizedBox(width: double.infinity, height: 150, child: pendingCard),
+              const SizedBox(height: 16),
+              SizedBox(width: double.infinity, height: 150, child: completedCard),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: SizedBox(height: 150, child: pendingCard)),
+            const SizedBox(width: 16),
+            Expanded(child: SizedBox(height: 150, child: completedCard)),
+          ],
         );
       },
     );
@@ -385,13 +387,23 @@ class _DashboardPageState extends State<DashboardPage> {
 
   // ===== KPI CARDS (real data-driven) =====
   Widget _buildKPICards(bool isAdmin, DashboardStatsModel stats) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int columns = 1;
-        if (constraints.maxWidth >= 1200) {
-          columns = isAdmin ? 3 : 2;
-        } else if (constraints.maxWidth >= 650) {
-          columns = 2;
+    return ResponsiveBuilder(
+      builder: (context, deviceType) {
+        int columns;
+        double aspectRatio;
+        switch (deviceType) {
+          case DeviceType.mobile:
+            columns = 1;
+            aspectRatio = 2.1;
+            break;
+          case DeviceType.tablet:
+            columns = 2;
+            aspectRatio = 1.6;
+            break;
+          case DeviceType.desktop:
+            columns = 4;
+            aspectRatio = 1.35;
+            break;
         }
 
         return GridView.count(
@@ -400,7 +412,7 @@ class _DashboardPageState extends State<DashboardPage> {
           mainAxisSpacing: AppSpacing.lg,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: isAdmin ? 1.6 : 1.45,
+          childAspectRatio: aspectRatio,
           children: [
             KPICard(
               title: 'Total Customers',
@@ -466,6 +478,28 @@ class _DashboardPageState extends State<DashboardPage> {
                 gradient: AppColors.redGradient,
                 sparklineData: const [10, 9, 8, 9, 7, 6, 5, 6, 4, 2],
               ),
+            if (isAdmin)
+              KPICard(
+                title: 'Expired Customers',
+                value: stats.expiredCustomers.toString(),
+                subtitle: 'Awaiting renewal',
+                trend: '',
+                isTrendPositive: false,
+                icon: Icons.person_off,
+                gradient: AppColors.redGradient,
+                sparklineData: const [4, 5, 4, 6, 5, 4, 3, 4, 3, 2],
+              ),
+            if (isAdmin)
+              KPICard(
+                title: 'Installation Profit',
+                value: _formatCurrency(stats.monthlyInstallationProfit),
+                subtitle: '${_formatCurrency(stats.monthlyInstallationRevenue)} billed this month',
+                trend: '',
+                isTrendPositive: stats.monthlyInstallationProfit >= 0,
+                icon: Icons.engineering,
+                gradient: AppColors.orangeGradient,
+                sparklineData: const [3, 4, 3, 5, 6, 5, 7, 6, 8, 9],
+              ),
             if (!isAdmin) ...[
               KPICard(
                 title: 'Total Customers',
@@ -496,13 +530,19 @@ class _DashboardPageState extends State<DashboardPage> {
 
   // ===== QUICK ACTIONS (Tickets & Reports removed) =====
   Widget _buildQuickActions(BuildContext context, bool isAdmin) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int columns = isAdmin ? 4 : 4;
-        if (constraints.maxWidth < 600) {
-          columns = 2;
-        } else if (constraints.maxWidth < 1000) {
-          columns = 3;
+    return ResponsiveBuilder(
+      builder: (context, deviceType) {
+        int columns;
+        switch (deviceType) {
+          case DeviceType.mobile:
+            columns = 2;
+            break;
+          case DeviceType.tablet:
+            columns = 3;
+            break;
+          case DeviceType.desktop:
+            columns = 4;
+            break;
         }
 
         return GridView.count(

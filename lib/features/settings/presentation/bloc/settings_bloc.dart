@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.dart';
 import 'package:nasr_isp/features/settings/domain/usecases/get_settings.dart';
 import 'package:nasr_isp/features/settings/domain/usecases/update_settings.dart';
@@ -92,6 +93,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(const SettingsLoading());
     try {
       final settings = await getSettings();
+      if (settings.currencySymbol.isNotEmpty) {
+        DateTimeUtils.currencySymbol = settings.currencySymbol;
+      }
       emit(SettingsLoaded(settings));
     } catch (e) {
       emit(SettingsError(message: 'Failed to load settings: $e'));
@@ -107,6 +111,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       await updateSettings(event.settings);
       // Give Firestore a small delay to propagate or just load the updated data
       final updated = await getSettings();
+      if (updated.currencySymbol.isNotEmpty) {
+        DateTimeUtils.currencySymbol = updated.currencySymbol;
+      }
       emit(SettingsSaved(updated));
       emit(SettingsLoaded(updated));
     } catch (e) {

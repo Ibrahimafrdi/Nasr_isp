@@ -48,9 +48,4 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
     );
     await remoteDataSource.updateEmployee(model);
   }
-
-  @override
-  Future<void> deleteEmployee(String id) async {
-    await remoteDataSource.deleteEmployee(id);
-  }
 }

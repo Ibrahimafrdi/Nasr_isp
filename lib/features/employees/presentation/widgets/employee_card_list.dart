@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart';
-import 'package:nasr_isp/features/employees/data/models/employee_model.dart';
 import 'package:nasr_isp/shared/widgets/info_chip.dart';
 
 /// Mobile card list for the Employees page.

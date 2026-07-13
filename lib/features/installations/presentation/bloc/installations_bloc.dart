@@ -34,20 +34,42 @@ class LoadInstallationsEvent extends InstallationEvent {
 
 class CreateInstallationEvent extends InstallationEvent {
   final InstallationEntity installation;
+  final String? status;
+  final String? connectionType;
+  final String? employeeId;
+  final String? searchQuery;
 
-  const CreateInstallationEvent(this.installation);
+  const CreateInstallationEvent(
+    this.installation, {
+    this.status,
+    this.connectionType,
+    this.employeeId,
+    this.searchQuery,
+  });
 
   @override
-  List<Object?> get props => [installation];
+  List<Object?> get props =>
+      [installation, status, connectionType, employeeId, searchQuery];
 }
 
 class UpdateInstallationEvent extends InstallationEvent {
   final InstallationEntity installation;
+  final String? status;
+  final String? connectionType;
+  final String? employeeId;
+  final String? searchQuery;
 
-  const UpdateInstallationEvent(this.installation);
+  const UpdateInstallationEvent(
+    this.installation, {
+    this.status,
+    this.connectionType,
+    this.employeeId,
+    this.searchQuery,
+  });
 
   @override
-  List<Object?> get props => [installation];
+  List<Object?> get props =>
+      [installation, status, connectionType, employeeId, searchQuery];
 }
 
 class DeleteInstallationEvent extends InstallationEvent {
@@ -155,7 +177,12 @@ class InstallationBloc extends Bloc<InstallationEvent, InstallationState> {
     emit(InstallationLoading());
     try {
       await createInstallation(event.installation);
-      final list = await getInstallations();
+      final list = await getInstallations(
+        status: event.status,
+        connectionType: event.connectionType,
+        employeeId: event.employeeId,
+        searchQuery: event.searchQuery,
+      );
       emit(InstallationLoaded(list));
     } catch (e) {
       emit(InstallationError(e.toString()));
@@ -169,7 +196,12 @@ class InstallationBloc extends Bloc<InstallationEvent, InstallationState> {
     emit(InstallationLoading());
     try {
       await updateInstallation(event.installation);
-      final list = await getInstallations();
+      final list = await getInstallations(
+        status: event.status,
+        connectionType: event.connectionType,
+        employeeId: event.employeeId,
+        searchQuery: event.searchQuery,
+      );
       emit(InstallationLoaded(list));
     } catch (e) {
       emit(InstallationError(e.toString()));

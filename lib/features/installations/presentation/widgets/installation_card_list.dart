@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
@@ -44,6 +43,19 @@ class InstallationCardList extends StatelessWidget {
   }
 }
 
+Color installationStatusColor(InstallationStatus status) {
+  switch (status) {
+    case InstallationStatus.pending:
+      return AppTheme.warningColor;
+    case InstallationStatus.inProgress:
+      return AppColors.primaryBlue;
+    case InstallationStatus.completed:
+      return AppTheme.successColor;
+    case InstallationStatus.cancelled:
+      return AppTheme.errorColor;
+  }
+}
+
 class _InstallationCard extends StatelessWidget {
   final InstallationEntity inst;
   final bool isAdmin;
@@ -57,22 +69,9 @@ class _InstallationCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  Color _statusColor(InstallationStatus status) {
-    switch (status) {
-      case InstallationStatus.pending:
-        return AppTheme.warningColor;
-      case InstallationStatus.inProgress:
-        return AppColors.primaryBlue;
-      case InstallationStatus.completed:
-        return AppTheme.successColor;
-      case InstallationStatus.cancelled:
-        return AppTheme.errorColor;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(inst.status);
+    final statusColor = installationStatusColor(inst.status);
     final double cost = inst.materialCost ?? 0.0;
     final double fee = inst.installationCost;
     final double profit = inst.profit ?? 0.0;

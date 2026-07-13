@@ -8,6 +8,7 @@ class PackageModel extends PackageEntity {
     required super.name,
     required super.speedMbps,
     required super.price,
+    required super.costPrice,
     required super.connectionType,
     super.description,
     required super.isActive,
@@ -42,6 +43,8 @@ class PackageModel extends PackageEntity {
           (map['speed'] as num?)?.toInt() ??
           0,
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
+      // Legacy docs predating buy/sell pricing default to 0 (no cost recorded).
+      costPrice: (map['costPrice'] as num?)?.toDouble() ?? 0.0,
       connectionType: _parseConnectionType(map['connectionType']),
       description: map['description'] as String?,
       // Default to true for legacy docs that don't have this field
@@ -66,6 +69,7 @@ class PackageModel extends PackageEntity {
       'name': name,
       'speedMbps': speedMbps,
       'price': price,
+      'costPrice': costPrice,
       'connectionType': connectionType.name,
       'description': description,
       'isActive': isActive,
@@ -82,6 +86,7 @@ class PackageModel extends PackageEntity {
     String? name,
     int? speedMbps,
     double? price,
+    double? costPrice,
     ConnectionType? connectionType,
     String? description,
     bool? isActive,
@@ -93,6 +98,7 @@ class PackageModel extends PackageEntity {
         name: name ?? this.name,
         speedMbps: speedMbps ?? this.speedMbps,
         price: price ?? this.price,
+        costPrice: costPrice ?? this.costPrice,
         connectionType: connectionType ?? this.connectionType,
         description: description ?? this.description,
         isActive: isActive ?? this.isActive,

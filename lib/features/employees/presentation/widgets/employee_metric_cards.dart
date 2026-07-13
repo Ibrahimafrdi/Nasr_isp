@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 /// Responsive team KPI card row for the Employees page.
@@ -43,7 +41,7 @@ class EmployeeMetricCards extends StatelessWidget {
         icon: Icons.assignment_turned_in_outlined,
         backgroundColor: Colors.white,
         subtitle: 'Attribution feature coming soon',
-        // Wire to real collection-efficiency data once payment-to-employee
+        // TODO: Wire to real collection-efficiency data once payment-to-employee
         // attribution exists. Currently no field links a Payment to the employee
         // who collected it. Do not fabricate this number from unrelated data.
       ),

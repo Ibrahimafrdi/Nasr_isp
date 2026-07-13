@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
 import 'package:nasr_isp/shared/widgets/info_chip.dart';
@@ -158,6 +157,18 @@ class _InventoryCard extends StatelessWidget {
                 Icons.payments_outlined,
                 'PKR ${item.unitCost.toStringAsFixed(0)}',
               ),
+              if (item.connectionType != null)
+                InfoChip(
+                  item.connectionType == InventoryConnectionType.fiber
+                      ? Icons.cable
+                      : Icons.wifi,
+                  item.connectionType!.label,
+                  color: item.connectionType == InventoryConnectionType.fiber
+                      ? Colors.purple
+                      : (item.connectionType == InventoryConnectionType.both
+                          ? Colors.teal
+                          : Colors.blue[800]),
+                ),
             ],
           ),
 

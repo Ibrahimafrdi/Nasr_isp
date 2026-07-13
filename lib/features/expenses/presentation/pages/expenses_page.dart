@@ -11,7 +11,6 @@ import 'package:nasr_isp/features/expenses/domain/entities/expense_entity.dart';
 import 'package:nasr_isp/features/expenses/presentation/bloc/expenses_bloc.dart';
 import 'package:nasr_isp/features/expenses/presentation/widgets/expense_card_list.dart';
 import 'package:nasr_isp/features/expenses/presentation/widgets/expense_filter_panel.dart';
-import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -30,6 +29,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
   DateTime? _dateRangeStart;
   DateTime? _dateRangeEnd;
 
+  // Cached last successfully loaded state, so a transient ExpensesLoading
+  // or an ExpensesError doesn't blank out or replace an already-visible list.
+  ExpensesLoaded? _lastLoaded;
+
   int get _activeFilterCount {
     int count = 0;
     if (_searchQuery.isNotEmpty) count++;
@@ -42,15 +45,26 @@ class _ExpensesPageState extends State<ExpensesPage> {
   @override
   void initState() {
     super.initState();
-    context.read<ExpensesBloc>().add(
-          const LoadExpensesEvent(searchQuery: '', filterCategories: []),
-        );
+    _dispatchLoad();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Dispatches a load using the current search/category/date-range filters.
+  void _dispatchLoad({int page = 1}) {
+    context.read<ExpensesBloc>().add(
+          LoadExpensesEvent(
+            page: page,
+            searchQuery: _searchQuery,
+            filterCategories: _categoryFilter != null ? [_categoryFilter!] : [],
+            dateRangeStart: _dateRangeStart,
+            dateRangeEnd: _dateRangeEnd,
+          ),
+        );
   }
 
   void _clearFilters() {
@@ -61,9 +75,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
       _dateRangeStart = null;
       _dateRangeEnd = null;
     });
-    context.read<ExpensesBloc>().add(
-          const LoadExpensesEvent(searchQuery: '', filterCategories: []),
-        );
+    _dispatchLoad();
   }
 
   Future<void> _pickDateRange() async {
@@ -80,6 +92,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
         _dateRangeStart = picked.start;
         _dateRangeEnd = picked.end;
       });
+      _dispatchLoad();
     }
   }
 
@@ -89,8 +102,26 @@ class _ExpensesPageState extends State<ExpensesPage> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
-        return BlocBuilder<ExpensesBloc, ExpensesState>(
-          builder: (context, state) {
+        return BlocConsumer<ExpensesBloc, ExpensesState>(
+          listener: (context, state) {
+            if (state is ExpensesLoaded) {
+              _lastLoaded = state;
+            } else if (state is ExpensesError && _lastLoaded != null) {
+              // Keep the existing list on screen; just surface the failure.
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+          },
+          builder: (context, rawState) {
+            // Prefer the freshly-loaded state; otherwise fall back to the
+            // last successfully loaded list rather than blanking the page
+            // during a transient reload or a failed add/update/delete.
+            final state = rawState is ExpensesLoaded ? rawState : _lastLoaded;
+            final loadingOrError = state == null ? rawState : null;
             return SingleChildScrollView(
               padding: const EdgeInsets.all(AppConstants.paddingLarge),
               child: Column(
@@ -127,7 +158,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (state is ExpensesLoaded) ...[
+                  if (state != null) ...[
                     ExpenseFilterPanel(
                       searchController: _searchController,
                       categoryFilter: _categoryFilter,
@@ -137,27 +168,19 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       activeFilterCount: _activeFilterCount,
                       onSearchChanged: (val) {
                         setState(() => _searchQuery = val);
-                        context.read<ExpensesBloc>().add(
-                              LoadExpensesEvent(
-                                searchQuery: val,
-                                filterCategories:
-                                    _categoryFilter != null ? [_categoryFilter!] : [],
-                              ),
-                            );
+                        _dispatchLoad();
                       },
                       onPickDateRange: _pickDateRange,
-                      onClearDateRange: () => setState(() {
-                        _dateRangeStart = null;
-                        _dateRangeEnd = null;
-                      }),
+                      onClearDateRange: () {
+                        setState(() {
+                          _dateRangeStart = null;
+                          _dateRangeEnd = null;
+                        });
+                        _dispatchLoad();
+                      },
                       onCategoryFilterChanged: (val) {
                         setState(() => _categoryFilter = val);
-                        context.read<ExpensesBloc>().add(
-                              LoadExpensesEvent(
-                                searchQuery: _searchQuery,
-                                filterCategories: val != null ? [val] : [],
-                              ),
-                            );
+                        _dispatchLoad();
                       },
                       onClearFilters: _clearFilters,
                     ),
@@ -248,24 +271,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       PaginationBar(
                         currentPage: state.currentPage,
                         totalPages: state.totalPages,
-                        onPageChanged: (page) {
-                          context.read<ExpensesBloc>().add(
-                                LoadExpensesEvent(
-                                  page: page,
-                                  searchQuery: _searchQuery,
-                                  filterCategories: _categoryFilter != null
-                                      ? [_categoryFilter!]
-                                      : [],
-                                ),
-                              );
-                        },
+                        onPageChanged: (page) => _dispatchLoad(page: page),
                       ),
                     ],
-                  ] else if (state is ExpensesLoading)
-                    const LoadingWidget(
-                      message: 'Loading business expenses...',
-                    )
-                  else if (state is ExpensesError)
+                  ] else if (loadingOrError is ExpensesError)
                     Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -277,20 +286,20 @@ class _ExpensesPageState extends State<ExpensesPage> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            state.message,
+                            loadingOrError.message,
                             style: const TextStyle(color: AppTheme.errorColor),
                           ),
                           const SizedBox(height: 16),
                           ElevatedButton(
-                            onPressed: () {
-                              context.read<ExpensesBloc>().add(
-                                    const LoadExpensesEvent(),
-                                  );
-                            },
+                            onPressed: _dispatchLoad,
                             child: const Text('Retry'),
                           ),
                         ],
                       ),
+                    )
+                  else
+                    const LoadingWidget(
+                      message: 'Loading business expenses...',
                     ),
                 ],
               ),
@@ -529,38 +538,66 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
 
   void _confirmDeleteExpense(BuildContext context, ExpenseEntity expense) {
+    bool isDeleting = false;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: Text(
-          'Are you sure you want to delete expense "${expense.title}" of PKR ${expense.amount.toStringAsFixed(0)}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              context
-                  .read<ExpensesBloc>()
-                  .add(DeleteExpenseEvent(expense.id));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Expense "${expense.title}" deleted'),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Confirm Delete'),
+              content: Text(
+                'Are you sure you want to delete expense "${expense.title}" of PKR ${expense.amount.toStringAsFixed(0)}?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
                 ),
-              );
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          setDialogState(() => isDeleting = true);
+                          final bloc = context.read<ExpensesBloc>();
+                          bloc.add(DeleteExpenseEvent(expense.id));
+
+                          final result = await bloc.stream.firstWhere(
+                            (s) => s is ExpensesLoaded || s is ExpensesError,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (result is ExpensesError) {
+                            setDialogState(() => isDeleting = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Failed to delete expense: ${result.message}'),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Expense "${expense.title}" deleted'),
+                            ),
+                          );
+                        },
+                  child: Text(isDeleting ? 'Deleting...' : 'Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -724,44 +761,57 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   ),
                   onPressed: isSaving
                       ? null
-                      : () {
-                          if (formKey.currentState!.validate()) {
-                            setDialogState(() => isSaving = true);
-                            final updatedEntity = ExpenseEntity(
-                              id: isEditing ? expense.id : '',
-                              title: titleController.text.trim(),
-                              category: selectedCategory,
-                              amount: double.parse(amountController.text.trim()),
-                              date: selectedDate,
-                              paidBy: paidByController.text.trim(),
-                              notes: notesController.text.trim().isEmpty
-                                  ? null
-                                  : notesController.text.trim(),
-                              createdAt: isEditing ? expense.createdAt : null,
-                            );
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSaving = true);
+                          final updatedEntity = ExpenseEntity(
+                            id: isEditing ? expense.id : '',
+                            title: titleController.text.trim(),
+                            category: selectedCategory,
+                            amount: double.parse(amountController.text.trim()),
+                            date: selectedDate,
+                            paidBy: paidByController.text.trim(),
+                            notes: notesController.text.trim().isEmpty
+                                ? null
+                                : notesController.text.trim(),
+                            createdAt: isEditing ? expense.createdAt : null,
+                          );
 
-                            if (isEditing) {
-                              context.read<ExpensesBloc>().add(
-                                    UpdateExpenseEvent(updatedEntity),
-                                  );
-                            } else {
-                              context.read<ExpensesBloc>().add(
-                                    AddExpenseEvent(updatedEntity),
-                                  );
-                            }
+                          final bloc = context.read<ExpensesBloc>();
+                          if (isEditing) {
+                            bloc.add(UpdateExpenseEvent(updatedEntity));
+                          } else {
+                            bloc.add(AddExpenseEvent(updatedEntity));
+                          }
 
-                            Navigator.pop(ctx);
+                          final result = await bloc.stream.firstWhere(
+                            (s) => s is ExpensesLoaded || s is ExpensesError,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (result is ExpensesError) {
+                            setDialogState(() => isSaving = false);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(
-                                  isEditing
-                                      ? 'Expense updated successfully'
-                                      : 'Expense recorded successfully',
-                                ),
-                                backgroundColor: AppTheme.successColor,
+                                content: Text('Failed to save: ${result.message}'),
+                                backgroundColor: AppTheme.errorColor,
                               ),
                             );
+                            return;
                           }
+
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isEditing
+                                    ? 'Expense updated successfully'
+                                    : 'Expense recorded successfully',
+                              ),
+                              backgroundColor: AppTheme.successColor,
+                            ),
+                          );
                         },
                   icon: isSaving
                       ? const SizedBox(

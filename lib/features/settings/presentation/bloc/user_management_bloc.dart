@@ -93,6 +93,20 @@ class UserManagementSuccess extends UserManagementState {
   List<Object?> get props => [message];
 }
 
+/// Emitted after a user is created. Creating a user via the Firebase Client
+/// SDK signs the admin out as a side effect (see
+/// UserManagementRemoteDataSourceImpl.createUser) — the admin's session is no
+/// longer valid, so the page should force a clean re-login with a clear
+/// explanation rather than let a confusing failure surface later.
+class UserManagementUserCreatedNeedsReauth extends UserManagementState {
+  final String message;
+
+  const UserManagementUserCreatedNeedsReauth(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
 class UserManagementError extends UserManagementState {
   final String message;
 
@@ -147,10 +161,12 @@ class UserManagementBloc
         name: event.name,
         role: event.role,
       );
-      emit(const UserManagementSuccess('User created successfully. (Admin session might need to re-login)'));
-      // Trigger reload
-      final users = await getUsers();
-      emit(UserManagementLoaded(users));
+      // Don't try to reload the users list here — the admin's own session
+      // was just invalidated by the sign-out side effect, so that read
+      // would likely fail anyway. Let the page handle a clean re-login.
+      emit(UserManagementUserCreatedNeedsReauth(
+        '"${event.name}" was created successfully. For security reasons, you need to log back in.',
+      ));
     } catch (e) {
       emit(UserManagementError(message: 'Failed to create user: $e'));
       // Keep existing users if we can

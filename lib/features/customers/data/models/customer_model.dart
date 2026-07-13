@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/customers/domain/entities/customer_entity.dart';
 
 class CustomerModel extends CustomerEntity {
@@ -104,27 +103,4 @@ class CustomerModel extends CustomerEntity {
     );
   }
 
-  // If customer has a partial payment this month, treat as active
-  // This is display-only logic — actual status field stays unchanged
-  CustomerStatus get computedStatus {
-    if (status == 'inactive' ||
-        status == CustomerStatus.inactive.name ||
-        status == CustomerStatus.inactive.label) {
-      return CustomerStatus.inactive;
-    }
-
-    final now = DateTime.now();
-    final due = nextDueDate;
-
-    if (due == null) return CustomerStatus.active;
-
-    if (due.isAfter(now)) {
-      final daysUntilDue = due.difference(now).inDays;
-      if (daysUntilDue <= 7) return CustomerStatus.expiringSoon;
-      return CustomerStatus.active;
-    }
-
-    // Past due — but keep active (admin handles collections manually)
-    return CustomerStatus.expired;
-  }
 }

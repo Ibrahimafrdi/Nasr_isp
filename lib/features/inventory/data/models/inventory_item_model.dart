@@ -15,6 +15,7 @@ class InventoryItemModel extends InventoryItemEntity {
     super.notes,
     super.createdAt,
     super.updatedAt,
+    super.connectionType,
   });
 
   factory InventoryItemModel.fromMap(Map<String, dynamic> map) {
@@ -30,6 +31,7 @@ class InventoryItemModel extends InventoryItemEntity {
       notes: map['notes'] as String?,
       createdAt: _parseDate(map['createdAt']),
       updatedAt: _parseDate(map['updatedAt']),
+      connectionType: _parseConnectionType(map['connectionType']),
     );
   }
 
@@ -40,6 +42,15 @@ class InventoryItemModel extends InventoryItemEntity {
       (e) => e.name == valueStr || e.label == valueStr,
       orElse: () => InventoryCategory.equipment,
     );
+  }
+
+  static InventoryConnectionType? _parseConnectionType(dynamic value) {
+    if (value == null) return null;
+    final valueStr = value.toString();
+    for (final e in InventoryConnectionType.values) {
+      if (e.name == valueStr || e.label == valueStr) return e;
+    }
+    return null;
   }
 
   static DateTime? _parseDate(dynamic value) {
@@ -61,6 +72,7 @@ class InventoryItemModel extends InventoryItemEntity {
       'notes': notes,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'connectionType': connectionType?.name,
     };
   }
 
@@ -91,6 +103,7 @@ class InventoryItemModel extends InventoryItemEntity {
     String? notes,
     DateTime? createdAt,
     DateTime? updatedAt,
+    InventoryConnectionType? connectionType,
   }) {
     return InventoryItemModel(
       id: id ?? this.id,
@@ -104,6 +117,7 @@ class InventoryItemModel extends InventoryItemEntity {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      connectionType: connectionType ?? this.connectionType,
     );
   }
 }

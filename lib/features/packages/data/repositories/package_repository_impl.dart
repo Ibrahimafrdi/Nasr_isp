@@ -16,6 +16,7 @@ class PackageRepositoryImpl implements PackageRepository {
         name: e.name,
         speedMbps: e.speedMbps,
         price: e.price,
+        costPrice: e.costPrice,
         connectionType: e.connectionType,
         description: e.description,
         isActive: e.isActive,

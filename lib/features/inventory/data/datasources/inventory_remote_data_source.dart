@@ -78,6 +78,11 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
         updatedQty = currentQty + movement.quantity;
       } else {
         updatedQty = currentQty - movement.quantity;
+        if (updatedQty < 0) {
+          final itemName = itemData['name'] as String? ?? 'this item';
+          throw Exception(
+              'Insufficient stock for $itemName. Available: $currentQty, Requested: ${movement.quantity}');
+        }
       }
 
       // Add movement document

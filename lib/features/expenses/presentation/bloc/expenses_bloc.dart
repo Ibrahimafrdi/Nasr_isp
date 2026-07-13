@@ -20,15 +20,20 @@ class LoadExpensesEvent extends ExpensesEvent {
   final int page;
   final String searchQuery;
   final List<String> filterCategories;
+  final DateTime? dateRangeStart;
+  final DateTime? dateRangeEnd;
 
   const LoadExpensesEvent({
     this.page = 1,
     this.searchQuery = '',
     this.filterCategories = const [],
+    this.dateRangeStart,
+    this.dateRangeEnd,
   });
 
   @override
-  List<Object?> get props => [page, searchQuery, filterCategories];
+  List<Object?> get props =>
+      [page, searchQuery, filterCategories, dateRangeStart, dateRangeEnd];
 }
 
 class AddExpenseEvent extends ExpensesEvent {
@@ -83,6 +88,8 @@ class ExpensesLoaded extends ExpensesState {
   final int totalPages;
   final String searchQuery;
   final List<String> filterCategories;
+  final DateTime? dateRangeStart;
+  final DateTime? dateRangeEnd;
 
   const ExpensesLoaded({
     required this.expenses,
@@ -92,6 +99,8 @@ class ExpensesLoaded extends ExpensesState {
     required this.totalPages,
     this.searchQuery = '',
     this.filterCategories = const [],
+    this.dateRangeStart,
+    this.dateRangeEnd,
   });
 
   @override
@@ -103,6 +112,8 @@ class ExpensesLoaded extends ExpensesState {
         totalPages,
         searchQuery,
         filterCategories,
+        dateRangeStart,
+        dateRangeEnd,
       ];
 }
 
@@ -162,9 +173,26 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
 
       if (event.filterCategories.isNotEmpty) {
         filtered = filtered
+            .where((e) => event.filterCategories.contains(e.category.label))
+            .toList();
+      }
+
+      if (event.dateRangeStart != null && event.dateRangeEnd != null) {
+        final rangeStart = DateTime(
+          event.dateRangeStart!.year,
+          event.dateRangeStart!.month,
+          event.dateRangeStart!.day,
+        );
+        // Exclusive upper bound one day past the end date, so the whole
+        // end day is included regardless of any time-of-day component.
+        final rangeEnd = DateTime(
+          event.dateRangeEnd!.year,
+          event.dateRangeEnd!.month,
+          event.dateRangeEnd!.day,
+        ).add(const Duration(days: 1));
+        filtered = filtered
             .where((e) =>
-                event.filterCategories.contains(e.category.label) ||
-                event.filterCategories.contains(e.category.name))
+                !e.date.isBefore(rangeStart) && e.date.isBefore(rangeEnd))
             .toList();
       }
 
@@ -194,11 +222,26 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
           totalPages: totalPages,
           searchQuery: event.searchQuery,
           filterCategories: event.filterCategories,
+          dateRangeStart: event.dateRangeStart,
+          dateRangeEnd: event.dateRangeEnd,
         ),
       );
     } catch (e) {
       emit(ExpensesError(message: 'Failed to load expenses: $e'));
     }
+  }
+
+  /// Re-dispatches a load using whatever filters/page are currently on
+  /// screen, so an add/update/delete doesn't reset the user's filters.
+  void _reloadWithCurrentFilters({int? page}) {
+    final current = state is ExpensesLoaded ? state as ExpensesLoaded : null;
+    add(LoadExpensesEvent(
+      page: page ?? current?.currentPage ?? 1,
+      searchQuery: current?.searchQuery ?? '',
+      filterCategories: current?.filterCategories ?? const [],
+      dateRangeStart: current?.dateRangeStart,
+      dateRangeEnd: current?.dateRangeEnd,
+    ));
   }
 
   Future<void> _onAddExpense(
@@ -207,17 +250,7 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
   ) async {
     try {
       await addExpense(event.expense);
-      final currentQuery = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).searchQuery
-          : '';
-      final currentCats = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).filterCategories
-          : <String>[];
-      add(LoadExpensesEvent(
-        page: 1,
-        searchQuery: currentQuery,
-        filterCategories: currentCats,
-      ));
+      _reloadWithCurrentFilters(page: 1);
     } catch (e) {
       emit(ExpensesError(message: 'Failed to add expense: $e'));
     }
@@ -229,20 +262,7 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
   ) async {
     try {
       await updateExpense(event.expense);
-      final currentPage = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).currentPage
-          : 1;
-      final currentQuery = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).searchQuery
-          : '';
-      final currentCats = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).filterCategories
-          : <String>[];
-      add(LoadExpensesEvent(
-        page: currentPage,
-        searchQuery: currentQuery,
-        filterCategories: currentCats,
-      ));
+      _reloadWithCurrentFilters();
     } catch (e) {
       emit(ExpensesError(message: 'Failed to update expense: $e'));
     }
@@ -254,20 +274,7 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
   ) async {
     try {
       await deleteExpense(event.expenseId);
-      final currentPage = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).currentPage
-          : 1;
-      final currentQuery = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).searchQuery
-          : '';
-      final currentCats = state is ExpensesLoaded
-          ? (state as ExpensesLoaded).filterCategories
-          : <String>[];
-      add(LoadExpensesEvent(
-        page: currentPage,
-        searchQuery: currentQuery,
-        filterCategories: currentCats,
-      ));
+      _reloadWithCurrentFilters();
     } catch (e) {
       emit(ExpensesError(message: 'Failed to delete expense: $e'));
     }

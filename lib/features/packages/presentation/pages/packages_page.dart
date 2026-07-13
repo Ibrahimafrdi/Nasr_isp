@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/auth_helpers.dart';
@@ -11,6 +10,7 @@ import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
@@ -121,8 +121,11 @@ class _PackagesPageState extends State<PackagesPage> {
                             title: 'No Packages Found',
                             subtitle: 'Add a new package to begin.',
                           )
-                        : ResponsiveLayout(
-                            mobile: _buildCards(state.packages, isAdmin),
+                        : ResponsiveSwitcher(
+                            mobile: _buildCardGrid(
+                                state.packages, isAdmin, 1),
+                            tablet: _buildCardGrid(
+                                state.packages, isAdmin, 2),
                             desktop: Card(
                               elevation: 1,
                               shape: RoundedRectangleBorder(
@@ -216,7 +219,9 @@ class _PackagesPageState extends State<PackagesPage> {
         const DataColumn(label: Text('Package Name')),
         const DataColumn(label: Text('Type')),
         const DataColumn(label: Text('Speed')),
-        if (isAdmin) const DataColumn(label: Text('Price / mo')),
+        if (isAdmin) const DataColumn(label: Text('Buy Price')),
+        if (isAdmin) const DataColumn(label: Text('Sell Price / mo')),
+        if (isAdmin) const DataColumn(label: Text('Profit')),
         const DataColumn(label: Text('Status')),
         if (isAdmin) const DataColumn(label: Text('Actions')),
       ],
@@ -230,10 +235,24 @@ class _PackagesPageState extends State<PackagesPage> {
             DataCell(_connectionChip(pkg.connectionType)),
             DataCell(_speedChip(pkg.speedMbps)),
             if (isAdmin)
+              DataCell(Text('PKR ${pkg.costPrice.toStringAsFixed(0)}')),
+            if (isAdmin)
               DataCell(Text(
                 'PKR ${pkg.price.toStringAsFixed(0)}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               )),
+            if (isAdmin)
+              DataCell(
+                Text(
+                  'PKR ${pkg.profit.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: pkg.profit > 0
+                        ? AppTheme.successColor
+                        : (pkg.profit < 0 ? AppTheme.errorColor : AppColors.charcoal),
+                  ),
+                ),
+              ),
             DataCell(StatusBadge(status: pkg.isActive ? 'active' : 'inactive')),
             if (isAdmin)
               DataCell(Row(
@@ -260,20 +279,36 @@ class _PackagesPageState extends State<PackagesPage> {
     );
   }
 
-  // ── Mobile cards ───────────────────────────────────────────────────────────
+  // ── Mobile / tablet card grid ───────────────────────────────────────────────
 
-  Widget _buildCards(List<PackageEntity> packages, bool isAdmin) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: packages
-          .map((pkg) => _buildCard(pkg, isAdmin))
-          .toList(),
+  /// Lays packages out as a responsive card grid: 1 column on mobile,
+  /// 2 columns on tablet. Uses [Wrap] rather than [GridView] so each card
+  /// can size to its own content height (descriptions/actions vary in
+  /// length) without risking overflow from a fixed aspect ratio.
+  Widget _buildCardGrid(
+      List<PackageEntity> packages, bool isAdmin, int columns) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        final itemWidth = columns <= 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: packages
+              .map((pkg) => SizedBox(
+                    width: itemWidth,
+                    child: _buildCard(pkg, isAdmin),
+                  ))
+              .toList(),
+        );
+      },
     );
   }
 
   Widget _buildCard(PackageEntity pkg, bool isAdmin) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -310,9 +345,19 @@ class _PackagesPageState extends State<PackagesPage> {
             children: [
               _connectionChip(pkg.connectionType),
               _speedChip(pkg.speedMbps),
-              if (isAdmin)
+              if (isAdmin) ...[
+                _infoChip(Icons.shopping_bag_outlined,
+                    'Buy: PKR ${pkg.costPrice.toStringAsFixed(0)}'),
                 _infoChip(Icons.monetization_on,
-                    'PKR ${pkg.price.toStringAsFixed(0)}/mo'),
+                    'Sell: PKR ${pkg.price.toStringAsFixed(0)}/mo'),
+                _infoChip(
+                  Icons.account_balance_wallet_outlined,
+                  'Profit: PKR ${pkg.profit.toStringAsFixed(0)}',
+                  color: pkg.profit > 0
+                      ? AppTheme.successColor
+                      : (pkg.profit < 0 ? AppTheme.errorColor : null),
+                ),
+              ],
             ],
           ),
           if (pkg.description != null && pkg.description!.isNotEmpty) ...[
@@ -394,15 +439,18 @@ class _PackagesPageState extends State<PackagesPage> {
     );
   }
 
-  Widget _infoChip(IconData icon, String label) {
+  Widget _infoChip(IconData icon, String label, {Color? color}) {
+    final effectiveColor = color ?? AppTheme.mediumGray;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: AppTheme.mediumGray),
+        Icon(icon, size: 12, color: effectiveColor),
         const SizedBox(width: 4),
         Text(label,
-            style:
-                const TextStyle(fontSize: 11, color: AppTheme.mediumGray)),
+            style: TextStyle(
+                fontSize: 11,
+                color: effectiveColor,
+                fontWeight: color != null ? FontWeight.w600 : null)),
       ],
     );
   }
@@ -494,6 +542,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _speedCtrl;
   late final TextEditingController _priceCtrl;
+  late final TextEditingController _costPriceCtrl;
   late final TextEditingController _descCtrl;
 
   late ConnectionType _connectionType;
@@ -511,6 +560,8 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
         TextEditingController(text: e != null ? e.speedMbps.toString() : '');
     _priceCtrl =
         TextEditingController(text: e != null ? e.price.toString() : '');
+    _costPriceCtrl =
+        TextEditingController(text: e != null ? e.costPrice.toString() : '');
     _descCtrl = TextEditingController(text: e?.description ?? '');
     _connectionType = e?.connectionType ?? ConnectionType.wireless;
     _isActive = e?.isActive ?? true;
@@ -521,6 +572,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
     _nameCtrl.dispose();
     _speedCtrl.dispose();
     _priceCtrl.dispose();
+    _costPriceCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
   }
@@ -535,6 +587,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
       name: _nameCtrl.text.trim(),
       speedMbps: int.parse(_speedCtrl.text.trim()),
       price: double.parse(_priceCtrl.text.trim()),
+      costPrice: double.parse(_costPriceCtrl.text.trim()),
       connectionType: _connectionType,
       description:
           _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
@@ -554,9 +607,15 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // This sheet is a top-level modal spanning the full window, so the
+    // MediaQuery-based Responsive helpers (not ResponsiveBuilder) are the
+    // correct choice here.
     final screenWidth = MediaQuery.of(context).size.width;
-    // On wide screens behave like a right-side drawer; narrow = full-width sheet
-    final sheetWidth = screenWidth > 720 ? 480.0 : screenWidth;
+    final isMobile = Responsive.isMobile(context);
+    // Desktop behaves like a right-side drawer of fixed width; mobile/tablet
+    // get a full-width sheet.
+    final sheetWidth =
+        Responsive.isDesktop(context) ? 480.0 : screenWidth;
 
     return Align(
       alignment: Alignment.centerRight,
@@ -655,56 +714,92 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Speed + Price side by side
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _speedCtrl,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Speed (Mbps) *',
-                                  suffixText: 'Mbps',
-                                  prefixIcon: Icon(Icons.speed),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Required';
-                                  }
-                                  final n = int.tryParse(v.trim());
-                                  if (n == null || n <= 0) {
-                                    return '> 0';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _priceCtrl,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                        decimal: true),
-                                decoration: const InputDecoration(
-                                  labelText: 'Price (PKR) *',
-                                  prefixText: 'PKR ',
-                                  prefixIcon: Icon(Icons.monetization_on),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Required';
-                                  }
-                                  final n = double.tryParse(v.trim());
-                                  if (n == null || n <= 0) {
-                                    return '> 0';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
+                        // Speed field
+                        TextFormField(
+                          controller: _speedCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Speed (Mbps) *',
+                            suffixText: 'Mbps',
+                            prefixIcon: Icon(Icons.speed),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            final n = int.tryParse(v.trim());
+                            if (n == null || n <= 0) {
+                              return '> 0';
+                            }
+                            return null;
+                          },
                         ),
+                        const SizedBox(height: 16),
+
+                        // Buy price (cost) + Sell price (billed to customer):
+                        // side by side on tablet/desktop, stacked on mobile.
+                        Builder(builder: (context) {
+                          final costPriceField = TextFormField(
+                            controller: _costPriceCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Buy Price (PKR) *',
+                              helperText: 'What we pay upstream for this package',
+                              prefixText: 'PKR ',
+                              prefixIcon: Icon(Icons.shopping_bag_outlined),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              final n = double.tryParse(v.trim());
+                              if (n == null || n < 0) {
+                                return '>= 0';
+                              }
+                              return null;
+                            },
+                          );
+                          final priceField = TextFormField(
+                            controller: _priceCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Sell Price (PKR) *',
+                              helperText: 'What the customer is billed',
+                              prefixText: 'PKR ',
+                              prefixIcon: Icon(Icons.monetization_on),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              final n = double.tryParse(v.trim());
+                              if (n == null || n <= 0) {
+                                return '> 0';
+                              }
+                              return null;
+                            },
+                          );
+
+                          if (isMobile) {
+                            return Column(
+                              children: [
+                                costPriceField,
+                                const SizedBox(height: 16),
+                                priceField,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: costPriceField),
+                              const SizedBox(width: 12),
+                              Expanded(child: priceField),
+                            ],
+                          );
+                        }),
                         const SizedBox(height: 16),
 
                         // Description (optional)
@@ -763,55 +858,67 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
                         ),
                         const SizedBox(height: 32),
 
-                        // Action buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _isSaving
-                                    ? null
-                                    : () => Navigator.pop(context),
-                                child: const Text('Cancel'),
-                              ),
+                        // Action buttons: full-width stacked on mobile,
+                        // inline row on tablet/desktop.
+                        Builder(builder: (context) {
+                          final cancelButton = OutlinedButton(
+                            onPressed: _isSaving
+                                ? null
+                                : () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          );
+                          final saveButton = ElevatedButton.icon(
+                            onPressed: _isSaving ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: ElevatedButton.icon(
-                                onPressed: _isSaving ? null : _submit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryBlue,
-                                  foregroundColor: Colors.white,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
-                                ),
-                                icon: _isSaving
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : Icon(
-                                        _isEdit
-                                            ? Icons.save
-                                            : Icons.check,
-                                        size: 16),
-                                label: Text(
-                                  _isSaving
-                                      ? 'Saving...'
-                                      : (_isEdit
-                                          ? 'Save Changes'
-                                          : 'Add Package'),
-                                ),
-                              ),
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Icon(
+                                    _isEdit ? Icons.save : Icons.check,
+                                    size: 16),
+                            label: Text(
+                              _isSaving
+                                  ? 'Saving...'
+                                  : (_isEdit
+                                      ? 'Save Changes'
+                                      : 'Add Package'),
                             ),
-                          ],
-                        ),
+                          );
+
+                          if (isMobile) {
+                            return Column(
+                              children: [
+                                SizedBox(
+                                    width: double.infinity,
+                                    child: saveButton),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                    width: double.infinity,
+                                    child: cancelButton),
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: cancelButton),
+                              const SizedBox(width: 12),
+                              Expanded(flex: 2, child: saveButton),
+                            ],
+                          );
+                        }),
                       ],
                     ),
                   ),

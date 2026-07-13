@@ -22,17 +22,23 @@ class KhataaEntry {
   });
 
   factory KhataaEntry.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
     return KhataaEntry(
       id: doc.id,
-      customerId: data['customerId'] as String,
-      customerName: data['customerName'] as String,
-      type: data['type'] as String,
-      amount: (data['amount'] as num).toDouble(),
-      description: data['description'] as String,
-      date: (data['date'] as Timestamp).toDate(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      customerId: data['customerId'] as String? ?? '',
+      customerName: data['customerName'] as String? ?? '',
+      type: data['type'] as String? ?? '',
+      amount: (data['amount'] as num?)?.toDouble() ?? 0.0,
+      description: data['description'] as String? ?? '',
+      date: _parseDate(data['date']) ?? DateTime.now(),
+      createdAt: _parseDate(data['createdAt']) ?? DateTime.now(),
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Map<String, dynamic> toMap() => {

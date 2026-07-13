@@ -37,24 +37,6 @@ class LoadCustomersEvent extends CustomersEvent {
   ];
 }
 
-class SearchCustomersEvent extends CustomersEvent {
-  final String query;
-
-  const SearchCustomersEvent(this.query);
-
-  @override
-  List<Object?> get props => [query];
-}
-
-class FilterCustomersEvent extends CustomersEvent {
-  final CustomerStatus? status;
-
-  const FilterCustomersEvent({this.status});
-
-  @override
-  List<Object?> get props => [status];
-}
-
 class CreateCustomerEvent extends CustomersEvent {
   final CustomerModel customer;
 
@@ -149,8 +131,6 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     required this.deleteCustomer,
   }) : super(const CustomersInitial()) {
     on<LoadCustomersEvent>(_onLoadCustomers);
-    on<SearchCustomersEvent>(_onSearchCustomers);
-    on<FilterCustomersEvent>(_onFilterCustomers);
     on<CreateCustomerEvent>(_onCreateCustomer);
     on<UpdateCustomerEvent>(_onUpdateCustomer);
     on<DeleteCustomerEvent>(_onDeleteCustomer);
@@ -252,23 +232,6 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     }
   }
 
-  Future<void> _onSearchCustomers(
-    SearchCustomersEvent event,
-    Emitter<CustomersState> emit,
-  ) async {
-    await _onLoadCustomers(LoadCustomersEvent(searchQuery: event.query), emit);
-  }
-
-  Future<void> _onFilterCustomers(
-    FilterCustomersEvent event,
-    Emitter<CustomersState> emit,
-  ) async {
-    await _onLoadCustomers(
-      LoadCustomersEvent(filterStatus: event.status),
-      emit,
-    );
-  }
-
   List<CustomerModel> _filterCustomers(
     List<CustomerModel> customers,
     String? searchQuery,
@@ -299,7 +262,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
             final diff = c.nextDueDate!.difference(now).inDays;
             return diff >= 0 && diff <= 7;
           case CustomerStatus.expired:
-            if (c.nextDueDate == null) return false;
+            if (c.status != 'active' || c.nextDueDate == null) return false;
             return c.nextDueDate!.isBefore(now);
           case CustomerStatus.inactive:
             return c.status == 'inactive';

@@ -40,6 +40,7 @@ import 'package:nasr_isp/features/payments/data/repositories/payment_repository_
 import 'package:nasr_isp/features/payments/domain/repositories/payment_repository.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payment_by_customer_and_month.dart';
 
@@ -56,7 +57,6 @@ import 'package:nasr_isp/features/employees/data/datasources/employee_remote_dat
 import 'package:nasr_isp/features/employees/data/repositories/employee_repository_impl.dart';
 import 'package:nasr_isp/features/employees/domain/repositories/employee_repository.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/add_employee.dart';
-import 'package:nasr_isp/features/employees/domain/usecases/delete_employee.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/get_employees.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/update_employee.dart';
 import 'package:nasr_isp/features/employees/presentation/bloc/employees_bloc.dart';
@@ -138,6 +138,7 @@ void setupServiceLocator() {
 
   // Use Cases - Payments
   getIt.registerLazySingleton(() => GetPayments(getIt()));
+  getIt.registerLazySingleton(() => GetAllPayments(getIt()));
   getIt.registerLazySingleton(() => AddPayment(getIt()));
   getIt.registerLazySingleton(() => UpdatePayment(getIt()));
   getIt.registerLazySingleton(() => GetPaymentByCustomerAndMonth(getIt()));
@@ -158,14 +159,6 @@ void setupServiceLocator() {
         ),
       ),
     )..add(const AuthCheckEvent()),
-  );
-
-  getIt.registerSingleton<DashboardBloc>(
-    DashboardBloc(
-      getCustomers: getIt<GetCustomers>(),
-      getPayments: getIt<GetPayments>(),
-      getExpenses: getIt<GetExpenses>(),
-    ),
   );
 
   getIt.registerSingleton<CustomersBloc>(
@@ -216,13 +209,11 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(() => GetEmployees(getIt()));
   getIt.registerLazySingleton(() => AddEmployee(getIt()));
   getIt.registerLazySingleton(() => UpdateEmployee(getIt()));
-  getIt.registerLazySingleton(() => DeleteEmployee(getIt()));
   getIt.registerFactory<EmployeeBloc>(
     () => EmployeeBloc(
       getEmployees: getIt(),
       addEmployee: getIt(),
       updateEmployee: getIt(),
-      deleteEmployee: getIt(),
       getInstallations: getIt(),
     ),
   );
@@ -247,6 +238,16 @@ void setupServiceLocator() {
       updateInstallation: getIt(),
       deleteInstallation: getIt(),
       getInstallationsByCustomer: getIt(),
+    ),
+  );
+
+  // Dashboard (depends on Payments + Installations use cases registered above)
+  getIt.registerSingleton<DashboardBloc>(
+    DashboardBloc(
+      getCustomers: getIt<GetCustomers>(),
+      getAllPayments: getIt<GetAllPayments>(),
+      getExpenses: getIt<GetExpenses>(),
+      getInstallations: getIt<GetInstallations>(),
     ),
   );
 

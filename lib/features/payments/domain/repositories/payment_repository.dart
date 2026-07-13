@@ -11,6 +11,7 @@ abstract class PaymentRepository {
     DateTime? dateRangeStart,
     DateTime? dateRangeEnd,
   });
+  Future<List<PaymentEntity>> getAllPayments();
   Future<void> updatePayment(PaymentEntity payment);
   Future<void> deletePayment(String id);
   Future<int> getTotalPaymentsCount();

@@ -12,6 +12,9 @@ class InventoryItemEntity {
   final String? notes;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  // Null means unspecified/legacy — only matched by the "All" filter, not
+  // by the Wireless or Fiber filter chips.
+  final InventoryConnectionType? connectionType;
 
   const InventoryItemEntity({
     required this.id,
@@ -25,5 +28,6 @@ class InventoryItemEntity {
     this.notes,
     this.createdAt,
     this.updatedAt,
+    this.connectionType,
   });
 }

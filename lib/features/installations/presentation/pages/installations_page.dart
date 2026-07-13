@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
@@ -16,12 +15,10 @@ import 'package:nasr_isp/features/installations/domain/entities/installation_ite
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_card_list.dart';
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_filter_panel.dart';
-import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
-import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/config/service_locator.dart';
 import 'package:uuid/uuid.dart';
 
@@ -44,6 +41,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
   List<Map<String, dynamic>> _employeesList = [];
   bool _isLoadingDropdowns = true;
 
+  // Cached last successfully loaded state, so a transient InstallationLoading
+  // or an InstallationError doesn't blank out or replace an already-visible log.
+  InstallationLoaded? _lastLoaded;
+
   @override
   void initState() {
     super.initState();
@@ -57,11 +58,18 @@ class _InstallationsPageState extends State<InstallationsPage> {
       final customers = await getIt<GetCustomers>()();
       final inventory = await getIt<GetInventoryItems>()();
       final employeesSnap = await FirebaseFirestore.instance.collection('employees').get();
-      
-      final employees = employeesSnap.docs.map((doc) => {
-        'id': doc.id,
-        'name': doc.data()['name'] as String? ?? 'Unnamed',
-      }).toList();
+
+      // Only offer active technicians for assignment — matches EmployeeModel's
+      // own default (missing/null status is treated as active).
+      final employees = employeesSnap.docs
+          .where((doc) =>
+              (doc.data()['status'] as String? ?? 'active').toLowerCase() !=
+              'inactive')
+          .map((doc) => {
+                'id': doc.id,
+                'name': doc.data()['name'] as String? ?? 'Unnamed',
+              })
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -107,7 +115,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
     final formKey = GlobalKey<FormState>();
     CustomerEntity? selectedCustomer;
     final customerSearchController = TextEditingController();
-    
+
     // Auto populate existing fields
     if (existing != null) {
       customerSearchController.text = existing.customerName;
@@ -118,7 +126,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
 
     ConnectionType connectionType = existing?.connectionType ?? ConnectionType.wireless;
     DateTime installationDate = existing?.installationDate ?? DateTime.now();
-    
+
     String? assignedEmployeeId = existing?.assignedEmployeeId;
     String? assignedEmployeeName = existing?.assignedEmployeeName;
     if (assignedEmployeeId == null && _employeesList.isNotEmpty) {
@@ -130,7 +138,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
       text: existing != null ? existing.installationCost.toStringAsFixed(0) : '3000',
     );
     final remarksController = TextEditingController(text: existing?.remarks ?? '');
-    
+
     InstallationStatus status = existing?.status ?? InstallationStatus.pending;
 
     // Materials Used State
@@ -148,14 +156,24 @@ class _InstallationsPageState extends State<InstallationsPage> {
     bool isCollapsibleExpanded = itemsUsedState.isNotEmpty;
     bool isSaving = false;
 
+    final isMobileDialog = Responsive.isMobile(context);
+    final dialogTitle = existing == null ? 'Provision New Line Installation' : 'Modify Line Installation';
+
     showDialog(
       context: context,
       barrierDismissible: false,
+      useSafeArea: !isMobileDialog,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             final authState = context.read<AuthBloc>().state;
             final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
+
+            // Once a job is already completed, its inventory deduction has
+            // already happened — further BOM edits here wouldn't adjust
+            // stock, so they're locked to avoid silent inventory drift.
+            final materialsLocked =
+                existing != null && existing.status == InstallationStatus.completed;
 
             // Calculate live material cost
             double materialCostTotal = 0.0;
@@ -167,314 +185,568 @@ class _InstallationsPageState extends State<InstallationsPage> {
               totalItemsDeductQty += qty;
             }
 
+            Future<void> submit() async {
+              if (formKey.currentState!.validate()) {
+                // Check if status is transitioning to Completed and has materials
+                final isNewComplete = existing?.status != InstallationStatus.completed &&
+                    status == InstallationStatus.completed;
+
+                if (isNewComplete && itemsUsedState.isNotEmpty) {
+                  final confirmSave = await showDialog<bool>(
+                    context: ctx,
+                    builder: (cCtx) => AlertDialog(
+                      title: const Text('Confirm Inventory Deduction'),
+                      content: Text('Saving this job as Completed will immediately deduct a total of $totalItemsDeductQty item(s) from inventory. Do you wish to continue?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(cCtx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(cCtx, true),
+                          child: const Text('Confirm and Deduct'),
+                        )
+                      ],
+                    ),
+                  );
+                  if (confirmSave != true) return;
+                }
+
+                setDialogState(() => isSaving = true);
+
+                // Construct List<InstallationItemUsedEntity>
+                final List<InstallationItemUsedEntity> items = [];
+                for (final row in itemsUsedState) {
+                  final itemId = row['itemId'] as String;
+                  final qty = row['qty'] as int;
+                  final unitCost = row['unitCost'] as double;
+                  final invItem = _allInventoryItems.firstWhere((i) => i.id == itemId);
+
+                  items.add(InstallationItemUsedEntity(
+                    inventoryItemId: itemId,
+                    itemName: invItem.name,
+                    quantity: qty,
+                    costPriceAtTime: unitCost,
+                  ));
+                }
+
+                final customer = selectedCustomer!;
+                final updatedInstallation = InstallationEntity(
+                  id: existing?.id ?? const Uuid().v4(),
+                  customerId: customer.id,
+                  customerName: customer.name,
+                  connectionType: connectionType,
+                  installationDate: installationDate,
+                  assignedEmployeeId: assignedEmployeeId,
+                  assignedEmployeeName: assignedEmployeeName,
+                  installationCost: double.parse(costController.text),
+                  status: status,
+                  remarks: remarksController.text.trim(),
+                  itemsUsed: items.isEmpty ? null : items,
+                  createdAt: existing?.createdAt ?? DateTime.now(),
+                  completedAt: existing?.completedAt,
+                );
+
+                if (!mounted) return;
+
+                final bloc = context.read<InstallationBloc>();
+                if (existing == null) {
+                  bloc.add(CreateInstallationEvent(
+                    updatedInstallation,
+                    status: _selectedStatus,
+                    connectionType: _selectedConnectionType,
+                    employeeId: _selectedEmployeeId,
+                    searchQuery: _searchController.text.trim(),
+                  ));
+                } else {
+                  bloc.add(UpdateInstallationEvent(
+                    updatedInstallation,
+                    status: _selectedStatus,
+                    connectionType: _selectedConnectionType,
+                    employeeId: _selectedEmployeeId,
+                    searchQuery: _searchController.text.trim(),
+                  ));
+                }
+
+                final result = await bloc.stream.firstWhere(
+                  (s) => s is InstallationLoaded || s is InstallationError,
+                );
+
+                if (!mounted || !ctx.mounted) return;
+
+                if (result is InstallationError) {
+                  setDialogState(() => isSaving = false);
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to save: ${result.message}'),
+                      backgroundColor: AppColors.errorRed,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      existing == null
+                          ? 'Installation logged successfully'
+                          : 'Installation updated successfully',
+                    ),
+                    backgroundColor: AppTheme.successColor,
+                  ),
+                );
+              }
+            }
+
+            final connectionAndDateFields = isMobileDialog
+                ? Column(
+                    children: [
+                      DropdownButtonFormField<ConnectionType>(
+                        value: connectionType,
+                        decoration: const InputDecoration(labelText: 'Connection Line Type'),
+                        items: ConnectionType.values.map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(t.displayName),
+                        )).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => connectionType = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: dialogContext,
+                            initialDate: installationDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => installationDate = picked);
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Installation Date',
+                            suffixIcon: Icon(Icons.calendar_today, size: 16),
+                          ),
+                          child: Text(
+                            '${installationDate.day}/${installationDate.month}/${installationDate.year}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<ConnectionType>(
+                          value: connectionType,
+                          decoration: const InputDecoration(labelText: 'Connection Line Type'),
+                          items: ConnectionType.values.map((t) => DropdownMenuItem(
+                            value: t,
+                            child: Text(t.displayName),
+                          )).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => connectionType = val);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: installationDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (picked != null) {
+                              setDialogState(() => installationDate = picked);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Installation Date',
+                              suffixIcon: Icon(Icons.calendar_today, size: 16),
+                            ),
+                            child: Text(
+                              '${installationDate.day}/${installationDate.month}/${installationDate.year}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+
+            void handleStatusChange(InstallationStatus? val) {
+              if (val != null) {
+                // Block Cancel transition in UI if previously completed
+                if (existing?.status == InstallationStatus.completed && val == InstallationStatus.cancelled) {
+                  showDialog(
+                    context: ctx,
+                    builder: (wCtx) => AlertDialog(
+                      title: const Text('Action Blocked'),
+                      content: const Text('Cancelling a completed installation is not allowed directly. You must manually manage the stock reversals or log movements.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(wCtx),
+                          child: const Text('OK'),
+                        )
+                      ],
+                    ),
+                  );
+                  return;
+                }
+                setDialogState(() => status = val);
+              }
+            }
+
+            final costAndStatusFields = isMobileDialog
+                ? Column(
+                    children: [
+                      TextFormField(
+                        controller: costController,
+                        decoration: const InputDecoration(
+                          labelText: 'Setup Fee Billed (PKR)',
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Billed cost is required';
+                          if (double.tryParse(v) == null) return 'Enter a numeric value';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<InstallationStatus>(
+                        value: status,
+                        decoration: const InputDecoration(labelText: 'Operational Status'),
+                        items: InstallationStatus.values.map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s.displayName),
+                        )).toList(),
+                        onChanged: handleStatusChange,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: costController,
+                          decoration: const InputDecoration(
+                            labelText: 'Setup Fee Billed (PKR)',
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return 'Billed cost is required';
+                            if (double.tryParse(v) == null) return 'Enter a numeric value';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<InstallationStatus>(
+                          value: status,
+                          decoration: const InputDecoration(labelText: 'Operational Status'),
+                          items: InstallationStatus.values.map((s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(s.displayName),
+                          )).toList(),
+                          onChanged: handleStatusChange,
+                        ),
+                      ),
+                    ],
+                  );
+
+            final formContent = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Searchable Customer Selector (using Autocomplete)
+                Autocomplete<CustomerEntity>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return _allCustomers;
+                    }
+                    return _allCustomers.where((CustomerEntity customer) {
+                      return customer.name.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                    });
+                  },
+                  displayStringForOption: (CustomerEntity option) => option.name,
+                  fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+                    // Sync autocomplete text controller on creation/edit
+                    if (textController.text.isEmpty && customerSearchController.text.isNotEmpty) {
+                      textController.text = customerSearchController.text;
+                    }
+                    return TextFormField(
+                      controller: textController,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: 'Search Subscriber Account / Name',
+                        suffixIcon: Icon(Icons.search, size: 18),
+                      ),
+                      validator: (v) {
+                        if (selectedCustomer == null) {
+                          return 'Please select a valid subscriber from the dropdown options';
+                        }
+                        return null;
+                      },
+                    );
+                  },
+                  onSelected: (CustomerEntity selection) {
+                    setDialogState(() {
+                      selectedCustomer = selection;
+                      customerSearchController.text = selection.name;
+
+                      // Auto fill connection type
+                      final connStr = selection.connectionType.toLowerCase();
+                      if (connStr.contains('fiber') || connStr.contains('optical')) {
+                        connectionType = ConnectionType.opticalFibre;
+                      } else {
+                        connectionType = ConnectionType.wireless;
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Connection Type & Installation Date
+                connectionAndDateFields,
+                const SizedBox(height: 16),
+
+                // Assigned Employee
+                DropdownButtonFormField<String>(
+                  value: assignedEmployeeId,
+                  decoration: const InputDecoration(labelText: 'Assigned Installer / Technician'),
+                  items: _employeesList.map((emp) => DropdownMenuItem(
+                    value: emp['id'] as String,
+                    child: Text(emp['name'] as String),
+                  )).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      final matched = _employeesList.firstWhere((e) => e['id'] == val);
+                      setDialogState(() {
+                        assignedEmployeeId = val;
+                        assignedEmployeeName = matched['name'] as String;
+                      });
+                    }
+                  },
+                  validator: (v) => v == null ? 'Technician assignment required' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // Installation Cost & Status
+                costAndStatusFields,
+                const SizedBox(height: 16),
+
+                // Remarks
+                TextFormField(
+                  controller: remarksController,
+                  decoration: const InputDecoration(labelText: 'Job Remarks / Details'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+
+                // Collapsible materials used section
+                ExpansionTile(
+                  initiallyExpanded: isCollapsibleExpanded,
+                  title: Text(
+                    materialsLocked
+                        ? 'Materials Used (locked — job already completed)'
+                        : 'Materials Used (optional — leave empty for historical records)',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: materialsLocked
+                      ? const Text(
+                          'Inventory has already been deducted for this job. Adjust stock directly via the Inventory page if a correction is needed.',
+                          style: TextStyle(fontSize: 11),
+                        )
+                      : null,
+                  onExpansionChanged: (exp) {
+                    setDialogState(() => isCollapsibleExpanded = exp);
+                  },
+                  children: [
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: itemsUsedState.length,
+                      itemBuilder: (rowCtx, idx) {
+                        final row = itemsUsedState[idx];
+                        String? selectedItemId = row['itemId'] as String?;
+
+                        final itemDropdown = DropdownButtonFormField<String>(
+                          value: selectedItemId,
+                          hint: const Text('Select Material'),
+                          items: _allInventoryItems.map((item) => DropdownMenuItem(
+                            value: item.id,
+                            child: Text('${item.name} (Stock: ${item.quantityInStock})'),
+                          )).toList(),
+                          onChanged: materialsLocked
+                              ? null
+                              : (val) {
+                                  if (val != null) {
+                                    final selectedItem = _allInventoryItems.firstWhere((i) => i.id == val);
+                                    setDialogState(() {
+                                      row['itemId'] = val;
+                                      row['unitCost'] = selectedItem.unitCost;
+                                    });
+                                  }
+                                },
+                        );
+                        final qtyField = TextFormField(
+                          initialValue: row['qty'].toString(),
+                          decoration: const InputDecoration(labelText: 'Qty'),
+                          keyboardType: TextInputType.number,
+                          enabled: !materialsLocked,
+                          onChanged: (val) {
+                            final parsed = int.tryParse(val) ?? 0;
+                            setDialogState(() => row['qty'] = parsed);
+                          },
+                        );
+                        final unitCostText = isAdmin
+                            ? Text(
+                                '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)}',
+                                style: const TextStyle(fontSize: 12),
+                              )
+                            : null;
+                        final deleteButton = IconButton(
+                          icon: const Icon(Icons.delete, color: AppColors.errorRed),
+                          onPressed: materialsLocked
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    itemsUsedState.removeAt(idx);
+                                  });
+                                },
+                        );
+
+                        if (isMobileDialog) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                itemDropdown,
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: qtyField),
+                                    if (unitCostText != null) ...[
+                                      const SizedBox(width: 8),
+                                      unitCostText,
+                                    ],
+                                    deleteButton,
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 3, child: itemDropdown),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 1, child: qtyField),
+                              const SizedBox(width: 8),
+                              if (unitCostText != null) Expanded(flex: 1, child: unitCostText),
+                              deleteButton,
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: materialsLocked || _allInventoryItems.isEmpty
+                          ? null
+                          : () {
+                              setDialogState(() {
+                                itemsUsedState.add({
+                                  'itemId': _allInventoryItems.first.id,
+                                  'qty': 1,
+                                  'unitCost': _allInventoryItems.first.unitCost,
+                                });
+                              });
+                            },
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Add Row'),
+                    ),
+                    if (isAdmin && itemsUsedState.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Estimated Material Cost:'),
+                          Text(
+                            DateTimeUtils.formatCurrency(materialCostTotal),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ]
+                  ],
+                )
+              ],
+            );
+
+            final saveIcon = isSaving
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.check, size: 16);
+            final saveLabel = Text(isSaving ? 'Saving...' : 'Save Job');
+
+            if (isMobileDialog) {
+              return Dialog.fullscreen(
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: Text(dialogTitle),
+                    leading: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                    ),
+                  ),
+                  body: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Form(key: formKey, child: formContent),
+                  ),
+                  bottomNavigationBar: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ElevatedButton.icon(
+                        onPressed: isSaving ? null : submit,
+                        icon: saveIcon,
+                        label: saveLabel,
+                        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
             return AlertDialog(
-              title: Text(existing == null ? 'Provision New Line Installation' : 'Modify Line Installation'),
+              title: Text(dialogTitle),
               content: Form(
                 key: formKey,
                 child: SizedBox(
                   width: 600,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Searchable Customer Selector (using Autocomplete)
-                        Autocomplete<CustomerEntity>(
-                          optionsBuilder: (TextEditingValue textEditingValue) {
-                            if (textEditingValue.text.isEmpty) {
-                              return _allCustomers;
-                            }
-                            return _allCustomers.where((CustomerEntity customer) {
-                              return customer.name.toLowerCase().contains(textEditingValue.text.toLowerCase());
-                            });
-                          },
-                          displayStringForOption: (CustomerEntity option) => option.name,
-                          fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
-                            // Sync autocomplete text controller on creation/edit
-                            if (textController.text.isEmpty && customerSearchController.text.isNotEmpty) {
-                              textController.text = customerSearchController.text;
-                            }
-                            return TextFormField(
-                              controller: textController,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Search Subscriber Account / Name',
-                                suffixIcon: Icon(Icons.search, size: 18),
-                              ),
-                              validator: (v) {
-                                if (selectedCustomer == null) {
-                                  return 'Please select a valid subscriber from the dropdown options';
-                                }
-                                return null;
-                              },
-                            );
-                          },
-                          onSelected: (CustomerEntity selection) {
-                            setDialogState(() {
-                              selectedCustomer = selection;
-                              customerSearchController.text = selection.name;
-                              
-                              // Auto fill connection type
-                              final connStr = selection.connectionType.toLowerCase();
-                              if (connStr.contains('fiber') || connStr.contains('optical')) {
-                                connectionType = ConnectionType.opticalFibre;
-                              } else {
-                                connectionType = ConnectionType.wireless;
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Connection Type & Installation Date
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<ConnectionType>(
-                                value: connectionType,
-                                decoration: const InputDecoration(labelText: 'Connection Line Type'),
-                                items: ConnectionType.values.map((t) => DropdownMenuItem(
-                                  value: t,
-                                  child: Text(t.displayName),
-                                )).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setDialogState(() => connectionType = val);
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  final picked = await showDatePicker(
-                                    context: dialogContext,
-                                    initialDate: installationDate,
-                                    firstDate: DateTime(2020),
-                                    lastDate: DateTime(2030),
-                                  );
-                                  if (picked != null) {
-                                    setDialogState(() => installationDate = picked);
-                                  }
-                                },
-                                child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Installation Date',
-                                    suffixIcon: Icon(Icons.calendar_today, size: 16),
-                                  ),
-                                  child: Text(
-                                    '${installationDate.day}/${installationDate.month}/${installationDate.year}',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Assigned Employee
-                        DropdownButtonFormField<String>(
-                          value: assignedEmployeeId,
-                          decoration: const InputDecoration(labelText: 'Assigned Installer / Technician'),
-                          items: _employeesList.map((emp) => DropdownMenuItem(
-                            value: emp['id'] as String,
-                            child: Text(emp['name'] as String),
-                          )).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              final matched = _employeesList.firstWhere((e) => e['id'] == val);
-                              setDialogState(() {
-                                assignedEmployeeId = val;
-                                assignedEmployeeName = matched['name'] as String;
-                              });
-                            }
-                          },
-                          validator: (v) => v == null ? 'Technician assignment required' : null,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Installation Cost & Status
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: costController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Setup Fee Billed (PKR)',
-                                ),
-                                keyboardType: TextInputType.number,
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) return 'Billed cost is required';
-                                  if (double.tryParse(v) == null) return 'Enter a numeric value';
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButtonFormField<InstallationStatus>(
-                                value: status,
-                                decoration: const InputDecoration(labelText: 'Operational Status'),
-                                items: InstallationStatus.values.map((s) => DropdownMenuItem(
-                                  value: s,
-                                  child: Text(s.displayName),
-                                )).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    // Block Cancel transition in UI if previously completed
-                                    if (existing?.status == InstallationStatus.completed && val == InstallationStatus.cancelled) {
-                                      showDialog(
-                                        context: ctx,
-                                        builder: (wCtx) => AlertDialog(
-                                          title: const Text('Action Blocked'),
-                                          content: const Text('Cancelling a completed installation is not allowed directly. You must manually manage the stock reversals or log movements.'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(wCtx),
-                                              child: const Text('OK'),
-                                            )
-                                          ],
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    setDialogState(() => status = val);
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Remarks
-                        TextFormField(
-                          controller: remarksController,
-                          decoration: const InputDecoration(labelText: 'Job Remarks / Details'),
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Collapsible materials used section
-                        ExpansionTile(
-                          initiallyExpanded: isCollapsibleExpanded,
-                          title: const Text(
-                            'Materials Used (optional — leave empty for historical records)',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                          onExpansionChanged: (exp) {
-                            setDialogState(() => isCollapsibleExpanded = exp);
-                          },
-                          children: [
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: itemsUsedState.length,
-                              itemBuilder: (rowCtx, idx) {
-                                final row = itemsUsedState[idx];
-                                String? selectedItemId = row['itemId'] as String?;
-                                
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Row(
-                                    children: [
-                                      // Item Dropdown
-                                      Expanded(
-                                        flex: 3,
-                                        child: DropdownButtonFormField<String>(
-                                          value: selectedItemId,
-                                          hint: const Text('Select Material'),
-                                          items: _allInventoryItems.map((item) => DropdownMenuItem(
-                                            value: item.id,
-                                            child: Text('${item.name} (Stock: ${item.quantityInStock})'),
-                                          )).toList(),
-                                          onChanged: (val) {
-                                            if (val != null) {
-                                              final selectedItem = _allInventoryItems.firstWhere((i) => i.id == val);
-                                              setDialogState(() {
-                                                row['itemId'] = val;
-                                                row['unitCost'] = selectedItem.unitCost;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-
-                                      // Quantity
-                                      Expanded(
-                                        flex: 1,
-                                        child: TextFormField(
-                                          initialValue: row['qty'].toString(),
-                                          decoration: const InputDecoration(labelText: 'Qty'),
-                                          keyboardType: TextInputType.number,
-                                          onChanged: (val) {
-                                            final parsed = int.tryParse(val) ?? 0;
-                                            setDialogState(() => row['qty'] = parsed);
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-
-                                      // Unit Cost (Admin only)
-                                      if (isAdmin)
-                                        Expanded(
-                                          flex: 1,
-                                          child: Text(
-                                            '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)}',
-                                            style: const TextStyle(fontSize: 12),
-                                          ),
-                                        ),
-
-                                      // Remove button
-                                      IconButton(
-                                        icon: const Icon(Icons.delete, color: AppColors.errorRed),
-                                        onPressed: () {
-                                          setDialogState(() {
-                                            itemsUsedState.removeAt(idx);
-                                          });
-                                        },
-                                      )
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                if (_allInventoryItems.isEmpty) return;
-                                setDialogState(() {
-                                  itemsUsedState.add({
-                                    'itemId': _allInventoryItems.first.id,
-                                    'qty': 1,
-                                    'unitCost': _allInventoryItems.first.unitCost,
-                                  });
-                                });
-                              },
-                              icon: const Icon(Icons.add, size: 16),
-                              label: const Text('Add Row'),
-                            ),
-                            if (isAdmin && itemsUsedState.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('Estimated Material Cost:'),
-                                  Text(
-                                    DateTimeUtils.formatCurrency(materialCostTotal),
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ]
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
+                  child: SingleChildScrollView(child: formContent),
                 ),
               ),
               actions: [
@@ -483,90 +755,73 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: isSaving
+                  onPressed: isSaving ? null : submit,
+                  icon: saveIcon,
+                  label: saveLabel,
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteInstallation(BuildContext context, InstallationEntity inst) {
+    bool isDeleting = false;
+    showDialog(
+      context: context,
+      builder: (dCtx) {
+        return StatefulBuilder(
+          builder: (dCtx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Delete Log'),
+              content: const Text(
+                'Are you sure you want to permanently delete this installation log? This action cannot be undone.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.pop(dCtx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+                  onPressed: isDeleting
                       ? null
                       : () async {
-                          if (formKey.currentState!.validate()) {
-                            // Check if status is transitioning to Completed and has materials
-                            final isNewComplete = existing?.status != InstallationStatus.completed &&
-                                status == InstallationStatus.completed;
+                          setDialogState(() => isDeleting = true);
+                          final bloc = context.read<InstallationBloc>();
+                          bloc.add(DeleteInstallationEvent(
+                            inst.id,
+                            status: _selectedStatus,
+                            connectionType: _selectedConnectionType,
+                            employeeId: _selectedEmployeeId,
+                            searchQuery: _searchController.text.trim(),
+                          ));
 
-                            if (isNewComplete && itemsUsedState.isNotEmpty) {
-                              final confirmSave = await showDialog<bool>(
-                                context: ctx,
-                                builder: (cCtx) => AlertDialog(
-                                  title: const Text('Confirm Inventory Deduction'),
-                                  content: Text('Saving this job as Completed will immediately deduct a total of $totalItemsDeductQty item(s) from inventory. Do you wish to continue?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(cCtx, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () => Navigator.pop(cCtx, true),
-                                      child: const Text('Confirm and Deduct'),
-                                    )
-                                  ],
-                                ),
-                              );
-                              if (confirmSave != true) return;
-                            }
+                          final result = await bloc.stream.firstWhere(
+                            (s) => s is InstallationLoaded || s is InstallationError,
+                          );
 
-                            setDialogState(() => isSaving = true);
+                          if (!mounted || !context.mounted) return;
 
-                            // Construct List<InstallationItemUsedEntity>
-                            final List<InstallationItemUsedEntity> items = [];
-                            for (final row in itemsUsedState) {
-                              final itemId = row['itemId'] as String;
-                              final qty = row['qty'] as int;
-                              final unitCost = row['unitCost'] as double;
-                              final invItem = _allInventoryItems.firstWhere((i) => i.id == itemId);
-
-                              items.add(InstallationItemUsedEntity(
-                                inventoryItemId: itemId,
-                                itemName: invItem.name,
-                                quantity: qty,
-                                costPriceAtTime: unitCost,
-                              ));
-                            }
-
-                            final customer = selectedCustomer!;
-                            final updatedInstallation = InstallationEntity(
-                              id: existing?.id ?? const Uuid().v4(),
-                              customerId: customer.id,
-                              customerName: customer.name,
-                              connectionType: connectionType,
-                              installationDate: installationDate,
-                              assignedEmployeeId: assignedEmployeeId,
-                              assignedEmployeeName: assignedEmployeeName,
-                              installationCost: double.parse(costController.text),
-                              status: status,
-                              remarks: remarksController.text,
-                              itemsUsed: items.isEmpty ? null : items,
-                              createdAt: existing?.createdAt ?? DateTime.now(),
-                              completedAt: existing?.completedAt,
+                          if (result is InstallationError) {
+                            setDialogState(() => isDeleting = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to delete: ${result.message}'),
+                                backgroundColor: AppColors.errorRed,
+                              ),
                             );
-
-                            if (!mounted) return;
-
-                            if (existing == null) {
-                              context.read<InstallationBloc>().add(CreateInstallationEvent(updatedInstallation));
-                            } else {
-                              context.read<InstallationBloc>().add(UpdateInstallationEvent(updatedInstallation));
-                            }
-
-                            Navigator.pop(ctx);
-                            _triggerLoad();
+                            return;
                           }
+
+                          Navigator.pop(dCtx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Installation log deleted')),
+                          );
                         },
-                  icon: isSaving
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.check, size: 16),
-                  label: Text(isSaving ? 'Saving...' : 'Save Job'),
+                  child: Text(isDeleting ? 'Deleting...' : 'Delete'),
                 ),
               ],
             );
@@ -646,7 +901,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
               // Main Bloc Builder for logs
               BlocConsumer<InstallationBloc, InstallationState>(
                 listener: (context, state) {
-                  if (state is InstallationError) {
+                  if (state is InstallationLoaded) {
+                    _lastLoaded = state;
+                  } else if (state is InstallationError && _lastLoaded != null) {
+                    // Keep the existing log on screen; just surface the failure.
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(state.message),
@@ -655,8 +913,41 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     );
                   }
                 },
-                builder: (context, state) {
-                  if (state is InstallationLoading) {
+                builder: (context, rawState) {
+                  // Prefer the freshly-loaded state; otherwise fall back to
+                  // the last successfully loaded log rather than blanking the
+                  // page during a transient reload or a failed save/delete.
+                  final state =
+                      rawState is InstallationLoaded ? rawState : _lastLoaded;
+
+                  if (state == null) {
+                    if (rawState is InstallationError) {
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline,
+                                    size: 48, color: AppColors.errorRed),
+                                const SizedBox(height: 16),
+                                Text(
+                                  rawState.message,
+                                  style: const TextStyle(color: AppColors.errorRed),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: _triggerLoad,
+                                  child: const Text('Retry'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
                     return const Card(
                       child: Padding(
                         padding: EdgeInsets.all(32.0),
@@ -667,14 +958,14 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     );
                   }
 
-                  if (state is InstallationLoaded) {
+                  {
                     final list = state.installations;
 
                     double totalFee = list.fold(0.0, (s, i) => s + i.installationCost);
-                    
+
                     double totalCost = 0.0;
                     for (final inst in list) {
-                      totalCost += inst.materialCost ?? 0.0;
+                      totalCost += (inst.materialCost ?? 0.0) + (inst.laborCost ?? 0.0);
                     }
                     double netMargin = totalFee - totalCost;
 
@@ -694,7 +985,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                               const SizedBox(width: 16),
                               Expanded(
                                 child: DashboardCard(
-                                  label: 'Total Material & Cable Costs',
+                                  label: 'Total Material, Cable & Labor Costs',
                                   value: DateTimeUtils.formatCurrency(totalCost),
                                   icon: Icons.shopping_bag_outlined,
                                   backgroundColor: AppTheme.errorColor.withOpacity(0.04),
@@ -741,38 +1032,12 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                         title: 'No Installations Found',
                                         subtitle: 'Adjust your filters or log a new installation to begin.',
                                       )
-                                    : ResponsiveLayout(
+                                    : ResponsiveSwitcher(
                                         mobile: InstallationCardList(
                                           installations: list,
                                           isAdmin: isAdmin,
                                           onEdit: (inst) => _showAddEditInstallationDialog(context, existing: inst),
-                                          onDelete: (inst) => showDialog(
-                                            context: context,
-                                            builder: (dCtx) => AlertDialog(
-                                              title: const Text('Delete Log'),
-                                              content: const Text('Are you sure you want to permanently delete this installation log? This action cannot be undone.'),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.pop(dCtx),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
-                                                  onPressed: () {
-                                                    context.read<InstallationBloc>().add(DeleteInstallationEvent(
-                                                      inst.id,
-                                                      status: _selectedStatus,
-                                                      connectionType: _selectedConnectionType,
-                                                      employeeId: _selectedEmployeeId,
-                                                      searchQuery: _searchController.text.trim(),
-                                                    ));
-                                                    Navigator.pop(dCtx);
-                                                  },
-                                                  child: const Text('Delete'),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
+                                          onDelete: (inst) => _confirmDeleteInstallation(context, inst),
                                         ),
                                         desktop: _buildInstallationsTable(list, isAdmin),
                                       ),
@@ -783,17 +1048,6 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       ],
                     );
                   }
-
-                  return const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: EmptyStateWidget(
-                        icon: Icons.construction_outlined,
-                        title: 'Ready to load logs',
-                        subtitle: 'Log list will appear here once loaded.',
-                      ),
-                    ),
-                  );
                 },
               ),
             ],
@@ -875,7 +1129,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(inst.status).withOpacity(0.1),
+                  color: installationStatusColor(inst.status).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -883,7 +1137,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: _getStatusColor(inst.status),
+                    color: installationStatusColor(inst.status),
                   ),
                 ),
               ),
@@ -899,35 +1153,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, size: 16, color: AppColors.errorRed),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (dCtx) => AlertDialog(
-                            title: const Text('Delete Log'),
-                            content: const Text('Are you sure you want to permanently delete this installation log? This action cannot be undone.'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(dCtx),
-                                child: const Text('Cancel'),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
-                                onPressed: () {
-                                  context.read<InstallationBloc>().add(DeleteInstallationEvent(
-                                    inst.id,
-                                    status: _selectedStatus,
-                                    connectionType: _selectedConnectionType,
-                                    employeeId: _selectedEmployeeId,
-                                    searchQuery: _searchController.text.trim(),
-                                  ));
-                                  Navigator.pop(dCtx);
-                                },
-                                child: const Text('Delete'),
-                              )
-                            ],
-                          ),
-                        );
-                      },
+                      onPressed: () => _confirmDeleteInstallation(context, inst),
                     )
                   ],
                 ),
@@ -938,16 +1164,4 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
-  Color _getStatusColor(InstallationStatus status) {
-    switch (status) {
-      case InstallationStatus.pending:
-        return AppTheme.warningColor;
-      case InstallationStatus.inProgress:
-        return AppColors.primaryBlue;
-      case InstallationStatus.completed:
-        return AppTheme.successColor;
-      case InstallationStatus.cancelled:
-        return AppTheme.errorColor;
-    }
-  }
 }

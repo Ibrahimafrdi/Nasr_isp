@@ -10,6 +10,7 @@ import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.d
 import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/user_management_bloc.dart';
 import 'package:nasr_isp/features/auth/data/models/user_model.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
@@ -150,6 +151,25 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                   SnackBar(
                     content: Text(state.message),
                     backgroundColor: AppColors.errorRed,
+                  ),
+                );
+              } else if (state is UserManagementUserCreatedNeedsReauth) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dCtx) => AlertDialog(
+                    title: const Text('User Created'),
+                    content: Text(state.message),
+                    actions: [
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dCtx);
+                          context.read<AuthBloc>().add(const LogoutEvent());
+                          context.go(RoutePaths.login);
+                        },
+                        child: const Text('Log In Again'),
+                      ),
+                    ],
                   ),
                 );
               }
@@ -518,36 +538,41 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                 ),
               ),
               const SizedBox(height: 24),
-              // Action Save Button
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0),
-                  child: ElevatedButton.icon(
-                    onPressed: isSaving ? null : () => _saveSettings(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      foregroundColor: AppColors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              // Action Save Button — full-width & stacked on mobile, inline on desktop
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
+                child: ResponsiveBuilder(
+                  builder: (context, deviceType) {
+                    final button = ElevatedButton.icon(
+                      onPressed: isSaving ? null : () => _saveSettings(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: AppColors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    ),
-                    icon: isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                            ),
-                          )
-                        : const Icon(Icons.save_rounded),
-                    label: Text(
-                      isSaving ? 'Saving Settings...' : 'Save Settings',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ),
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: Text(
+                        isSaving ? 'Saving Settings...' : 'Save Settings',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    );
+                    if (deviceType == DeviceType.mobile) {
+                      return SizedBox(width: double.infinity, child: button);
+                    }
+                    return Align(alignment: Alignment.centerRight, child: button);
+                  },
                 ),
               ),
             ],
@@ -621,85 +646,78 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     ),
                   )
                 else
-                  PremiumDataTable(
-                    columns: [
-                      PremiumDataColumn(label: 'Name'),
-                      PremiumDataColumn(label: 'Email'),
-                      PremiumDataColumn(label: 'Role'),
-                      PremiumDataColumn(label: 'Status'),
-                      PremiumDataColumn(label: 'Actions'),
-                    ],
-                    rows: users.map((user) {
-                      final isSelf = currentUser?.id == user.id;
+                  ResponsiveSwitcher(
+                    mobile: _buildUserCardList(context, users, currentUser),
+                    desktop: PremiumDataTable(
+                      columns: [
+                        PremiumDataColumn(label: 'Name'),
+                        PremiumDataColumn(label: 'Email'),
+                        PremiumDataColumn(label: 'Role'),
+                        PremiumDataColumn(label: 'Status'),
+                        PremiumDataColumn(label: 'Actions'),
+                      ],
+                      rows: users.map((user) {
+                        final isSelf = currentUser?.id == user.id;
 
-                      return PremiumDataRow(
-                        cells: [
-                          Text(
-                            user.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(user.email),
-                          // Role Dropdown Cell
-                          DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: user.role == 'admin' ? 'admin' : 'employee',
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'admin',
-                                  child: Text('Admin'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'employee',
-                                  child: Text('Employee'),
-                                ),
-                              ],
-                              onChanged: (newRole) {
-                                if (newRole != null && newRole != user.role) {
-                                  context.read<UserManagementBloc>().add(
-                                        UpdateUserRoleEvent(
-                                          uid: user.id,
-                                          role: newRole,
-                                        ),
-                                      );
-                                }
-                              },
+                        return PremiumDataRow(
+                          cells: [
+                            Text(
+                              user.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                          ),
-                          // Status Badge + Text cell
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: user.isActive
-                                      ? AppColors.successGreen
-                                      : AppColors.errorRed,
-                                ),
+                            Text(user.email),
+                            // Role Dropdown Cell
+                            DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: user.role == 'admin' ? 'admin' : 'employee',
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'admin',
+                                    child: Text('Admin'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'employee',
+                                    child: Text('Employee'),
+                                  ),
+                                ],
+                                onChanged: isSelf
+                                    ? null // Disable changing your own role
+                                    : (newRole) {
+                                        if (newRole != null && newRole != user.role) {
+                                          _confirmRoleChange(context, user, newRole);
+                                        }
+                                      },
                               ),
-                              const SizedBox(width: 8),
-                              Text(user.isActive ? 'Active' : 'Inactive'),
-                            ],
-                          ),
-                          // Switch / Actions Cell
-                          Switch(
-                            value: user.isActive,
-                            activeThumbColor: AppColors.successGreen,
-                            onChanged: isSelf
-                                ? null // Disable self deactivation
-                                : (value) {
-                                    context.read<UserManagementBloc>().add(
-                                          ToggleUserStatusEvent(
-                                            uid: user.id,
-                                            isActive: value,
-                                          ),
-                                        );
-                                  },
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                            ),
+                            // Status Badge + Text cell
+                            Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: user.isActive
+                                        ? AppColors.successGreen
+                                        : AppColors.errorRed,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(user.isActive ? 'Active' : 'Inactive'),
+                              ],
+                            ),
+                            // Switch / Actions Cell
+                            Switch(
+                              value: user.isActive,
+                              activeThumbColor: AppColors.successGreen,
+                              onChanged: isSelf
+                                  ? null // Disable self deactivation
+                                  : (value) => _confirmStatusToggle(context, user, value),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
               ],
             ),
@@ -709,86 +727,308 @@ class _SettingsPageContentState extends State<SettingsPageContent>
     );
   }
 
+  Widget _buildUserCardList(
+    BuildContext context,
+    List<UserModel> users,
+    UserModel? currentUser,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: users.map((user) {
+        final isSelf = currentUser?.id == user.id;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.lightGray),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Text(
+                          user.email,
+                          style: const TextStyle(color: AppColors.darkGray, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: user.isActive ? AppColors.successGreen : AppColors.errorRed,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(user.isActive ? 'Active' : 'Inactive', style: const TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: user.role == 'admin' ? 'admin' : 'employee',
+                        items: const [
+                          DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                          DropdownMenuItem(value: 'employee', child: Text('Employee')),
+                        ],
+                        onChanged: isSelf
+                            ? null // Disable changing your own role
+                            : (newRole) {
+                                if (newRole != null && newRole != user.role) {
+                                  _confirmRoleChange(context, user, newRole);
+                                }
+                              },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Switch(
+                    value: user.isActive,
+                    activeThumbColor: AppColors.successGreen,
+                    onChanged: isSelf
+                        ? null // Disable self deactivation
+                        : (value) => _confirmStatusToggle(context, user, value),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Future<void> _confirmRoleChange(
+    BuildContext context,
+    UserModel user,
+    String newRole,
+  ) async {
+    final roleLabel = newRole == 'admin' ? 'Admin' : 'Employee';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => ConfirmationDialog(
+        title: 'Change Role',
+        message: 'Change ${user.name}\'s role to $roleLabel?',
+        confirmLabel: 'Change Role',
+        onConfirm: () => Navigator.pop(dCtx, true),
+        onCancel: () => Navigator.pop(dCtx, false),
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<UserManagementBloc>().add(
+            UpdateUserRoleEvent(uid: user.id, role: newRole),
+          );
+    }
+  }
+
+  Future<void> _confirmStatusToggle(
+    BuildContext context,
+    UserModel user,
+    bool newActive,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => ConfirmationDialog(
+        title: newActive ? 'Activate User' : 'Deactivate User',
+        message: newActive
+            ? 'Reactivate ${user.name}\'s account? They will regain access to the system.'
+            : 'Deactivate ${user.name}\'s account? They will immediately lose access to the system.',
+        confirmLabel: newActive ? 'Activate' : 'Deactivate',
+        isDestructive: !newActive,
+        onConfirm: () => Navigator.pop(dCtx, true),
+        onCancel: () => Navigator.pop(dCtx, false),
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<UserManagementBloc>().add(
+            ToggleUserStatusEvent(uid: user.id, isActive: newActive),
+          );
+    }
+  }
+
   void _showAddUserDialog(BuildContext context) {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     String selectedRole = 'employee';
     final formKey = GlobalKey<FormState>();
+    final isMobileDialog = Responsive.isMobile(context);
+    bool isSaving = false;
 
     showDialog(
       context: context,
+      useSafeArea: !isMobileDialog,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (stContext, setState) {
+            Future<void> submit() async {
+              if (formKey.currentState?.validate() ?? false) {
+                setState(() => isSaving = true);
+                final bloc = context.read<UserManagementBloc>();
+                bloc.add(
+                      CreateUserEvent(
+                        name: nameController.text.trim(),
+                        email: emailController.text.trim(),
+                        password: passwordController.text,
+                        role: selectedRole,
+                      ),
+                    );
+
+                final result = await bloc.stream.firstWhere(
+                  (s) =>
+                      s is UserManagementUserCreatedNeedsReauth ||
+                      s is UserManagementError,
+                );
+
+                if (!dialogContext.mounted) return;
+
+                if (result is UserManagementError) {
+                  // Page-level listener already surfaces the error via a
+                  // SnackBar; keep this dialog open so the admin can retry.
+                  setState(() => isSaving = false);
+                  return;
+                }
+
+                // Success — the page-level listener will show the "log back
+                // in" dialog, so just close this one.
+                Navigator.pop(dialogContext);
+              }
+            }
+
+            final formContent = Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppFormField(
+                  label: 'Name',
+                  controller: nameController,
+                  isRequired: true,
+                  validator: (val) => ValidationUtils.validateRequired(val, 'Name'),
+                ),
+                const SizedBox(height: 16),
+                AppFormField(
+                  label: 'Email',
+                  controller: emailController,
+                  isRequired: true,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (val) => ValidationUtils.validateEmail(val),
+                ),
+                const SizedBox(height: 16),
+                AppFormField(
+                  label: 'Password',
+                  controller: passwordController,
+                  isRequired: true,
+                  isPassword: true,
+                  validator: (val) => ValidationUtils.validatePassword(val),
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Role',
+                    style: Theme.of(dialogContext).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedRole,
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'admin',
+                      child: Text('Admin'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'employee',
+                      child: Text('Employee'),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => selectedRole = val);
+                    }
+                  },
+                ),
+              ],
+            );
+
+            final createButtonChild = isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                    ),
+                  )
+                : const Text('Create User');
+
+            if (isMobileDialog) {
+              return Dialog.fullscreen(
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: const Text('Add User Account'),
+                    leading: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                    ),
+                  ),
+                  body: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Form(key: formKey, child: formContent),
+                  ),
+                  bottomNavigationBar: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ElevatedButton(
+                        onPressed: isSaving ? null : submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: AppColors.white,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: createButtonChild,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
             return AlertDialog(
               title: const Text('Add User Account'),
               content: Form(
                 key: formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AppFormField(
-                        label: 'Name',
-                        controller: nameController,
-                        isRequired: true,
-                        validator: (val) => ValidationUtils.validateRequired(val, 'Name'),
-                      ),
-                      const SizedBox(height: 16),
-                      AppFormField(
-                        label: 'Email',
-                        controller: emailController,
-                        isRequired: true,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (val) => ValidationUtils.validateEmail(val),
-                      ),
-                      const SizedBox(height: 16),
-                      AppFormField(
-                        label: 'Password',
-                        controller: passwordController,
-                        isRequired: true,
-                        isPassword: true,
-                        validator: (val) => ValidationUtils.validatePassword(val),
-                      ),
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Role',
-                          style: Theme.of(dialogContext).textTheme.titleMedium,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: selectedRole,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'admin',
-                            child: Text('Admin'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'employee',
-                            child: Text('Employee'),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => selectedRole = val);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                child: SingleChildScrollView(child: formContent),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -796,20 +1036,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: AppColors.white,
                   ),
-                  onPressed: () {
-                    if (formKey.currentState?.validate() ?? false) {
-                      context.read<UserManagementBloc>().add(
-                            CreateUserEvent(
-                              name: nameController.text.trim(),
-                              email: emailController.text.trim(),
-                              password: passwordController.text,
-                              role: selectedRole,
-                            ),
-                          );
-                      Navigator.pop(dialogContext);
-                    }
-                  },
-                  child: const Text('Create User'),
+                  onPressed: isSaving ? null : submit,
+                  child: createButtonChild,
                 ),
               ],
             );

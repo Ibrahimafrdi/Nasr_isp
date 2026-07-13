@@ -18,6 +18,8 @@ class InstallationModel extends InstallationEntity {
     super.itemsUsed,
     required super.createdAt,
     super.completedAt,
+    super.equipmentCost,
+    super.laborCost,
   });
 
   factory InstallationModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -40,12 +42,15 @@ class InstallationModel extends InstallationEntity {
       itemsUsed: parsedItems,
       createdAt: _parseDate(map['createdAt']) ?? DateTime.now(),
       completedAt: _parseDate(map['completedAt']),
+      equipmentCost: (map['equipmentCost'] as num?)?.toDouble(),
+      laborCost: (map['laborCost'] as num?)?.toDouble(),
     );
   }
 
   static ConnectionType _parseConnectionType(dynamic value) {
     if (value == null) return ConnectionType.wireless;
     final valueStr = value.toString();
+    if (valueStr == 'fiber') return ConnectionType.opticalFibre;
     return ConnectionType.values.firstWhere(
       (e) => e.name == valueStr || e.label == valueStr,
       orElse: () => ConnectionType.wireless,
@@ -91,6 +96,8 @@ class InstallationModel extends InstallationEntity {
       }).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
+      'equipmentCost': equipmentCost,
+      'laborCost': laborCost,
     };
   }
 
@@ -113,6 +120,8 @@ class InstallationModel extends InstallationEntity {
     List<InstallationItemUsedModel>? itemsUsed,
     DateTime? createdAt,
     DateTime? completedAt,
+    double? equipmentCost,
+    double? laborCost,
   }) {
     return InstallationModel(
       id: id ?? this.id,
@@ -128,6 +137,8 @@ class InstallationModel extends InstallationEntity {
       itemsUsed: itemsUsed ?? this.itemsUsed,
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt ?? this.completedAt,
+      equipmentCost: equipmentCost ?? this.equipmentCost,
+      laborCost: laborCost ?? this.laborCost,
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart
 import 'package:nasr_isp/features/employees/domain/usecases/add_employee.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/get_employees.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/update_employee.dart';
-import 'package:nasr_isp/features/employees/domain/usecases/delete_employee.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
 
 // ─── EVENTS ─────────────────────────────────────────────────────────────────
@@ -35,15 +34,6 @@ class UpdateEmployeeEvent extends EmployeeEvent {
 
   @override
   List<Object?> get props => [employee];
-}
-
-class DeleteEmployeeEvent extends EmployeeEvent {
-  final String employeeId;
-
-  const DeleteEmployeeEvent(this.employeeId);
-
-  @override
-  List<Object?> get props => [employeeId];
 }
 
 class SearchEmployeesEvent extends EmployeeEvent {
@@ -100,7 +90,6 @@ class EmployeeBloc extends Bloc<EmployeeEvent, EmployeeState> {
   final GetEmployees getEmployees;
   final AddEmployee addEmployee;
   final UpdateEmployee updateEmployee;
-  final DeleteEmployee deleteEmployee;
   final GetInstallations getInstallations;
 
   List<EmployeeEntity> _allEmployees = [];
@@ -110,13 +99,11 @@ class EmployeeBloc extends Bloc<EmployeeEvent, EmployeeState> {
     required this.getEmployees,
     required this.addEmployee,
     required this.updateEmployee,
-    required this.deleteEmployee,
     required this.getInstallations,
   }) : super(const EmployeeInitial()) {
     on<LoadEmployeesEvent>(_onLoadEmployees);
     on<AddEmployeeEvent>(_onAddEmployee);
     on<UpdateEmployeeEvent>(_onUpdateEmployee);
-    on<DeleteEmployeeEvent>(_onDeleteEmployee);
     on<SearchEmployeesEvent>(_onSearchEmployees);
   }
 
@@ -125,6 +112,36 @@ class EmployeeBloc extends Bloc<EmployeeEvent, EmployeeState> {
     Emitter<EmployeeState> emit,
   ) async {
     emit(const EmployeeLoading());
+    await _reloadAndEmit(emit);
+  }
+
+  Future<void> _onAddEmployee(
+    AddEmployeeEvent event,
+    Emitter<EmployeeState> emit,
+  ) async {
+    emit(const EmployeeLoading());
+    try {
+      await addEmployee(event.employee);
+      await _reloadAndEmit(emit);
+    } catch (e) {
+      emit(EmployeeError('Failed to add employee: $e'));
+    }
+  }
+
+  Future<void> _onUpdateEmployee(
+    UpdateEmployeeEvent event,
+    Emitter<EmployeeState> emit,
+  ) async {
+    emit(const EmployeeLoading());
+    try {
+      await updateEmployee(event.employee);
+      await _reloadAndEmit(emit);
+    } catch (e) {
+      emit(EmployeeError('Failed to update employee: $e'));
+    }
+  }
+
+  Future<void> _reloadAndEmit(Emitter<EmployeeState> emit) async {
     try {
       final employeesList = await getEmployees();
       final installationsList = await getInstallations();
@@ -144,49 +161,6 @@ class EmployeeBloc extends Bloc<EmployeeEvent, EmployeeState> {
       emit(EmployeeLoaded(_allEmployees, installationCounts: _installationCounts));
     } catch (e) {
       emit(EmployeeError('Failed to load employees: $e'));
-    }
-  }
-
-  Future<void> _onAddEmployee(
-    AddEmployeeEvent event,
-    Emitter<EmployeeState> emit,
-  ) async {
-    emit(const EmployeeLoading());
-    try {
-      await addEmployee(event.employee);
-      // Give firestore brief time to complete write operations
-      await Future.delayed(const Duration(milliseconds: 300));
-      add(const LoadEmployeesEvent());
-    } catch (e) {
-      emit(EmployeeError('Failed to add employee: $e'));
-    }
-  }
-
-  Future<void> _onUpdateEmployee(
-    UpdateEmployeeEvent event,
-    Emitter<EmployeeState> emit,
-  ) async {
-    emit(const EmployeeLoading());
-    try {
-      await updateEmployee(event.employee);
-      await Future.delayed(const Duration(milliseconds: 300));
-      add(const LoadEmployeesEvent());
-    } catch (e) {
-      emit(EmployeeError('Failed to update employee: $e'));
-    }
-  }
-
-  Future<void> _onDeleteEmployee(
-    DeleteEmployeeEvent event,
-    Emitter<EmployeeState> emit,
-  ) async {
-    emit(const EmployeeLoading());
-    try {
-      await deleteEmployee(event.employeeId);
-      await Future.delayed(const Duration(milliseconds: 300));
-      add(const LoadEmployeesEvent());
-    } catch (e) {
-      emit(EmployeeError('Failed to delete employee: $e'));
     }
   }
 

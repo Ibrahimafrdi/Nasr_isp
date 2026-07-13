@@ -45,25 +45,33 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
   }
 
   Future<void> _loadCustomer() async {
-    try {
-      final customersState = context.read<CustomersBloc>().state;
+    final customersState = context.read<CustomersBloc>().state;
 
-      // First try BLoC state (fast path)
-      if (customersState is CustomersLoaded) {
-        final found = customersState.customers.firstWhere(
+    // First try BLoC state (fast path) — scoped so a miss here falls
+    // through to the fallback reload below instead of failing outright.
+    if (customersState is CustomersLoaded) {
+      CustomerModel? found;
+      try {
+        found = customersState.customers.firstWhere(
           (c) => c.id == widget.customerId,
-          orElse: () => throw Exception('not_in_state'),
         );
+      } catch (_) {
+        // Not in the currently loaded (possibly filtered/paginated) page —
+        // fall through to the fallback reload below.
+      }
+      if (found != null) {
         if (mounted) {
           setState(() {
             _customer = found;
             _isLoading = false;
           });
-          return;
         }
+        return;
       }
+    }
 
-      // Fallback: reload all customers via BLoC and wait
+    // Fallback: reload all customers via BLoC and wait
+    try {
       context.read<CustomersBloc>().add(const LoadCustomersEvent());
       await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;

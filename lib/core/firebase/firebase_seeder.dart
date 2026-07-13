@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nasr_isp/core/constants/inventory_catalog.dart';
 
 class FirestoreSeeder {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -9,6 +10,7 @@ class FirestoreSeeder {
     await _seedEmployees();
     await _seedInstallations();
     await _seedPayments();
+    await _seedInventory();
     print('✅ All Firestore collections seeded successfully!');
   }
 
@@ -19,30 +21,35 @@ class FirestoreSeeder {
         'name': '5 Mbps',
         'speed': 5,
         'price': 1000,
+        'costPrice': 600,
         'description': 'Basic Internet',
       },
       {
         'name': '10 Mbps',
         'speed': 10,
         'price': 1500,
+        'costPrice': 900,
         'description': 'Standard Internet',
       },
       {
         'name': '20 Mbps',
         'speed': 20,
         'price': 2500,
+        'costPrice': 1500,
         'description': 'Unlimited Internet',
       },
       {
         'name': '50 Mbps',
         'speed': 50,
         'price': 4000,
+        'costPrice': 2400,
         'description': 'Fast Internet',
       },
       {
         'name': '100 Mbps',
         'speed': 100,
         'price': 6000,
+        'costPrice': 3600,
         'description': 'Ultra Fast Internet',
       },
     ];
@@ -137,7 +144,7 @@ class FirestoreSeeder {
       {
         'customerId': '',
         'customerName': 'Ahmad Shah',
-        'connectionType': 'fiber',
+        'connectionType': 'opticalFibre',
         'assignedEmployeeId': '',
         'assignedEmployeeName': 'Usman Ali',
         'installationCost': 8000,
@@ -187,5 +194,27 @@ class FirestoreSeeder {
       });
     }
     print('✅ payments seeded');
+  }
+
+  // ─── INVENTORY ──────────────────────────────────────────
+  // Seeded from the shared client-supplied catalog (see inventory_catalog.dart),
+  // which also powers the "pick from catalog" picker when adding items in-app.
+  static Future<void> _seedInventory() async {
+    for (final entry in kInventoryCatalog) {
+      await _db.collection('inventory').add({
+        'name': entry.name,
+        'category': entry.category.name,
+        'connectionType': entry.connectionType.name,
+        'unit': entry.unit,
+        'quantityInStock': entry.quantityInStock,
+        'reorderLevel': entry.reorderLevel,
+        'unitCost': entry.unitCost,
+        'supplier': null,
+        'notes': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    print('✅ inventory seeded');
   }
 }

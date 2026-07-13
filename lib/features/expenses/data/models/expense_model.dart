@@ -39,7 +39,6 @@ class ExpenseModel extends ExpenseEntity {
     return {
       'id': id,
       'title': title,
-      'description': title,
       'category': category.name,
       'amount': amount,
       'date': Timestamp.fromDate(date),

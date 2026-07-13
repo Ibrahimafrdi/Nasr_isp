@@ -11,6 +11,9 @@ abstract class PaymentRemoteDataSource {
     DateTime? dateRangeStart,
     DateTime? dateRangeEnd,
   });
+  /// Fetches the entire payments collection, unbounded — for aggregate
+  /// stats (e.g. the dashboard) that must not silently drop older records.
+  Future<List<PaymentModel>> getAllPayments();
   Future<void> updatePayment(PaymentModel payment);
   Future<void> deletePayment(String id);
   Future<int> getTotalPaymentsCount();
@@ -110,6 +113,14 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     }
 
     return results;
+  }
+
+  @override
+  Future<List<PaymentModel>> getAllPayments() async {
+    final snapshot = await _col.orderBy('createdAt', descending: true).get();
+    return snapshot.docs
+        .map((doc) => _normalizeStatus(PaymentModel.fromFirestore(doc)))
+        .toList();
   }
 
   PaymentModel _normalizeStatus(PaymentModel p) {

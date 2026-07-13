@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
-import 'package:nasr_isp/core/theme/app_theme.dart';
-import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 
@@ -64,7 +61,7 @@ class PaymentFilterPanel extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.md),
           AppStatusChipGroup(
-            options: PaymentStatus.values.map((s) => s.label).toList(),
+            options: const ['paid', 'unpaid', 'partial'],
             selected: selectedStatus,
             onChanged: onStatusChanged,
           ),

@@ -6,6 +6,7 @@ class PackageEntity extends Equatable {
   final String name;
   final int speedMbps;
   final double price;
+  final double costPrice;
   final ConnectionType connectionType;
   final String? description;
   final bool isActive;
@@ -17,6 +18,7 @@ class PackageEntity extends Equatable {
     required this.name,
     required this.speedMbps,
     required this.price,
+    required this.costPrice,
     required this.connectionType,
     this.description,
     required this.isActive,
@@ -24,12 +26,17 @@ class PackageEntity extends Equatable {
     required this.updatedAt,
   });
 
+  /// Profit per subscriber on this package: the price charged to the
+  /// customer minus what the ISP pays upstream for it (e.g. bandwidth cost).
+  double get profit => price - costPrice;
+
   @override
   List<Object?> get props => [
         id,
         name,
         speedMbps,
         price,
+        costPrice,
         connectionType,
         description,
         isActive,
@@ -42,6 +49,7 @@ class PackageEntity extends Equatable {
     String? name,
     int? speedMbps,
     double? price,
+    double? costPrice,
     ConnectionType? connectionType,
     String? description,
     bool? isActive,
@@ -53,6 +61,7 @@ class PackageEntity extends Equatable {
         name: name ?? this.name,
         speedMbps: speedMbps ?? this.speedMbps,
         price: price ?? this.price,
+        costPrice: costPrice ?? this.costPrice,
         connectionType: connectionType ?? this.connectionType,
         description: description ?? this.description,
         isActive: isActive ?? this.isActive,

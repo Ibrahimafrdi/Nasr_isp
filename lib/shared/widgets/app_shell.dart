@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/responsive/breakpoints.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 
 class AppShell extends StatelessWidget {
@@ -40,18 +40,20 @@ class AppShell extends StatelessWidget {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final isMobile = width < Breakpoints.mobile;
-            final isTablet =
-                width >= Breakpoints.mobile && width < Breakpoints.tablet;
+            final deviceType = Responsive.deviceTypeForWidth(
+              constraints.maxWidth,
+            );
 
             void handleLogout() {
               context.read<AuthBloc>().add(const LogoutEvent());
               context.go(RoutePaths.login);
             }
 
-            if (isMobile) {
-              // ── Mobile: AppBar + Drawer ──────────────────────────────────
+            if (deviceType != DeviceType.desktop) {
+              // ── Mobile & Tablet: AppBar + Drawer ─────────────────────────
+              // A persistent/collapsed sidebar doesn't fit narrower screens
+              // (and hides grouped nav items with no way to reach them), so
+              // both mobile and tablet get the full sidebar inside a Drawer.
               return Scaffold(
                 backgroundColor: AppTheme.veryLightGray,
                 appBar: DashboardTopBar(
@@ -67,32 +69,6 @@ class AppShell extends StatelessWidget {
                   ),
                 ),
                 body: SafeArea(child: child),
-              );
-            } else if (isTablet) {
-              // ── Tablet: Collapsed sidebar + TopBar ───────────────────────
-              return Scaffold(
-                backgroundColor: AppTheme.veryLightGray,
-                body: Row(
-                  children: [
-                    DashboardSidebar(
-                      currentUser: user,
-                      currentRoute: currentRoute,
-                      forceCollapsed: true,
-                      onLogout: handleLogout,
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          DashboardTopBar(
-                            title: resolveTitle(currentRoute),
-                            currentUser: user,
-                          ),
-                          Expanded(child: child),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               );
             } else {
               // ── Desktop: Full expanded sidebar ───────────────────────────

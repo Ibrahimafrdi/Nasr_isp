@@ -1,20 +1,18 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/widgets/payment_card_list.dart';
+import 'package:nasr_isp/features/payments/presentation/widgets/payment_filter_panel.dart';
 import 'package:nasr_isp/features/payments/presentation/widgets/payment_stats_cards.dart';
 import 'package:nasr_isp/shared/models/models.dart';
-import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
@@ -84,95 +82,18 @@ class _PaymentsPageState extends State<PaymentsPage> {
     }
   }
 
-  // ── Filter panel ────────────────────────────────────────────────────────────
-  Widget _buildFilterPanel() {
-    final hasDateRange = _dateRangeStart != null && _dateRangeEnd != null;
+  // ── Filter panel handlers ───────────────────────────────────────────────────
+  void _onSearchChanged(String val) {
+    setState(() => _searchQuery = val);
+    context.read<PaymentsBloc>().add(LoadPaymentsEvent(searchQuery: val));
+  }
 
-    return AppFilterContainer(
-      title: 'Search & Filter Payments',
-      titleIcon: Icons.payment,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Search
-          AppSearchField(
-            controller: _searchController,
-            hintText: 'Search by customer name...',
-            onChanged: (val) {
-              setState(() => _searchQuery = val);
-              context.read<PaymentsBloc>().add(
-                LoadPaymentsEvent(searchQuery: val),
-              );
-            },
-            onClear: () {
-              setState(() => _searchQuery = '');
-              context.read<PaymentsBloc>().add(const LoadPaymentsEvent());
-            },
-          ),
-          const SizedBox(height: 14),
-
-          // Date range row
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _pickDateRange,
-                icon: const Icon(Icons.date_range_rounded, size: 16),
-                label: Text(
-                  hasDateRange
-                      ? '${DateTimeUtils.formatDate(_dateRangeStart!)}  →  ${DateTimeUtils.formatDate(_dateRangeEnd!)}'
-                      : 'Select Date Range',
-                  style: const TextStyle(fontSize: 12.5),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-              if (hasDateRange)
-                IconButton(
-                  tooltip: 'Clear date range',
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  onPressed: () => setState(() {
-                    _dateRangeStart = null;
-                    _dateRangeEnd = null;
-                  }),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Status chips — fixed to spec values
-          Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              AppStatusChipGroup(
-                options: const ['paid', 'unpaid', 'partial'],
-                selected: _statusFilter,
-                // In AppStatusChipGroup onChanged:
-                onChanged: (val) {
-                  setState(() => _statusFilter = val);
-                  context.read<PaymentsBloc>().add(
-                    LoadPaymentsEvent(
-                      filterStatuses: val != null ? [val] : null, // null not []
-                      searchQuery: _searchQuery,
-                    ),
-                  );
-                },
-              ),
-              AppFilterBadge(count: _activeFilterCount),
-              AppClearFilterButton(
-                isVisible: _activeFilterCount > 0,
-                onClear: _clearFilters,
-              ),
-            ],
-          ),
-        ],
+  void _onStatusFilterChanged(String? val) {
+    setState(() => _statusFilter = val);
+    context.read<PaymentsBloc>().add(
+      LoadPaymentsEvent(
+        filterStatuses: val != null ? [val] : null,
+        searchQuery: _searchQuery,
       ),
     );
   }
@@ -242,7 +163,25 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     ],
 
                     // Filter panel
-                    _buildFilterPanel(),
+                    PaymentFilterPanel(
+                      searchController: _searchController,
+                      selectedStatus: _statusFilter,
+                      activeFilterCount: _activeFilterCount,
+                      hasDateRange:
+                          _dateRangeStart != null && _dateRangeEnd != null,
+                      dateRangeLabel:
+                          (_dateRangeStart != null && _dateRangeEnd != null)
+                              ? '${DateTimeUtils.formatDate(_dateRangeStart!)}  →  ${DateTimeUtils.formatDate(_dateRangeEnd!)}'
+                              : null,
+                      onSearchChanged: _onSearchChanged,
+                      onStatusChanged: _onStatusFilterChanged,
+                      onPickDateRange: _pickDateRange,
+                      onClearDateRange: () => setState(() {
+                        _dateRangeStart = null;
+                        _dateRangeEnd = null;
+                      }),
+                      onClearFilters: _clearFilters,
+                    ),
                     const SizedBox(height: 24),
 
                     // Payments list
@@ -253,7 +192,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             subtitle:
                                 'Modify filters or search term to discover records.',
                           )
-                        : ResponsiveLayout(
+                        : ResponsiveSwitcher(
                             mobile: PaymentCardList(
                               payments: state.payments,
                               isAdmin: authState.user.role == 'admin',
@@ -396,124 +335,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
   }
 
-  // ── Mobile: Payment cards ─────────────────────────────────────────────────
-  Widget _buildPaymentCards(List<PaymentModel> payments, bool isAdmin) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: payments.map((payment) {
-        final isPaid = payment.status == 'paid';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppTheme.lightGray.withValues(alpha: 0.6),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Customer name + status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      payment.customerName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  ),
-                  PaymentStatusBadge(status: payment.status),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Info chips
-              Wrap(
-                spacing: 16,
-                runSpacing: 6,
-                children: [
-                  if (isAdmin) ...[
-                    _infoChip(
-                      Icons.monetization_on,
-                      DateTimeUtils.formatCurrency(payment.amount),
-                    ),
-                    _infoChip(
-                      Icons.check_circle,
-                      'Paid: ${DateTimeUtils.formatCurrency(payment.paidAmount)}',
-                    ),
-                    _infoChip(
-                      Icons.warning_amber,
-                      'Due: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
-                      color: payment.remainingAmount > 0
-                          ? AppTheme.errorColor
-                          : AppTheme.successColor,
-                    ),
-                  ],
-                  if (payment.dueDate != null)
-                    _infoChip(
-                      Icons.calendar_today,
-                      DateTimeUtils.formatDate(payment.dueDate!),
-                    ),
-                  _infoChip(Icons.credit_card, payment.method ?? 'N/A'),
-                ],
-              ),
-
-              if (isAdmin && !isPaid) ...[
-                const SizedBox(height: 8),
-                const Divider(height: 1),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.payment, size: 16),
-                    label: const Text(
-                      'Record Payment',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    onPressed: () => _showRecordPaymentDialog(context, payment),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ── Info chip ─────────────────────────────────────────────────────────────
-  Widget _infoChip(IconData icon, String label, {Color? color}) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color ?? AppTheme.mediumGray),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: color ?? AppTheme.mediumGray,
-            fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-
   // ── Add payment dialog ────────────────────────────────────────────────────
   void _showAddPaymentDialog(BuildContext context) {
     context.read<CustomersBloc>().add(const LoadCustomersEvent());
@@ -535,9 +356,11 @@ class _PaymentsPageState extends State<PaymentsPage> {
         : <String>{};
 
     CustomerModel? selectedCustomer;
+    final isMobileDialog = Responsive.isMobile(context);
 
     showDialog(
       context: context,
+      useSafeArea: !isMobileDialog,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -559,14 +382,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   setDialogState(() {});
                 }
               },
-              child: AlertDialog(
-                title: const Text('Add Payment'),
-                content: Form(
-                  key: formKey,
-                  child: SizedBox(
-                    width: 450,
-                    child: SingleChildScrollView(
-                      child: Column(
+              child: Builder(builder: (context) {
+                final formContent = Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -744,100 +561,139 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             onChanged: (val) => notes = val,
                           ),
                         ],
+                      );
+
+                Future<void> submit() async {
+                  if (formKey.currentState!.validate()) {
+                    setDialogState(() => isSubmitting = true);
+
+                    final billingMonth =
+                        '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}';
+                    final customer = selectedCustomer!;
+                    final fullAmount = customer.monthlyBill.toDouble();
+                    final enteredAmount = double.parse(
+                      amountController.text.trim(),
+                    );
+                    final isPaidInFull = enteredAmount >= fullAmount;
+                    final currentBillingMonth = billingMonth;
+                    final nextDueDate = DateTime(
+                      paymentDate.year,
+                      paymentDate.month + 1,
+                      paymentDate.day,
+                    );
+
+                    final payment = PaymentModel(
+                      id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
+                      customerId: customer.id,
+                      customerName: customer.name,
+                      amount: fullAmount,
+                      paidAmount: enteredAmount,
+                      status: isPaidInFull ? 'paid' : 'partial',
+                      dueDate: nextDueDate,
+                      completedDate: isPaidInFull ? paymentDate : null,
+                      method: selectedMethod,
+                      notes: notes.isEmpty ? null : notes,
+                      billingMonth: currentBillingMonth,
+                      createdAt: DateTime.now(),
+                      paymentDate: paymentDate,
+                    );
+
+                    context.read<PaymentsBloc>().add(
+                      CreatePaymentEvent(payment),
+                    );
+
+                    // Only update nextDueDate on customer if fully paid
+                    if (isPaidInFull) {
+                      final updatedCustomer = customer.copyWith(
+                        nextDueDate: nextDueDate,
+                      );
+                      context.read<CustomersBloc>().add(
+                        UpdateCustomerEvent(updatedCustomer),
+                      );
+                    }
+
+                    await Future.delayed(const Duration(milliseconds: 800));
+                    if (!ctx.mounted) return;
+
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Payment recorded successfully!'),
+                        backgroundColor: AppTheme.successColor,
+                      ),
+                    );
+                  }
+                }
+
+                final saveIcon = isSubmitting
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check, size: 16);
+                final saveLabel = Text(
+                  isSubmitting ? 'Saving...' : 'Record Payment',
+                );
+
+                if (isMobileDialog) {
+                  return Dialog.fullscreen(
+                    child: Scaffold(
+                      appBar: AppBar(
+                        title: const Text('Add Payment'),
+                        leading: IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: isSubmitting
+                              ? null
+                              : () => Navigator.pop(ctx),
+                        ),
+                      ),
+                      body: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Form(key: formKey, child: formContent),
+                      ),
+                      bottomNavigationBar: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: ElevatedButton.icon(
+                            onPressed: isSubmitting ? null : submit,
+                            icon: saveIcon,
+                            label: saveLabel,
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
+                  );
+                }
+
+                return AlertDialog(
+                  title: const Text('Add Payment'),
+                  content: Form(
+                    key: formKey,
+                    child: SizedBox(
+                      width: 450,
+                      child: SingleChildScrollView(child: formContent),
+                    ),
                   ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: isSubmitting
-                        ? null
-                        : () async {
-                            if (formKey.currentState!.validate()) {
-                              setDialogState(() => isSubmitting = true);
-
-                              final billingMonth =
-                                  '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}';
-                              final customer = selectedCustomer!;
-                              final fullAmount = customer.monthlyBill
-                                  .toDouble();
-                              final enteredAmount = double.parse(
-                                amountController.text.trim(),
-                              );
-                              final isPaidInFull = enteredAmount >= fullAmount;
-                              final currentBillingMonth = billingMonth;
-                              final nextDueDate = DateTime(
-                                paymentDate.year,
-                                paymentDate.month + 1,
-                                paymentDate.day,
-                              );
-
-                              final payment = PaymentModel(
-                                id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
-                                customerId: customer.id,
-                                customerName: customer.name,
-                                amount: fullAmount,
-                                paidAmount: enteredAmount,
-                                status: isPaidInFull ? 'paid' : 'partial',
-                                dueDate: nextDueDate,
-                                completedDate: isPaidInFull
-                                    ? paymentDate
-                                    : null,
-                                method: selectedMethod,
-                                notes: notes.isEmpty ? null : notes,
-                                billingMonth: currentBillingMonth,
-                                createdAt: DateTime.now(),
-                                paymentDate: paymentDate,
-                              );
-
-                              context.read<PaymentsBloc>().add(
-                                CreatePaymentEvent(payment),
-                              );
-
-                              // Only update nextDueDate on customer if fully paid
-                              if (isPaidInFull) {
-                                final updatedCustomer = customer.copyWith(
-                                  nextDueDate: nextDueDate,
-                                );
-                                context.read<CustomersBloc>().add(
-                                  UpdateCustomerEvent(updatedCustomer),
-                                );
-                              }
-
-                              await Future.delayed(
-                                const Duration(milliseconds: 800),
-                              );
-                              if (!ctx.mounted) return;
-
-                              Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Payment recorded successfully!',
-                                  ),
-                                  backgroundColor: AppTheme.successColor,
-                                ),
-                              );
-                            }
-                          },
-                    icon: isSubmitting
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.check, size: 16),
-                    label: Text(isSubmitting ? 'Saving...' : 'Record Payment'),
-                  ),
-                ],
-              ),
+                  actions: [
+                    TextButton(
+                      onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: isSubmitting ? null : submit,
+                      icon: saveIcon,
+                      label: saveLabel,
+                    ),
+                  ],
+                );
+              }),
             );
           },
         );
@@ -854,100 +710,176 @@ class _PaymentsPageState extends State<PaymentsPage> {
     String selectedMethod = 'cash';
     String notes = '';
     bool isSubmitting = false;
+    final isMobileDialog = Responsive.isMobile(context);
+    final dialogTitle = 'Record Payment: ${payment.customerName}';
 
     showDialog(
       context: context,
+      useSafeArea: !isMobileDialog,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setState) {
+            Future<void> submit() async {
+              if (formKey.currentState!.validate()) {
+                setState(() => isSubmitting = true);
+                await Future.delayed(const Duration(milliseconds: 800));
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Payment of PKR ${amountController.text} logged via $selectedMethod!',
+                    ),
+                    backgroundColor: AppTheme.successColor,
+                  ),
+                );
+                final newPaid =
+                    payment.paidAmount + double.parse(amountController.text);
+                final updatedPayment = payment.copyWith(
+                  paidAmount: newPaid,
+                  status: newPaid >= payment.amount ? 'paid' : 'partial',
+                  completedDate: DateTime.now(),
+                  method: selectedMethod,
+                  notes: notes.isNotEmpty ? notes : null,
+                );
+                context.read<PaymentsBloc>().add(
+                  UpdatePaymentEvent(updatedPayment),
+                );
+              }
+            }
+
+            final formContent = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Billing Dues: ${DateTimeUtils.formatCurrency(payment.amount)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Outstanding Balance: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
+                  style: const TextStyle(
+                    color: AppTheme.errorColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const Divider(height: 24),
+                TextFormField(
+                  controller: amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Amount Received (PKR)',
+                    prefixText: 'PKR ',
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) {
+                      return 'Please enter an amount';
+                    }
+                    final val = double.tryParse(v);
+                    if (val == null || val <= 0) {
+                      return 'Please enter a valid positive number';
+                    }
+                    if (val > payment.remainingAmount) {
+                      return 'Amount cannot exceed outstanding balance';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedMethod,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Collection Method',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'cash',
+                      child: Text('Cash Collection'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'bankTransfer',
+                      child: Text('Direct Bank Transfer'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'easypaisa',
+                      child: Text('EasyPaisa Mobile Wallet'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'jazzcash',
+                      child: Text('JazzCash Mobile Wallet'),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => selectedMethod = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Collection Reference / Notes (Optional)',
+                    hintText: 'e.g. cheque number, transaction ID',
+                  ),
+                  onChanged: (val) => notes = val,
+                ),
+              ],
+            );
+
+            final saveIcon = isSubmitting
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check, size: 16);
+            final saveLabel = Text(
+              isSubmitting ? 'Recording...' : 'Record Receipt',
+            );
+
+            if (isMobileDialog) {
+              return Dialog.fullscreen(
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: Text(dialogTitle),
+                    leading: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                    ),
+                  ),
+                  body: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Form(key: formKey, child: formContent),
+                  ),
+                  bottomNavigationBar: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ElevatedButton.icon(
+                        onPressed: isSubmitting ? null : submit,
+                        icon: saveIcon,
+                        label: saveLabel,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
             return AlertDialog(
-              title: Text('Record Payment: ${payment.customerName}'),
+              title: Text(dialogTitle),
               content: Form(
                 key: formKey,
                 child: SizedBox(
                   width: 450,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total Billing Dues: ${DateTimeUtils.formatCurrency(payment.amount)}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Outstanding Balance: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
-                          style: const TextStyle(
-                            color: AppTheme.errorColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const Divider(height: 24),
-                        TextFormField(
-                          controller: amountController,
-                          decoration: const InputDecoration(
-                            labelText: 'Payment Amount Received (PKR)',
-                            prefixText: 'PKR ',
-                          ),
-                          keyboardType: TextInputType.number,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'Please enter an amount';
-                            }
-                            final val = double.tryParse(v);
-                            if (val == null || val <= 0) {
-                              return 'Please enter a valid positive number';
-                            }
-                            if (val > payment.remainingAmount) {
-                              return 'Amount cannot exceed outstanding balance';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          value: selectedMethod,
-                          decoration: const InputDecoration(
-                            labelText: 'Payment Collection Method',
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'cash',
-                              child: Text('Cash Collection'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'bankTransfer',
-                              child: Text('Direct Bank Transfer'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'easypaisa',
-                              child: Text('EasyPaisa Mobile Wallet'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'jazzcash',
-                              child: Text('JazzCash Mobile Wallet'),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => selectedMethod = val);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          decoration: const InputDecoration(
-                            labelText:
-                                'Collection Reference / Notes (Optional)',
-                            hintText: 'e.g. cheque number, transaction ID',
-                          ),
-                          onChanged: (val) => notes = val,
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: SingleChildScrollView(child: formContent),
                 ),
               ),
               actions: [
@@ -956,52 +888,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          if (formKey.currentState!.validate()) {
-                            setState(() => isSubmitting = true);
-                            await Future.delayed(
-                              const Duration(milliseconds: 800),
-                            );
-                            if (!ctx.mounted) return;
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Payment of PKR ${amountController.text} logged via $selectedMethod!',
-                                ),
-                                backgroundColor: AppTheme.successColor,
-                              ),
-                            );
-                            final newPaid =
-                                payment.paidAmount +
-                                double.parse(amountController.text);
-                            final updatedPayment = payment.copyWith(
-                              paidAmount: newPaid,
-                              status: newPaid >= payment.amount
-                                  ? 'paid'
-                                  : 'partial',
-                              completedDate: DateTime.now(),
-                              method: selectedMethod,
-                              notes: notes.isNotEmpty ? notes : null,
-                            );
-                            context.read<PaymentsBloc>().add(
-                              UpdatePaymentEvent(updatedPayment),
-                            );
-                          }
-                        },
-                  icon: isSubmitting
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check, size: 16),
-                  label: Text(isSubmitting ? 'Recording...' : 'Record Receipt'),
+                  onPressed: isSubmitting ? null : submit,
+                  icon: saveIcon,
+                  label: saveLabel,
                 ),
               ],
             );

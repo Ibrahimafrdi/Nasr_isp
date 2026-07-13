@@ -22,6 +22,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
         notes: e.notes,
         billingMonth: e.billingMonth,
         createdAt: e.createdAt,
+        paymentDate: e.paymentDate,
       );
 
   @override
@@ -47,6 +48,10 @@ class PaymentRepositoryImpl implements PaymentRepository {
       dateRangeEnd: dateRangeEnd,
     );
   }
+
+  @override
+  Future<List<PaymentEntity>> getAllPayments() =>
+      remoteDataSource.getAllPayments();
 
   @override
   Future<int> getTotalPaymentsCount() =>

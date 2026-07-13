@@ -4,6 +4,7 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_fonts.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'breadcrumbs.dart';
 
 class SidebarSubItem {
@@ -558,6 +559,7 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
     return AppBar(
       elevation: 0,
       backgroundColor: AppColors.white,
@@ -565,12 +567,13 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
       title: Text(
         title,
         style: AppFonts.headlineMedium.copyWith(fontWeight: AppFonts.bold),
+        overflow: TextOverflow.ellipsis,
       ),
       actions: [
         if (actions != null) ...actions!,
         if (currentUser != null)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16),
             child: Center(
               child: Tooltip(
                 message: '${currentUser!.name} (${currentUser!.role})',
@@ -590,26 +593,30 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          currentUser!.name,
-                          style: AppFonts.labelMedium.copyWith(
-                            fontWeight: AppFonts.semiBold,
+                    // Name/role hidden on mobile — the avatar + tooltip is
+                    // enough, and the space is needed for the title/menu icon.
+                    if (!isMobile) ...[
+                      const SizedBox(width: 10),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            currentUser!.name,
+                            style: AppFonts.labelMedium.copyWith(
+                              fontWeight: AppFonts.semiBold,
+                            ),
                           ),
-                        ),
-                        Text(
-                          currentUser!.role.toUpperCase(),
-                          style: AppFonts.labelSmall.copyWith(
-                            color: AppColors.mediumGray,
-                            fontSize: 9,
+                          Text(
+                            currentUser!.role.toUpperCase(),
+                            style: AppFonts.labelSmall.copyWith(
+                              color: AppColors.mediumGray,
+                              fontSize: 9,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

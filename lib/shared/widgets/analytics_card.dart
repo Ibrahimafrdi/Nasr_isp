@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 
 /// Redesigned Analytics Section containing the 4 required charts:
 /// - Revenue Analytics (Area Chart)
@@ -32,6 +33,19 @@ class AnalyticsSection extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool isWide = constraints.maxWidth >= 1100;
+        final deviceType = Responsive.deviceTypeForWidth(constraints.maxWidth);
+        double chartHeight;
+        switch (deviceType) {
+          case DeviceType.mobile:
+            chartHeight = 200;
+            break;
+          case DeviceType.tablet:
+            chartHeight = 260;
+            break;
+          case DeviceType.desktop:
+            chartHeight = 330;
+            break;
+        }
 
         if (isWide) {
           return Column(
@@ -40,12 +54,17 @@ class AnalyticsSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: RevenueChartCard(monthlyRevenue6: monthlyRevenue6),
+                    child: RevenueChartCard(
+                      monthlyRevenue6: monthlyRevenue6,
+                      height: chartHeight,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.lg),
                   Expanded(
                     child: CustomerGrowthChartCard(
-                        customerGrowth6: customerGrowth6),
+                      customerGrowth6: customerGrowth6,
+                      height: chartHeight,
+                    ),
                   ),
                 ],
               ),
@@ -55,12 +74,16 @@ class AnalyticsSection extends StatelessWidget {
                 children: [
                   Expanded(
                     child: PackageDistributionChartCard(
-                        connectionTypeDist: connectionTypeDist),
+                      connectionTypeDist: connectionTypeDist,
+                      height: chartHeight,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.lg),
                   Expanded(
                     child: PaymentStatisticsChartCard(
-                        paymentByMethod: paymentByMethod),
+                      paymentByMethod: paymentByMethod,
+                      height: chartHeight,
+                    ),
                   ),
                 ],
               ),
@@ -69,14 +92,25 @@ class AnalyticsSection extends StatelessWidget {
         } else {
           return Column(
             children: [
-              RevenueChartCard(monthlyRevenue6: monthlyRevenue6),
+              RevenueChartCard(
+                monthlyRevenue6: monthlyRevenue6,
+                height: chartHeight,
+              ),
               const SizedBox(height: AppSpacing.lg),
-              CustomerGrowthChartCard(customerGrowth6: customerGrowth6),
+              CustomerGrowthChartCard(
+                customerGrowth6: customerGrowth6,
+                height: chartHeight,
+              ),
               const SizedBox(height: AppSpacing.lg),
               PackageDistributionChartCard(
-                  connectionTypeDist: connectionTypeDist),
+                connectionTypeDist: connectionTypeDist,
+                height: chartHeight,
+              ),
               const SizedBox(height: AppSpacing.lg),
-              PaymentStatisticsChartCard(paymentByMethod: paymentByMethod),
+              PaymentStatisticsChartCard(
+                paymentByMethod: paymentByMethod,
+                height: chartHeight,
+              ),
             ],
           );
         }
@@ -91,6 +125,7 @@ class BaseChartCard extends StatelessWidget {
   final String? subtitle;
   final Widget chart;
   final List<Widget>? footer;
+  final double height;
 
   const BaseChartCard({
     Key? key,
@@ -98,12 +133,13 @@ class BaseChartCard extends StatelessWidget {
     this.subtitle,
     required this.chart,
     this.footer,
+    this.height = 330,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 330,
+      height: height,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -170,9 +206,13 @@ class BaseChartCard extends StatelessWidget {
 
 class RevenueChartCard extends StatelessWidget {
   final List<double> monthlyRevenue6;
+  final double height;
 
-  const RevenueChartCard({Key? key, required this.monthlyRevenue6})
-      : super(key: key);
+  const RevenueChartCard({
+    Key? key,
+    required this.monthlyRevenue6,
+    this.height = 330,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -200,6 +240,7 @@ class RevenueChartCard extends StatelessWidget {
     return BaseChartCard(
       title: 'Revenue Analytics',
       subtitle: 'Monthly collected payments (PKR) — last 6 months',
+      height: height,
       chart: LineChart(
         LineChartData(
           gridData: FlGridData(
@@ -298,9 +339,13 @@ class RevenueChartCard extends StatelessWidget {
 
 class CustomerGrowthChartCard extends StatelessWidget {
   final List<double> customerGrowth6;
+  final double height;
 
-  const CustomerGrowthChartCard({Key? key, required this.customerGrowth6})
-      : super(key: key);
+  const CustomerGrowthChartCard({
+    Key? key,
+    required this.customerGrowth6,
+    this.height = 330,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +377,7 @@ class CustomerGrowthChartCard extends StatelessWidget {
     return BaseChartCard(
       title: 'Customer Growth',
       subtitle: 'Cumulative active subscribers by month',
+      height: height,
       chart: LineChart(
         LineChartData(
           gridData: FlGridData(
@@ -430,10 +476,13 @@ class CustomerGrowthChartCard extends StatelessWidget {
 
 class PackageDistributionChartCard extends StatelessWidget {
   final Map<String, int> connectionTypeDist;
+  final double height;
 
-  const PackageDistributionChartCard(
-      {Key? key, required this.connectionTypeDist})
-      : super(key: key);
+  const PackageDistributionChartCard({
+    Key? key,
+    required this.connectionTypeDist,
+    this.height = 330,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -447,6 +496,7 @@ class PackageDistributionChartCard extends StatelessWidget {
     return BaseChartCard(
       title: 'Connection Distribution',
       subtitle: 'Wireless vs Fiber active subscribers',
+      height: height,
       chart: total == 0
           ? Center(
               child: Text(
@@ -517,10 +567,13 @@ class PackageDistributionChartCard extends StatelessWidget {
 
 class PaymentStatisticsChartCard extends StatelessWidget {
   final Map<String, double> paymentByMethod;
+  final double height;
 
-  const PaymentStatisticsChartCard(
-      {Key? key, required this.paymentByMethod})
-      : super(key: key);
+  const PaymentStatisticsChartCard({
+    Key? key,
+    required this.paymentByMethod,
+    this.height = 330,
+  }) : super(key: key);
 
   String _displayName(String method) {
     switch (method.toLowerCase().trim()) {
@@ -553,6 +606,7 @@ class PaymentStatisticsChartCard extends StatelessWidget {
     return BaseChartCard(
       title: 'Payment by Method',
       subtitle: 'Total collected (PKR) per payment method',
+      height: height,
       chart: methods.isEmpty
           ? Center(
               child: Text(

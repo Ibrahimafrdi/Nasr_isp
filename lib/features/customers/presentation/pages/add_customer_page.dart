@@ -14,11 +14,12 @@ import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:uuid/uuid.dart';
 
 class AddCustomerPage extends StatefulWidget {
   final String? customerId;
 
-  const AddCustomerPage({Key? key, this.customerId}) : super(key: key);
+  const AddCustomerPage({super.key, this.customerId});
 
   @override
   State<AddCustomerPage> createState() => _AddCustomerPageState();
@@ -42,6 +43,11 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   String? _existingStatus;
   DateTime? _existingCreatedAt;
 
+  // True whenever we're editing an existing customer and haven't yet
+  // confirmed their real status/createdAt — saving in this window would
+  // silently fall back to 'active'/now and corrupt those fields.
+  bool _isLoadingExisting = false;
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +58,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     _monthlyBillController = TextEditingController();
     // _installationCostController = TextEditingController();
     _notesController = TextEditingController();
+    _isLoadingExisting = widget.customerId != null;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCustomerData();
@@ -94,8 +101,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
             );
             _fillForm(customer);
           } catch (_) {
-            // Customer truly not found
+            // Customer truly not found — stop blocking Save on a load that
+            // will never resolve; _saveForm still guards on _existingStatus.
+            setState(() => _isLoadingExisting = false);
           }
+        } else {
+          setState(() => _isLoadingExisting = false);
         }
       });
     });
@@ -117,6 +128,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       _existingStatus = customer.status;
       _existingCreatedAt = customer.createdAt;
       if (customer.joinDate != null) _joinDate = customer.joinDate!;
+      _isLoadingExisting = false;
     });
   }
 
@@ -159,6 +171,16 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   }
 
   void _saveForm() async {
+    if (widget.customerId != null && _isLoadingExisting) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for the customer data to finish loading.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
       await Future.delayed(const Duration(milliseconds: 500));
@@ -170,8 +192,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         _joinDate.day,
       );
 
-      final customerId =
-          widget.customerId ?? 'cust_${DateTime.now().millisecondsSinceEpoch}';
+      final customerId = widget.customerId ?? const Uuid().v4();
 
       final newCustomer = CustomerModel(
         id: customerId,
@@ -198,7 +219,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         final billingMonth =
             '${_joinDate.year}-${_joinDate.month.toString().padLeft(2, '0')}';
         final firstPayment = PaymentModel(
-          id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
+          id: const Uuid().v4(),
           customerId: customerId,
           customerName: newCustomer.name,
           amount: newCustomer.monthlyBill,
@@ -446,7 +467,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                             DropdownButtonFormField<
                                               ConnectionType
                                             >(
-                                              value: _selectedConnectionType,
+                                              initialValue:
+                                                  _selectedConnectionType,
                                               decoration: const InputDecoration(
                                                 labelText: 'Connection Type',
                                               ),
@@ -469,10 +491,17 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                             ),
                                             const SizedBox(height: 16),
                                             DropdownButtonFormField<String>(
-                                              value: _selectedPackageId,
+                                              initialValue: availablePackages
+                                                      .any((p) =>
+                                                          p.id ==
+                                                          _selectedPackageId)
+                                                  ? _selectedPackageId
+                                                  : null,
                                               decoration: const InputDecoration(
                                                 labelText: 'Select Package',
                                               ),
+                                              hint:
+                                                  const Text('Select Package'),
                                               items: availablePackages.map((
                                                 pkg,
                                               ) {
@@ -492,7 +521,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                   DropdownButtonFormField<
                                                     ConnectionType
                                                   >(
-                                                    value:
+                                                    initialValue:
                                                         _selectedConnectionType,
                                                     decoration:
                                                         const InputDecoration(
@@ -525,12 +554,22 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                   DropdownButtonFormField<
                                                     String
                                                   >(
-                                                    value: _selectedPackageId,
+                                                    initialValue:
+                                                        availablePackages.any(
+                                                          (p) =>
+                                                              p.id ==
+                                                              _selectedPackageId,
+                                                        )
+                                                            ? _selectedPackageId
+                                                            : null,
                                                     decoration:
                                                         const InputDecoration(
                                                           labelText:
                                                               'Select Package',
                                                         ),
+                                                    hint: const Text(
+                                                      'Select Package',
+                                                    ),
                                                     items: availablePackages.map(
                                                       (pkg) {
                                                         return DropdownMenuItem(
@@ -582,12 +621,16 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                       ),
                                       const SizedBox(width: 16),
                                       ElevatedButton.icon(
-                                        onPressed: _isSaving ? null : _saveForm,
+                                        onPressed: (_isSaving || _isLoadingExisting)
+                                            ? null
+                                            : _saveForm,
                                         icon: const Icon(Icons.save),
                                         label: Text(
                                           _isSaving
                                               ? "Saving..."
-                                              : "Save Configuration",
+                                              : (_isLoadingExisting
+                                                  ? "Loading..."
+                                                  : "Save Configuration"),
                                         ),
                                       ),
                                     ],

@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/constants/inventory_catalog.dart';
 import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
-import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
 import 'package:nasr_isp/features/inventory/domain/entities/stock_movement_entity.dart';
 import 'package:nasr_isp/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:nasr_isp/features/inventory/presentation/widgets/inventory_card_list.dart';
 import 'package:nasr_isp/features/inventory/presentation/widgets/inventory_filter_panel.dart';
-import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
-import 'package:nasr_isp/shared/widgets/reusable_filter_components.dart';
 
 class InventoryPage extends StatelessWidget {
   const InventoryPage({Key? key}) : super(key: key);
@@ -40,6 +38,7 @@ class _InventoryView extends StatefulWidget {
 class _InventoryViewState extends State<_InventoryView> {
   late TextEditingController _searchController;
   InventoryCategory? _selectedCategory;
+  InventoryConnectionType? _selectedConnectionType;
 
   @override
   void initState() {
@@ -57,6 +56,7 @@ class _InventoryViewState extends State<_InventoryView> {
     setState(() {
       _searchController.clear();
       _selectedCategory = null;
+      _selectedConnectionType = null;
     });
   }
 
@@ -89,6 +89,8 @@ class _InventoryViewState extends State<_InventoryView> {
     final notesController = TextEditingController(text: existing?.notes ?? '');
     InventoryCategory category =
         existing?.category ?? InventoryCategory.equipment;
+    InventoryConnectionType? connectionType = existing?.connectionType;
+    bool isSaving = false;
 
     showDialog(
       context: pageContext,
@@ -112,14 +114,71 @@ class _InventoryViewState extends State<_InventoryView> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        AppFormField(
-                          label: 'Item Name',
-                          controller: nameController,
-                          hintText: 'e.g. TP-Link Router AC1200',
-                          isRequired: true,
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Name required' : null,
-                        ),
+                        if (existing == null)
+                          Autocomplete<InventoryCatalogEntry>(
+                            optionsBuilder: (textEditingValue) {
+                              if (textEditingValue.text.isEmpty) {
+                                return kInventoryCatalog;
+                              }
+                              final query = textEditingValue.text
+                                  .toLowerCase();
+                              return kInventoryCatalog.where(
+                                (entry) =>
+                                    entry.name.toLowerCase().contains(query),
+                              );
+                            },
+                            displayStringForOption: (entry) => entry.name,
+                            fieldViewBuilder:
+                                (ctx, textController, focusNode, _) {
+                              if (textController.text.isEmpty &&
+                                  nameController.text.isNotEmpty) {
+                                textController.text = nameController.text;
+                              }
+                              return TextFormField(
+                                controller: textController,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Item Name',
+                                  hintText:
+                                      'Pick from catalog or type a new item',
+                                  suffixIcon: Icon(Icons.search, size: 18),
+                                ),
+                                validator: (v) => v == null || v.isEmpty
+                                    ? 'Name required'
+                                    : null,
+                                onChanged: (v) => nameController.text = v,
+                              );
+                            },
+                            onSelected: (entry) {
+                              nameController.text = entry.name;
+                              setDialogState(() {
+                                category = entry.category;
+                                connectionType = entry.connectionType;
+                                unitController.text = entry.unit;
+                                unitCostController.text = entry.unitCost
+                                    .toString();
+                                if (quantityController.text.isEmpty) {
+                                  quantityController.text = entry
+                                      .quantityInStock
+                                      .toString();
+                                }
+                                if (reorderController.text.isEmpty) {
+                                  reorderController.text = entry.reorderLevel
+                                      .toString();
+                                }
+                              });
+                            },
+                          )
+                        else
+                          AppFormField(
+                            label: 'Item Name',
+                            controller: nameController,
+                            hintText: 'e.g. TP-Link Router AC1200',
+                            isRequired: true,
+                            validator: (v) => v == null || v.isEmpty
+                                ? 'Name required'
+                                : null,
+                          ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<InventoryCategory>(
                           value: category,
@@ -138,6 +197,27 @@ class _InventoryViewState extends State<_InventoryView> {
                             if (val != null)
                               setDialogState(() => category = val);
                           },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<InventoryConnectionType?>(
+                          value: connectionType,
+                          decoration: const InputDecoration(
+                            labelText: 'Used For (Wireless / Fiber)',
+                          ),
+                          items: [
+                            const DropdownMenuItem<InventoryConnectionType?>(
+                              value: null,
+                              child: Text('Unspecified'),
+                            ),
+                            ...InventoryConnectionType.values.map(
+                              (c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(c.label),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setDialogState(() => connectionType = val),
                         ),
                         const SizedBox(height: 16),
                         AppFormField(
@@ -214,49 +294,73 @@ class _InventoryViewState extends State<_InventoryView> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                   child: const Text(
                     'Cancel',
                     style: TextStyle(color: AppTheme.mediumGray),
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    if (!formKey.currentState!.validate()) return;
-                    final now = DateTime.now();
-                    final item = InventoryItemEntity(
-                      id: existing?.id ?? now.millisecondsSinceEpoch.toString(),
-                      name: nameController.text.trim(),
-                      category: category,
-                      unit: unitController.text.trim(),
-                      quantityInStock: int.parse(quantityController.text),
-                      reorderLevel: int.parse(reorderController.text),
-                      unitCost: double.parse(unitCostController.text),
-                      supplier: supplierController.text.trim().isEmpty
-                          ? null
-                          : supplierController.text.trim(),
-                      notes: notesController.text.trim().isEmpty
-                          ? null
-                          : notesController.text.trim(),
-                      createdAt: existing?.createdAt ?? now,
-                      updatedAt: now,
-                    );
-                    if (existing == null) {
-                      bloc.add(AddInventoryItemEvent(item));
-                    } else {
-                      bloc.add(UpdateInventoryItemEvent(item));
-                    }
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(pageContext).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          existing == null ? 'Item added' : 'Item updated',
-                        ),
-                        backgroundColor: AppTheme.successColor,
-                      ),
-                    );
-                  },
-                  child: const Text('Save'),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSaving = true);
+
+                          final now = DateTime.now();
+                          final item = InventoryItemEntity(
+                            id: existing?.id ?? const Uuid().v4(),
+                            name: nameController.text.trim(),
+                            category: category,
+                            unit: unitController.text.trim(),
+                            quantityInStock: int.parse(quantityController.text),
+                            reorderLevel: int.parse(reorderController.text),
+                            unitCost: double.parse(unitCostController.text),
+                            supplier: supplierController.text.trim().isEmpty
+                                ? null
+                                : supplierController.text.trim(),
+                            notes: notesController.text.trim().isEmpty
+                                ? null
+                                : notesController.text.trim(),
+                            createdAt: existing?.createdAt ?? now,
+                            updatedAt: now,
+                            connectionType: connectionType,
+                          );
+                          if (existing == null) {
+                            bloc.add(AddInventoryItemEvent(item));
+                          } else {
+                            bloc.add(UpdateInventoryItemEvent(item));
+                          }
+
+                          final result = await bloc.stream.firstWhere(
+                            (s) => s is InventoryLoaded || s is InventoryError,
+                          );
+
+                          if (!pageContext.mounted) return;
+
+                          if (result is InventoryError) {
+                            setDialogState(() => isSaving = false);
+                            ScaffoldMessenger.of(pageContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Failed to save item: ${result.message}'),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(pageContext).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                existing == null ? 'Item added' : 'Item updated',
+                              ),
+                              backgroundColor: AppTheme.successColor,
+                            ),
+                          );
+                        },
+                  child: Text(isSaving ? 'Saving...' : 'Save'),
                 ),
               ],
             );
@@ -277,6 +381,7 @@ class _InventoryViewState extends State<_InventoryView> {
     final qtyController = TextEditingController();
     StockMovementType type = StockMovementType.stockIn;
     String reason = 'Purchase';
+    bool isSaving = false;
 
     const reasons = [
       'Purchase',
@@ -369,38 +474,61 @@ class _InventoryViewState extends State<_InventoryView> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                   child: const Text(
                     'Cancel',
                     style: TextStyle(color: AppTheme.mediumGray),
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    if (!formKey.currentState!.validate()) return;
-                    final authState = pageContext.read<AuthBloc>().state;
-                    final userId = authState is AuthAuthenticated
-                        ? authState.user.id
-                        : 'unknown';
-                    final movement = StockMovementEntity(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      itemId: item.id,
-                      type: type,
-                      quantity: int.parse(qtyController.text),
-                      reason: reason,
-                      date: DateTime.now(),
-                      performedBy: userId,
-                    );
-                    bloc.add(AddStockMovementEvent(item.id, movement));
-                    Navigator.pop(dialogContext);
-                    ScaffoldMessenger.of(pageContext).showSnackBar(
-                      const SnackBar(
-                        content: Text('Stock updated'),
-                        backgroundColor: AppTheme.successColor,
-                      ),
-                    );
-                  },
-                  child: const Text('Save'),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSaving = true);
+
+                          final authState = pageContext.read<AuthBloc>().state;
+                          final userId = authState is AuthAuthenticated
+                              ? authState.user.id
+                              : 'unknown';
+                          final movement = StockMovementEntity(
+                            id: const Uuid().v4(),
+                            itemId: item.id,
+                            type: type,
+                            quantity: int.parse(qtyController.text),
+                            reason: reason,
+                            date: DateTime.now(),
+                            performedBy: userId,
+                          );
+                          bloc.add(AddStockMovementEvent(item.id, movement));
+
+                          final result = await bloc.stream.firstWhere(
+                            (s) => s is InventoryLoaded || s is InventoryError,
+                          );
+
+                          if (!pageContext.mounted) return;
+
+                          if (result is InventoryError) {
+                            setDialogState(() => isSaving = false);
+                            ScaffoldMessenger.of(pageContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Failed to update stock: ${result.message}'),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(pageContext).showSnackBar(
+                            const SnackBar(
+                              content: Text('Stock updated'),
+                              backgroundColor: AppTheme.successColor,
+                            ),
+                          );
+                        },
+                  child: Text(isSaving ? 'Saving...' : 'Save'),
                 ),
               ],
             );
@@ -412,30 +540,66 @@ class _InventoryViewState extends State<_InventoryView> {
 
   void _confirmDelete(BuildContext pageContext, InventoryItemEntity item) {
     final bloc = pageContext.read<InventoryBloc>();
+    bool isDeleting = false;
     showDialog(
       context: pageContext,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Item'),
-        content: Text(
-          'Delete "${item.name}" and all its stock history? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
-            ),
-            onPressed: () {
-              bloc.add(DeleteInventoryItemEvent(item.id));
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Delete Item'),
+              content: Text(
+                'Delete "${item.name}" and all its stock history? This cannot be undone.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isDeleting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor,
+                  ),
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          setDialogState(() => isDeleting = true);
+                          bloc.add(DeleteInventoryItemEvent(item.id));
+
+                          final result = await bloc.stream.firstWhere(
+                            (s) => s is InventoryLoaded || s is InventoryError,
+                          );
+
+                          if (!pageContext.mounted) return;
+
+                          if (result is InventoryError) {
+                            setDialogState(() => isDeleting = false);
+                            ScaffoldMessenger.of(pageContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Failed to delete item: ${result.message}'),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(pageContext).showSnackBar(
+                            const SnackBar(
+                              content: Text('Item deleted'),
+                              backgroundColor: AppTheme.successColor,
+                            ),
+                          );
+                        },
+                  child: Text(isDeleting ? 'Deleting...' : 'Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -659,7 +823,10 @@ class _InventoryViewState extends State<_InventoryView> {
               final matchesCategory =
                   _selectedCategory == null ||
                   item.category == _selectedCategory;
-              return matchesSearch && matchesCategory;
+              final matchesConnectionType = _selectedConnectionType == null ||
+                  item.connectionType == _selectedConnectionType ||
+                  item.connectionType == InventoryConnectionType.both;
+              return matchesSearch && matchesCategory && matchesConnectionType;
             }).toList();
 
             final totalEquipment = allItems
@@ -763,11 +930,15 @@ class _InventoryViewState extends State<_InventoryView> {
                   InventoryFilterPanel(
                     searchController: _searchController,
                     selectedCategory: _selectedCategory,
+                    selectedConnectionType: _selectedConnectionType,
                     activeFilterCount: (_selectedCategory != null ? 1 : 0) +
+                        (_selectedConnectionType != null ? 1 : 0) +
                         (_searchController.text.isNotEmpty ? 1 : 0),
                     categoryLabel: _categoryLabel,
                     onSearchChanged: (_) => setState(() {}),
                     onCategoryChanged: (cat) => setState(() => _selectedCategory = cat),
+                    onConnectionTypeChanged: (type) =>
+                        setState(() => _selectedConnectionType = type),
                     onClearFilters: _clearFilters,
                   ),
                   const SizedBox(height: 24),
@@ -799,6 +970,7 @@ class _InventoryViewState extends State<_InventoryView> {
                             columns: const [
                               DataColumn(label: Text('Name')),
                               DataColumn(label: Text('Category')),
+                              DataColumn(label: Text('Used For')),
                               DataColumn(label: Text('Quantity')),
                               DataColumn(label: Text('Reorder Level')),
                               DataColumn(label: Text('Unit Cost')),
@@ -829,6 +1001,9 @@ class _InventoryViewState extends State<_InventoryView> {
                                     onTap: () => _showItemDetail(context, item),
                                   ),
                                   DataCell(Text(_categoryLabel(item.category))),
+                                  DataCell(
+                                    Text(item.connectionType?.label ?? '—'),
+                                  ),
                                   DataCell(
                                     Text(
                                       '${item.quantityInStock} ${item.unit}',

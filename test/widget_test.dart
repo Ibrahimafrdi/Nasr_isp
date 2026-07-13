@@ -29,7 +29,6 @@ import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart
 import 'package:nasr_isp/features/employees/domain/usecases/get_employees.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/add_employee.dart';
 import 'package:nasr_isp/features/employees/domain/usecases/update_employee.dart';
-import 'package:nasr_isp/features/employees/domain/usecases/delete_employee.dart';
 import 'package:nasr_isp/features/expenses/presentation/bloc/expenses_bloc.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
 import 'package:nasr_isp/features/reports/presentation/bloc/reports_bloc.dart';
@@ -54,6 +53,7 @@ import 'package:nasr_isp/features/installations/domain/usecases/update_installat
 import 'package:nasr_isp/features/payments/domain/repositories/payment_repository.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payment_by_customer_and_month.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -109,6 +109,7 @@ class FakePackageRepository implements PackageRepository {
         name: '',
         speedMbps: 0,
         price: 0,
+        costPrice: 0,
         connectionType: ConnectionType.wireless,
         isActive: false,
         createdAt: DateTime.now(),
@@ -133,6 +134,8 @@ class FakePaymentRepository implements PaymentRepository {
     DateTime? dateRangeEnd,
   }) async =>
       [];
+  @override
+  Future<List<PaymentEntity>> getAllPayments() async => [];
   @override
   Future<void> updatePayment(PaymentEntity payment) async {}
   @override
@@ -196,8 +199,6 @@ class FakeEmployeeRepository implements EmployeeRepository {
   Future<List<EmployeeEntity>> getEmployees() async => [];
   @override
   Future<void> updateEmployee(EmployeeEntity employee) async {}
-  @override
-  Future<void> deleteEmployee(String id) async {}
 }
 
 void main() {
@@ -221,17 +222,22 @@ void main() {
     final deletePackage = DeletePackage(packageRepo);
 
     final getPayments = GetPayments(paymentRepo);
+    final getAllPayments = GetAllPayments(paymentRepo);
     final addPayment = AddPayment(paymentRepo);
     final updatePayment = UpdatePayment(paymentRepo);
     final getPaymentByCustomerAndMonth =
         GetPaymentByCustomerAndMonth(paymentRepo);
     final getExpenses = GetExpenses(expenseRepo);
 
+    final installationRepo = FakeInstallationRepository();
+    final getInstallations = GetInstallations(installationRepo);
+
     getIt.registerSingleton<AuthBloc>(AuthBloc(authRepository: authRepo));
     getIt.registerSingleton<DashboardBloc>(DashboardBloc(
       getCustomers: getCustomers,
-      getPayments: getPayments,
+      getAllPayments: getAllPayments,
       getExpenses: getExpenses,
+      getInstallations: getInstallations,
     ));
     getIt.registerSingleton<CustomersBloc>(CustomersBloc(
       getCustomers: getCustomers,
@@ -257,8 +263,6 @@ void main() {
     final updateExpense = UpdateExpense(expenseRepo);
     final deleteExpense = DeleteExpense(expenseRepo);
 
-    final installationRepo = FakeInstallationRepository();
-    final getInstallations = GetInstallations(installationRepo);
     final createInstallation = CreateInstallation(installationRepo);
     final updateInstallation = UpdateInstallation(installationRepo);
     final deleteInstallation = DeleteInstallation(installationRepo);
@@ -278,7 +282,6 @@ void main() {
     final getEmployees = GetEmployees(employeeRepo);
     final addEmployee = AddEmployee(employeeRepo);
     final updateEmployee = UpdateEmployee(employeeRepo);
-    final deleteEmployee = DeleteEmployee(employeeRepo);
 
     getIt.registerSingleton<ExpensesBloc>(ExpensesBloc(
       getExpenses: getExpenses,
@@ -291,7 +294,6 @@ void main() {
       getEmployees: getEmployees,
       addEmployee: addEmployee,
       updateEmployee: updateEmployee,
-      deleteEmployee: deleteEmployee,
       getInstallations: getInstallations,
     ));
     getIt.registerSingleton<InstallationBloc>(InstallationBloc(

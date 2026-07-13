@@ -24,6 +24,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
       notes: item.notes,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      connectionType: item.connectionType,
     );
     await remoteDataSource.addInventoryItem(model);
   }
@@ -47,6 +48,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
       notes: item.notes,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      connectionType: item.connectionType,
     );
     await remoteDataSource.updateInventoryItem(model);
   }
