@@ -83,13 +83,17 @@ class _InventoryViewState extends State<_InventoryView> {
     final unitCostController = TextEditingController(
       text: existing != null ? existing.unitCost.toString() : '',
     );
+    final sellPriceController = TextEditingController(
+      text: existing != null ? existing.sellPrice.toString() : '',
+    );
     final supplierController = TextEditingController(
       text: existing?.supplier ?? '',
     );
     final notesController = TextEditingController(text: existing?.notes ?? '');
     InventoryCategory category =
         existing?.category ?? InventoryCategory.equipment;
-    InventoryConnectionType? connectionType = existing?.connectionType;
+    InventoryConnectionType connectionType =
+        existing?.connectionType ?? InventoryConnectionType.both;
     bool isSaving = false;
 
     showDialog(
@@ -157,6 +161,10 @@ class _InventoryViewState extends State<_InventoryView> {
                                 unitController.text = entry.unit;
                                 unitCostController.text = entry.unitCost
                                     .toString();
+                                if (sellPriceController.text.isEmpty) {
+                                  sellPriceController.text = entry.unitCost
+                                      .toString();
+                                }
                                 if (quantityController.text.isEmpty) {
                                   quantityController.text = entry
                                       .quantityInStock
@@ -199,25 +207,24 @@ class _InventoryViewState extends State<_InventoryView> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<InventoryConnectionType?>(
+                        DropdownButtonFormField<InventoryConnectionType>(
                           value: connectionType,
                           decoration: const InputDecoration(
-                            labelText: 'Used For (Wireless / Fiber)',
+                            labelText: 'Applicable To',
                           ),
-                          items: [
-                            const DropdownMenuItem<InventoryConnectionType?>(
-                              value: null,
-                              child: Text('Unspecified'),
-                            ),
-                            ...InventoryConnectionType.values.map(
-                              (c) => DropdownMenuItem(
-                                value: c,
-                                child: Text(c.label),
-                              ),
-                            ),
-                          ],
-                          onChanged: (val) =>
-                              setDialogState(() => connectionType = val),
+                          items: InventoryConnectionType.values
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(c.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => connectionType = val);
+                            }
+                          },
                         ),
                         const SizedBox(height: 16),
                         AppFormField(
@@ -277,6 +284,23 @@ class _InventoryViewState extends State<_InventoryView> {
                         ),
                         const SizedBox(height: 16),
                         AppFormField(
+                          label: 'Sell Price',
+                          controller: sellPriceController,
+                          hintText: 'Price billed to the customer, e.g. 5000',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          isRequired: true,
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Sell price required';
+                            if (double.tryParse(v) == null)
+                              return 'Enter a valid amount';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        AppFormField(
                           label: 'Supplier',
                           controller: supplierController,
                           hintText: 'Optional',
@@ -316,6 +340,7 @@ class _InventoryViewState extends State<_InventoryView> {
                             quantityInStock: int.parse(quantityController.text),
                             reorderLevel: int.parse(reorderController.text),
                             unitCost: double.parse(unitCostController.text),
+                            sellPrice: double.parse(sellPriceController.text),
                             supplier: supplierController.text.trim().isEmpty
                                 ? null
                                 : supplierController.text.trim(),
@@ -655,6 +680,10 @@ class _InventoryViewState extends State<_InventoryView> {
                       Text(
                         'Unit Cost: PKR ${item.unitCost.toStringAsFixed(0)}',
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Sell Price: PKR ${item.sellPrice.toStringAsFixed(0)}',
+                      ),
                       if (item.supplier != null &&
                           item.supplier!.isNotEmpty) ...[
                         const SizedBox(height: 4),
@@ -824,8 +853,7 @@ class _InventoryViewState extends State<_InventoryView> {
                   _selectedCategory == null ||
                   item.category == _selectedCategory;
               final matchesConnectionType = _selectedConnectionType == null ||
-                  item.connectionType == _selectedConnectionType ||
-                  item.connectionType == InventoryConnectionType.both;
+                  item.connectionType == _selectedConnectionType;
               return matchesSearch && matchesCategory && matchesConnectionType;
             }).toList();
 
@@ -974,6 +1002,7 @@ class _InventoryViewState extends State<_InventoryView> {
                               DataColumn(label: Text('Quantity')),
                               DataColumn(label: Text('Reorder Level')),
                               DataColumn(label: Text('Unit Cost')),
+                              DataColumn(label: Text('Sell Price')),
                               DataColumn(label: Text('Status')),
                               DataColumn(label: Text('Actions')),
                             ],
@@ -1002,7 +1031,7 @@ class _InventoryViewState extends State<_InventoryView> {
                                   ),
                                   DataCell(Text(_categoryLabel(item.category))),
                                   DataCell(
-                                    Text(item.connectionType?.label ?? '—'),
+                                    Text(item.connectionType.label),
                                   ),
                                   DataCell(
                                     Text(
@@ -1019,6 +1048,11 @@ class _InventoryViewState extends State<_InventoryView> {
                                   DataCell(
                                     Text(
                                       'PKR ${item.unitCost.toStringAsFixed(0)}',
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      'PKR ${item.sellPrice.toStringAsFixed(0)}',
                                     ),
                                   ),
                                   DataCell(

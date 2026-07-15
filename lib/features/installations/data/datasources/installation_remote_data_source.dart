@@ -23,34 +23,93 @@ class InstallationRemoteDataSourceImpl implements InstallationRemoteDataSource {
 
   CollectionReference get _col => _firestore.collection('installations');
 
+  // Syncs the customer's status/installationCost and decrements inventory
+  // stock (with stockOut movement docs) for a job transitioning to
+  // Completed. All transaction reads (customer doc + every inventory item
+  // doc) are gathered up front and validated before any writes are issued —
+  // Firestore transactions require every read to precede every write, so
+  // reads and writes must never be interleaved in the loop below.
+  Future<void> _syncCustomerAndInventoryForCompletion(
+    Transaction transaction,
+    InstallationModel installation,
+  ) async {
+    // ---- Reads ----
+    final customerDocRef = _firestore.collection('customers').doc(installation.customerId);
+    final customerDoc = await transaction.get(customerDocRef);
+
+    final items = installation.itemsUsed ?? const [];
+    final itemDocRefs = <DocumentReference>[];
+    final itemSnapshots = <DocumentSnapshot>[];
+    for (final item in items) {
+      final itemDocRef = _firestore.collection('inventory').doc(item.inventoryItemId);
+      itemDocRefs.add(itemDocRef);
+      itemSnapshots.add(await transaction.get(itemDocRef));
+    }
+
+    for (var i = 0; i < items.length; i++) {
+      if (!itemSnapshots[i].exists) {
+        throw Exception('Inventory item ${items[i].itemName} does not exist.');
+      }
+      final itemData = itemSnapshots[i].data() as Map<String, dynamic>? ?? {};
+      final quantityInStock = (itemData['quantityInStock'] as num?)?.toInt() ?? 0;
+      if (quantityInStock < items[i].quantity) {
+        throw Exception(
+          'Insufficient stock for ${items[i].itemName}. Available: $quantityInStock, Required: ${items[i].quantity}',
+        );
+      }
+    }
+
+    // ---- Writes (only after every read above has completed) ----
+    if (customerDoc.exists) {
+      final customerData = customerDoc.data() as Map<String, dynamic>? ?? {};
+      final currentCost = (customerData['installationCost'] as num?)?.toDouble() ?? 0.0;
+
+      final Map<String, dynamic> customerUpdates = {};
+      if (currentCost == 0.0) {
+        customerUpdates['installationCost'] = installation.installationCost;
+      }
+      final currentStatus = customerData['status'] as String? ?? '';
+      if (currentStatus != 'active') {
+        customerUpdates['status'] = 'active';
+      }
+
+      if (customerUpdates.isNotEmpty) {
+        transaction.update(customerDocRef, customerUpdates);
+      }
+    }
+
+    for (var i = 0; i < items.length; i++) {
+      final item = items[i];
+      final itemDocRef = itemDocRefs[i];
+      final itemData = itemSnapshots[i].data() as Map<String, dynamic>? ?? {};
+      final quantityInStock = (itemData['quantityInStock'] as num?)?.toInt() ?? 0;
+      final newQty = quantityInStock - item.quantity;
+
+      final movementDocRef = itemDocRef.collection('movements').doc();
+      transaction.set(movementDocRef, {
+        'itemId': item.inventoryItemId,
+        'type': StockMovementType.stockOut.name,
+        'quantity': item.quantity,
+        'reason': 'Used in Installation for ${installation.customerName} (ID: ${installation.id})',
+        'date': FieldValue.serverTimestamp(),
+        'performedBy': installation.assignedEmployeeName ?? 'System',
+      });
+
+      transaction.update(itemDocRef, {
+        'quantityInStock': newQty,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
   @override
   Future<void> addInstallation(InstallationModel installation) async {
     final docRef = _col.doc(installation.id.isEmpty ? null : installation.id);
-    final id = docRef.id;
 
     // Check if status is completed on creation
     if (installation.status == InstallationStatus.completed) {
       await _firestore.runTransaction((transaction) async {
-        // Update customer if exists
-        final customerDocRef = _firestore.collection('customers').doc(installation.customerId);
-        final customerDoc = await transaction.get(customerDocRef);
-        if (customerDoc.exists) {
-          final customerData = customerDoc.data() as Map<String, dynamic>? ?? {};
-          final currentCost = (customerData['installationCost'] as num?)?.toDouble() ?? 0.0;
-          
-          final Map<String, dynamic> customerUpdates = {};
-          if (currentCost == 0.0) {
-            customerUpdates['installationCost'] = installation.installationCost;
-          }
-          final currentStatus = customerData['status'] as String? ?? '';
-          if (currentStatus != 'active') {
-            customerUpdates['status'] = 'active';
-          }
-          
-          if (customerUpdates.isNotEmpty) {
-            transaction.update(customerDocRef, customerUpdates);
-          }
-        }
+        await _syncCustomerAndInventoryForCompletion(transaction, installation);
 
         // Save installation
         final data = installation.toMap();
@@ -126,65 +185,9 @@ class InstallationRemoteDataSourceImpl implements InstallationRemoteDataSource {
 
     if (isTransitioningToCompleted) {
       await _firestore.runTransaction((transaction) async {
-        // 1. Sync installation cost and active status to customer
-        final customerDocRef = _firestore.collection('customers').doc(installation.customerId);
-        final customerDoc = await transaction.get(customerDocRef);
-        if (customerDoc.exists) {
-          final customerData = customerDoc.data() as Map<String, dynamic>? ?? {};
-          final currentCost = (customerData['installationCost'] as num?)?.toDouble() ?? 0.0;
-          
-          final Map<String, dynamic> customerUpdates = {};
-          if (currentCost == 0.0) {
-            customerUpdates['installationCost'] = installation.installationCost;
-          }
-          final currentStatus = customerData['status'] as String? ?? '';
-          if (currentStatus != 'active') {
-            customerUpdates['status'] = 'active';
-          }
-          
-          if (customerUpdates.isNotEmpty) {
-            transaction.update(customerDocRef, customerUpdates);
-          }
-        }
+        await _syncCustomerAndInventoryForCompletion(transaction, installation);
 
-        // 2. Decrement inventory stock & add stockOut movements
-        if (installation.itemsUsed != null && installation.itemsUsed!.isNotEmpty) {
-          for (final item in installation.itemsUsed!) {
-            final itemDocRef = _firestore.collection('inventory').doc(item.inventoryItemId);
-            final itemDoc = await transaction.get(itemDocRef);
-            if (!itemDoc.exists) {
-              throw Exception('Inventory item ${item.itemName} does not exist.');
-            }
-
-            final itemData = itemDoc.data() as Map<String, dynamic>? ?? {};
-            final quantityInStock = (itemData['quantityInStock'] as num?)?.toInt() ?? 0;
-
-            if (quantityInStock < item.quantity) {
-              throw Exception('Insufficient stock for ${item.itemName}. Available: $quantityInStock, Required: ${item.quantity}');
-            }
-
-            final newQty = quantityInStock - item.quantity;
-
-            // Generate a reference for the movement subcollection doc
-            final movementDocRef = itemDocRef.collection('movements').doc();
-            
-            transaction.set(movementDocRef, {
-              'itemId': item.inventoryItemId,
-              'type': StockMovementType.stockOut.name,
-              'quantity': item.quantity,
-              'reason': 'Used in Installation for ${installation.customerName} (ID: ${installation.id})',
-              'date': FieldValue.serverTimestamp(),
-              'performedBy': installation.assignedEmployeeName ?? 'System',
-            });
-
-            transaction.update(itemDocRef, {
-              'quantityInStock': newQty,
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-          }
-        }
-
-        // 3. Update installation doc
+        // Update installation doc
         final data = installation.toMap();
         data.remove('createdAt'); // keep original createdAt
         data['completedAt'] = FieldValue.serverTimestamp();

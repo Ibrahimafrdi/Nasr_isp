@@ -11,11 +11,12 @@ class InventoryItemModel extends InventoryItemEntity {
     required super.quantityInStock,
     required super.reorderLevel,
     required super.unitCost,
+    required super.sellPrice,
     super.supplier,
     super.notes,
     super.createdAt,
     super.updatedAt,
-    super.connectionType,
+    required super.connectionType,
   });
 
   factory InventoryItemModel.fromMap(Map<String, dynamic> map) {
@@ -27,6 +28,7 @@ class InventoryItemModel extends InventoryItemEntity {
       quantityInStock: (map['quantityInStock'] as num?)?.toInt() ?? 0,
       reorderLevel: (map['reorderLevel'] as num?)?.toInt() ?? 0,
       unitCost: (map['unitCost'] as num?)?.toDouble() ?? 0.0,
+      sellPrice: (map['sellPrice'] as num?)?.toDouble() ?? 0.0,
       supplier: map['supplier'] as String?,
       notes: map['notes'] as String?,
       createdAt: _parseDate(map['createdAt']),
@@ -44,13 +46,15 @@ class InventoryItemModel extends InventoryItemEntity {
     );
   }
 
-  static InventoryConnectionType? _parseConnectionType(dynamic value) {
-    if (value == null) return null;
+  // Existing docs predate this field (or were seeded with a legacy value) —
+  // default to `both` so they keep matching every installation's BOM filter.
+  static InventoryConnectionType _parseConnectionType(dynamic value) {
+    if (value == null) return InventoryConnectionType.both;
     final valueStr = value.toString();
-    for (final e in InventoryConnectionType.values) {
-      if (e.name == valueStr || e.label == valueStr) return e;
-    }
-    return null;
+    return InventoryConnectionType.values.firstWhere(
+      (e) => e.name == valueStr || e.label == valueStr,
+      orElse: () => InventoryConnectionType.both,
+    );
   }
 
   static DateTime? _parseDate(dynamic value) {
@@ -68,11 +72,12 @@ class InventoryItemModel extends InventoryItemEntity {
       'quantityInStock': quantityInStock,
       'reorderLevel': reorderLevel,
       'unitCost': unitCost,
+      'sellPrice': sellPrice,
       'supplier': supplier,
       'notes': notes,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
-      'connectionType': connectionType?.name,
+      'connectionType': connectionType.name,
     };
   }
 
@@ -99,6 +104,7 @@ class InventoryItemModel extends InventoryItemEntity {
     int? quantityInStock,
     int? reorderLevel,
     double? unitCost,
+    double? sellPrice,
     String? supplier,
     String? notes,
     DateTime? createdAt,
@@ -113,6 +119,7 @@ class InventoryItemModel extends InventoryItemEntity {
       quantityInStock: quantityInStock ?? this.quantityInStock,
       reorderLevel: reorderLevel ?? this.reorderLevel,
       unitCost: unitCost ?? this.unitCost,
+      sellPrice: sellPrice ?? this.sellPrice,
       supplier: supplier ?? this.supplier,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,

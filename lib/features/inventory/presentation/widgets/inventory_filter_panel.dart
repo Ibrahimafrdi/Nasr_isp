@@ -82,7 +82,10 @@ class InventoryFilterPanel extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.md),
           AppStatusChipGroup(
-            options: InventoryConnectionType.values.map((c) => c.label).toList(),
+            options: InventoryConnectionType.values
+                .where((c) => c != InventoryConnectionType.both)
+                .map((c) => c.label)
+                .toList(),
             selected: selectedConnectionType?.label,
             onChanged: (label) {
               final type = label == null

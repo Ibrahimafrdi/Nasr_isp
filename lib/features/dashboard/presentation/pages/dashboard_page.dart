@@ -324,7 +324,7 @@ class _DashboardPageState extends State<DashboardPage> {
       title: 'Pending Installs',
       value: pending.toString(),
       subtitle: 'Awaiting & in-progress jobs',
-      trend: '',
+      trend: null,
       isTrendPositive: false,
       icon: Icons.construction,
       gradient: AppColors.orangeGradient,
@@ -335,7 +335,7 @@ class _DashboardPageState extends State<DashboardPage> {
       title: 'Completed Installs',
       value: completed.toString(),
       subtitle: 'Successfully provisioned lines',
-      trend: '',
+      trend: null,
       isTrendPositive: true,
       icon: Icons.check_circle_outline,
       gradient: AppColors.greenGradient,
@@ -418,7 +418,7 @@ class _DashboardPageState extends State<DashboardPage> {
               title: 'Total Customers',
               value: stats.totalCustomers.toString(),
               subtitle: 'Active accounts',
-              trend: '',
+              trend: null,
               isTrendPositive: true,
               icon: Icons.people,
               gradient: AppColors.blueGradient,
@@ -428,7 +428,7 @@ class _DashboardPageState extends State<DashboardPage> {
               title: 'Active Subscribers',
               value: stats.activeCustomers.toString(),
               subtitle: 'Currently active',
-              trend: '',
+              trend: null,
               isTrendPositive: true,
               icon: Icons.check_circle,
               gradient: AppColors.greenGradient,
@@ -439,7 +439,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Monthly Revenue',
                 value: _formatCurrency(stats.monthlyRevenue),
                 subtitle: 'Collected this month',
-                trend: '',
+                trend: null,
                 isTrendPositive: true,
                 icon: Icons.trending_up,
                 gradient: AppColors.purpleGradient,
@@ -450,7 +450,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Total Expenses',
                 value: _formatCurrency(stats.monthlyExpenses),
                 subtitle: 'Month to date',
-                trend: '',
+                trend: null,
                 isTrendPositive: false,
                 icon: Icons.receipt,
                 gradient: AppColors.orangeGradient,
@@ -461,7 +461,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Net Profit',
                 value: _formatCurrency(stats.netProfit),
                 subtitle: 'After expenses',
-                trend: '',
+                trend: null,
                 isTrendPositive: stats.netProfit >= 0,
                 icon: Icons.attach_money,
                 gradient: AppColors.purpleGradient,
@@ -472,7 +472,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Pending Payments',
                 value: _formatCurrency(stats.pendingPayments),
                 subtitle: '${stats.expiringsoon} expiring soon',
-                trend: '',
+                trend: null,
                 isTrendPositive: false,
                 icon: Icons.schedule,
                 gradient: AppColors.redGradient,
@@ -483,7 +483,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Expired Customers',
                 value: stats.expiredCustomers.toString(),
                 subtitle: 'Awaiting renewal',
-                trend: '',
+                trend: null,
                 isTrendPositive: false,
                 icon: Icons.person_off,
                 gradient: AppColors.redGradient,
@@ -494,7 +494,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Installation Profit',
                 value: _formatCurrency(stats.monthlyInstallationProfit),
                 subtitle: '${_formatCurrency(stats.monthlyInstallationRevenue)} billed this month',
-                trend: '',
+                trend: null,
                 isTrendPositive: stats.monthlyInstallationProfit >= 0,
                 icon: Icons.engineering,
                 gradient: AppColors.orangeGradient,
@@ -505,7 +505,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Total Customers',
                 value: stats.totalCustomers.toString(),
                 subtitle: 'All subscribers',
-                trend: '',
+                trend: null,
                 isTrendPositive: true,
                 icon: Icons.group,
                 gradient: AppColors.blueGradient,
@@ -515,7 +515,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 title: 'Expiring Soon',
                 value: stats.expiringsoon.toString(),
                 subtitle: 'Next 7 days',
-                trend: '',
+                trend: null,
                 isTrendPositive: false,
                 icon: Icons.alarm,
                 gradient: AppColors.orangeGradient,
@@ -763,7 +763,7 @@ class _DashboardPageState extends State<DashboardPage> {
         PremiumDataColumn(label: 'Date'),
       ],
       rows: payments.map((payment) {
-        final statusType = payment.status == 'completed'
+        final statusType = payment.status == 'paid'
             ? StatusType.completed
             : StatusType.pending;
         final date = payment.completedDate ?? payment.createdAt;
@@ -797,7 +797,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }).toList(),
       mobileItemBuilder: (context, index) {
         final payment = payments[index];
-        final statusType = payment.status == 'completed'
+        final statusType = payment.status == 'paid'
             ? StatusType.completed
             : StatusType.pending;
         final date = payment.completedDate ?? payment.createdAt;

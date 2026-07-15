@@ -13,6 +13,7 @@ import 'package:nasr_isp/features/inventory/domain/usecases/get_inventory_items.
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_item_used_entity.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/installations/presentation/utils/installation_item_autofill.dart';
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_card_list.dart';
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_filter_panel.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
@@ -149,6 +150,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
           'itemId': item.inventoryItemId,
           'qty': item.quantity,
           'unitCost': item.costPriceAtTime,
+          'sellPrice': item.sellPriceAtTime,
         });
       }
     }
@@ -175,14 +177,32 @@ class _InstallationsPageState extends State<InstallationsPage> {
             final materialsLocked =
                 existing != null && existing.status == InstallationStatus.completed;
 
-            // Calculate live material cost
+            // Calculate live material cost/revenue
             double materialCostTotal = 0.0;
+            double materialRevenueTotal = 0.0;
             int totalItemsDeductQty = 0;
             for (final row in itemsUsedState) {
               final qty = row['qty'] as int;
               final unitCost = row['unitCost'] as double;
+              final sellPrice = row['sellPrice'] as double;
               materialCostTotal += qty * unitCost;
+              materialRevenueTotal += qty * sellPrice;
               totalItemsDeductQty += qty;
+            }
+
+            // Auto-fills the BOM with every inventory item tagged for the
+            // selected connection type (or "both") the moment a connection
+            // type is picked. Never runs if the job's materials are locked,
+            // or if itemsUsedState already has rows — manually added/edited
+            // rows (or a previous auto-fill) are never overwritten.
+            void autoFillItemsForConnectionType(ConnectionType type) {
+              if (materialsLocked || itemsUsedState.isNotEmpty) return;
+              final matches = autoSelectInstallationItems(type, _allInventoryItems);
+              if (matches.isEmpty) return;
+              setDialogState(() {
+                itemsUsedState = matches;
+                isCollapsibleExpanded = true;
+              });
             }
 
             Future<void> submit() async {
@@ -220,6 +240,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   final itemId = row['itemId'] as String;
                   final qty = row['qty'] as int;
                   final unitCost = row['unitCost'] as double;
+                  final sellPrice = row['sellPrice'] as double;
                   final invItem = _allInventoryItems.firstWhere((i) => i.id == itemId);
 
                   items.add(InstallationItemUsedEntity(
@@ -227,6 +248,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     itemName: invItem.name,
                     quantity: qty,
                     costPriceAtTime: unitCost,
+                    sellPriceAtTime: sellPrice,
                   ));
                 }
 
@@ -312,6 +334,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         onChanged: (val) {
                           if (val != null) {
                             setDialogState(() => connectionType = val);
+                            autoFillItemsForConnectionType(val);
                           }
                         },
                       ),
@@ -354,6 +377,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           onChanged: (val) {
                             if (val != null) {
                               setDialogState(() => connectionType = val);
+                              autoFillItemsForConnectionType(val);
                             }
                           },
                         ),
@@ -516,6 +540,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         connectionType = ConnectionType.wireless;
                       }
                     });
+                    autoFillItemsForConnectionType(connectionType);
                   },
                 ),
                 const SizedBox(height: 16),
@@ -599,6 +624,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                     setDialogState(() {
                                       row['itemId'] = val;
                                       row['unitCost'] = selectedItem.unitCost;
+                                      row['sellPrice'] = selectedItem.sellPrice;
                                     });
                                   }
                                 },
@@ -615,7 +641,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         );
                         final unitCostText = isAdmin
                             ? Text(
-                                '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)}',
+                                '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)} '
+                                '/ sell ${DateTimeUtils.formatCurrency(row['sellPrice'] as double)}',
                                 style: const TextStyle(fontSize: 12),
                               )
                             : null;
@@ -678,6 +705,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                   'itemId': _allInventoryItems.first.id,
                                   'qty': 1,
                                   'unitCost': _allInventoryItems.first.unitCost,
+                                  'sellPrice': _allInventoryItems.first.sellPrice,
                                 });
                               });
                             },
@@ -692,6 +720,17 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           const Text('Estimated Material Cost:'),
                           Text(
                             DateTimeUtils.formatCurrency(materialCostTotal),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Estimated Material Margin:'),
+                          Text(
+                            DateTimeUtils.formatCurrency(materialRevenueTotal - materialCostTotal),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],

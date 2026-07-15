@@ -181,20 +181,21 @@ enum InventoryCategory {
   }
 }
 
-/// Which job type an inventory item's stock is used for. Lets staff filter
-/// stock (and, later, installation BOM pickers) down to what's relevant for
-/// a Wireless vs Fiber job. `both` covers shared consumables (e.g. cable ties).
+/// Which job type an inventory item's stock is applicable to. Drives the
+/// required "Applicable To" field on inventory items, used to filter stock
+/// and to auto-select an installation's BOM for its connection type.
+/// `both` covers shared consumables (e.g. cable ties).
 enum InventoryConnectionType {
   wireless,
-  fiber,
+  opticalFibre,
   both;
 
   String get label {
     switch (this) {
       case InventoryConnectionType.wireless:
         return 'Wireless';
-      case InventoryConnectionType.fiber:
-        return 'Fiber';
+      case InventoryConnectionType.opticalFibre:
+        return 'Optical Fibre';
       case InventoryConnectionType.both:
         return 'Both';
     }

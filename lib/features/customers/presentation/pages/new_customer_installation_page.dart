@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
+import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
@@ -11,7 +12,10 @@ import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dar
 import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart';
 import 'package:nasr_isp/features/employees/presentation/bloc/employees_bloc.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
+import 'package:nasr_isp/features/installations/domain/entities/installation_item_used_entity.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/installations/presentation/utils/installation_item_autofill.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/get_inventory_items.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
@@ -48,7 +52,6 @@ class _NewCustomerInstallationPageState
 
   // Installation fields
   final _installationChargesController = TextEditingController();
-  final _equipmentCostController = TextEditingController(text: '0');
   final _laborCostController = TextEditingController(text: '0');
   final _installationRemarksController = TextEditingController();
 
@@ -59,6 +62,11 @@ class _NewCustomerInstallationPageState
   String? _assignedEmployeeId;
   String? _assignedEmployeeName;
 
+  // Materials Used (BOM) state — same row shape ('itemId'/'qty'/'unitCost')
+  // and auto-select behavior as the standalone Add Installation form.
+  List<InstallationItemRow> _itemsUsedState = [];
+  List<InventoryItemEntity> _allInventoryItems = [];
+
   bool _isSaving = false;
 
   @override
@@ -67,8 +75,27 @@ class _NewCustomerInstallationPageState
     context.read<EmployeeBloc>().add(const LoadEmployeesEvent());
     context.read<PackagesBloc>().add(const LoadPackagesEvent());
     _installationChargesController.addListener(_recomputePreview);
-    _equipmentCostController.addListener(_recomputePreview);
     _laborCostController.addListener(_recomputePreview);
+    _loadInventoryItems();
+  }
+
+  Future<void> _loadInventoryItems() async {
+    try {
+      final items = await getIt<GetInventoryItems>()();
+      if (mounted) {
+        setState(() => _allInventoryItems = items);
+      }
+    } catch (_) {
+      // Manual "Add Item" and auto-fill simply have nothing to offer;
+      // the rest of the form remains usable.
+    }
+  }
+
+  void _autoFillItemsForConnectionType(ConnectionType type) {
+    if (_itemsUsedState.isNotEmpty) return;
+    final matches = autoSelectInstallationItems(type, _allInventoryItems);
+    if (matches.isEmpty) return;
+    setState(() => _itemsUsedState = matches);
   }
 
   @override
@@ -80,7 +107,6 @@ class _NewCustomerInstallationPageState
     _monthlyBillController.dispose();
     _notesController.dispose();
     _installationChargesController.dispose();
-    _equipmentCostController.dispose();
     _laborCostController.dispose();
     _installationRemarksController.dispose();
     super.dispose();
@@ -90,12 +116,17 @@ class _NewCustomerInstallationPageState
 
   double get _previewCharges =>
       double.tryParse(_installationChargesController.text.trim()) ?? 0.0;
-  double get _previewEquipment =>
-      double.tryParse(_equipmentCostController.text.trim()) ?? 0.0;
+  // Mirrors InstallationEntity.materialCost/materialRevenue: sum of the
+  // Materials Used BOM rows' cost/sell price snapshots.
+  double get _previewMaterialCost => _itemsUsedState.fold<double>(
+      0.0, (sum, row) => sum + (row['qty'] as int) * (row['unitCost'] as double));
+  double get _previewMaterialRevenue => _itemsUsedState.fold<double>(
+      0.0, (sum, row) => sum + (row['qty'] as int) * (row['sellPrice'] as double));
   double get _previewLabor =>
       double.tryParse(_laborCostController.text.trim()) ?? 0.0;
+  // Mirrors InstallationEntity.profit exactly.
   double get _previewProfit =>
-      _previewCharges - _previewEquipment - _previewLabor;
+      _previewCharges - _previewMaterialCost - _previewLabor + _previewMaterialRevenue;
 
   void _onPackageChanged(String? packageId, List<PackageEntity> packages) {
     if (packageId == null) return;
@@ -155,6 +186,19 @@ class _NewCustomerInstallationPageState
       return;
     }
 
+    final itemsUsed = <InstallationItemUsedEntity>[
+      for (final row in _itemsUsedState)
+        InstallationItemUsedEntity(
+          inventoryItemId: row['itemId'] as String,
+          itemName: _allInventoryItems
+              .firstWhere((i) => i.id == row['itemId'])
+              .name,
+          quantity: row['qty'] as int,
+          costPriceAtTime: row['unitCost'] as double,
+          sellPriceAtTime: row['sellPrice'] as double,
+        ),
+    ];
+
     final installation = InstallationEntity(
       id: const Uuid().v4(),
       customerId: customerId,
@@ -168,8 +212,8 @@ class _NewCustomerInstallationPageState
       remarks: _installationRemarksController.text.trim().isEmpty
           ? null
           : _installationRemarksController.text.trim(),
+      itemsUsed: itemsUsed.isEmpty ? null : itemsUsed,
       createdAt: DateTime.now(),
-      equipmentCost: _previewEquipment,
       laborCost: _previewLabor,
     );
 
@@ -340,6 +384,7 @@ class _NewCustomerInstallationPageState
                                           onChanged: (val) {
                                             if (val != null) {
                                               setState(() => _connectionType = val);
+                                              _autoFillItemsForConnectionType(val);
                                             }
                                           },
                                         ),
@@ -408,34 +453,22 @@ class _NewCustomerInstallationPageState
                                         },
                                       ),
                                       const SizedBox(height: 16),
-                                      _responsiveRow(context, [
-                                        AppFormField(
-                                          label: 'Installation Charges (PKR)',
-                                          hintText: 'Fee billed to the customer',
-                                          isRequired: true,
-                                          controller: _installationChargesController,
-                                          keyboardType: const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                          validator: (v) {
-                                            if (v == null || v.trim().isEmpty) return 'Required';
-                                            return double.tryParse(v.trim()) == null
-                                                ? 'Enter a valid number'
-                                                : null;
-                                          },
-                                        ),
-                                        AppFormField(
-                                          label: 'Equipment / Material Cost (PKR)',
-                                          controller: _equipmentCostController,
-                                          keyboardType: const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                          validator: (v) {
-                                            if (v == null || v.trim().isEmpty) return null;
-                                            return double.tryParse(v.trim()) == null
-                                                ? 'Enter a valid number'
-                                                : null;
-                                          },
-                                        ),
-                                      ]),
+                                      AppFormField(
+                                        label: 'Installation Charges (PKR)',
+                                        hintText: 'Fee billed to the customer',
+                                        isRequired: true,
+                                        controller: _installationChargesController,
+                                        keyboardType: const TextInputType.numberWithOptions(
+                                            decimal: true),
+                                        validator: (v) {
+                                          if (v == null || v.trim().isEmpty) return 'Required';
+                                          return double.tryParse(v.trim()) == null
+                                              ? 'Enter a valid number'
+                                              : null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _materialsUsedSection(),
                                       const SizedBox(height: 16),
                                       AppFormField(
                                         label: 'Technician / Labor Cost (PKR)',
@@ -523,6 +556,145 @@ class _NewCustomerInstallationPageState
         for (int i = 0; i < children.length; i++) ...[
           if (i > 0) const SizedBox(width: 16),
           Expanded(child: children[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _materialsUsedSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Materials Used (optional — auto-filled from inventory for the '
+          'selected connection type)',
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _itemsUsedState.length,
+          itemBuilder: (context, idx) {
+            final row = _itemsUsedState[idx];
+
+            final itemDropdown = DropdownButtonFormField<String>(
+              initialValue: row['itemId'] as String?,
+              hint: const Text('Select Material'),
+              items: _allInventoryItems
+                  .map((item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text('${item.name} (Stock: ${item.quantityInStock})'),
+                      ))
+                  .toList(),
+              onChanged: (val) {
+                if (val == null) return;
+                final selected = _allInventoryItems.firstWhere((i) => i.id == val);
+                setState(() {
+                  row['itemId'] = val;
+                  row['unitCost'] = selected.unitCost;
+                  row['sellPrice'] = selected.sellPrice;
+                });
+              },
+            );
+            final qtyField = TextFormField(
+              initialValue: row['qty'].toString(),
+              decoration: const InputDecoration(labelText: 'Qty'),
+              keyboardType: TextInputType.number,
+              onChanged: (val) {
+                final parsed = int.tryParse(val) ?? 0;
+                setState(() => row['qty'] = parsed);
+              },
+            );
+            final unitCostText = Text(
+              '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)} '
+              '/ sell ${DateTimeUtils.formatCurrency(row['sellPrice'] as double)}',
+              style: const TextStyle(fontSize: 12),
+            );
+            final deleteButton = IconButton(
+              icon: const Icon(Icons.delete, color: AppColors.errorRed),
+              onPressed: () => setState(() => _itemsUsedState.removeAt(idx)),
+            );
+
+            if (_isMobile(context)) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    itemDropdown,
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: qtyField),
+                        const SizedBox(width: 8),
+                        unitCostText,
+                        deleteButton,
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  Expanded(flex: 3, child: itemDropdown),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 1, child: qtyField),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 1, child: unitCostText),
+                  deleteButton,
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _allInventoryItems.isEmpty
+              ? null
+              : () {
+                  setState(() {
+                    _itemsUsedState.add({
+                      'itemId': _allInventoryItems.first.id,
+                      'qty': 1,
+                      'unitCost': _allInventoryItems.first.unitCost,
+                      'sellPrice': _allInventoryItems.first.sellPrice,
+                    });
+                  });
+                },
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Add Item'),
+        ),
+        if (_itemsUsedState.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Estimated Material Cost:'),
+              Text(
+                DateTimeUtils.formatCurrency(_previewMaterialCost),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Estimated Material Margin:'),
+              Text(
+                DateTimeUtils.formatCurrency(_previewMaterialRevenue - _previewMaterialCost),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ],
       ],
     );

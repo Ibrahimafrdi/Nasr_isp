@@ -157,18 +157,21 @@ class _InventoryCard extends StatelessWidget {
                 Icons.payments_outlined,
                 'PKR ${item.unitCost.toStringAsFixed(0)}',
               ),
-              if (item.connectionType != null)
-                InfoChip(
-                  item.connectionType == InventoryConnectionType.fiber
-                      ? Icons.cable
-                      : Icons.wifi,
-                  item.connectionType!.label,
-                  color: item.connectionType == InventoryConnectionType.fiber
-                      ? Colors.purple
-                      : (item.connectionType == InventoryConnectionType.both
-                          ? Colors.teal
-                          : Colors.blue[800]),
-                ),
+              InfoChip(
+                Icons.sell_outlined,
+                'PKR ${item.sellPrice.toStringAsFixed(0)}',
+              ),
+              InfoChip(
+                item.connectionType == InventoryConnectionType.opticalFibre
+                    ? Icons.cable
+                    : Icons.wifi,
+                item.connectionType.label,
+                color: item.connectionType == InventoryConnectionType.opticalFibre
+                    ? Colors.purple
+                    : (item.connectionType == InventoryConnectionType.both
+                        ? Colors.teal
+                        : Colors.blue[800]),
+              ),
             ],
           ),
 

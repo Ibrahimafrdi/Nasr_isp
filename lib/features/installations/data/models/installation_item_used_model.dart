@@ -6,6 +6,7 @@ class InstallationItemUsedModel extends InstallationItemUsedEntity {
     required super.itemName,
     required super.quantity,
     required super.costPriceAtTime,
+    required super.sellPriceAtTime,
   });
 
   factory InstallationItemUsedModel.fromMap(Map<String, dynamic> map) {
@@ -14,6 +15,7 @@ class InstallationItemUsedModel extends InstallationItemUsedEntity {
       itemName: map['itemName'] as String? ?? '',
       quantity: (map['quantity'] as num?)?.toInt() ?? 0,
       costPriceAtTime: (map['costPriceAtTime'] as num?)?.toDouble() ?? 0.0,
+      sellPriceAtTime: (map['sellPriceAtTime'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -23,6 +25,7 @@ class InstallationItemUsedModel extends InstallationItemUsedEntity {
       'itemName': itemName,
       'quantity': quantity,
       'costPriceAtTime': costPriceAtTime,
+      'sellPriceAtTime': sellPriceAtTime,
     };
   }
 }

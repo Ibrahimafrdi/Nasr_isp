@@ -50,12 +50,22 @@ class InstallationEntity {
     return equipmentCost;
   }
 
-  // Computed field: profit = installation fee - material/equipment cost - labor cost.
+  // Computed field: materialRevenue — what the BOM items are billed for,
+  // i.e. sum(quantity * sellPriceAtTime). Always 0 (not null) when there's
+  // no BOM, since the equipmentCost fallback has no per-item sell price —
+  // this keeps `profit` unchanged for installations without an itemized BOM.
+  double get materialRevenue {
+    if (itemsUsed == null || itemsUsed!.isEmpty) return 0.0;
+    return itemsUsed!.fold<double>(0.0, (sum, item) => sum + (item.quantity * item.sellPriceAtTime));
+  }
+
+  // Computed field: profit = installation fee - material/equipment cost - labor cost
+  // + material markup (what the BOM items are sold for, above their cost).
   // Returns null when there's no cost data at all, exactly like before.
   double? get profit {
     final cost = materialCost;
     final labor = laborCost ?? 0.0;
     if (cost == null && labor == 0.0) return null;
-    return installationCost - (cost ?? 0.0) - labor;
+    return installationCost - (cost ?? 0.0) - labor + materialRevenue;
   }
 }

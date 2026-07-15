@@ -92,6 +92,7 @@ class InstallationModel extends InstallationEntity {
           itemName: item.itemName,
           quantity: item.quantity,
           costPriceAtTime: item.costPriceAtTime,
+          sellPriceAtTime: item.sellPriceAtTime,
         ).toMap();
       }).toList(),
       'createdAt': Timestamp.fromDate(createdAt),

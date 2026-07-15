@@ -26,6 +26,7 @@ class InstallationRepositoryImpl implements InstallationRepository {
             itemName: item.itemName,
             quantity: item.quantity,
             costPriceAtTime: item.costPriceAtTime,
+            sellPriceAtTime: item.sellPriceAtTime,
           )).toList(),
       createdAt: e.createdAt,
       completedAt: e.completedAt,

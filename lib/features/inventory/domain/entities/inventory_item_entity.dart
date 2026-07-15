@@ -8,13 +8,15 @@ class InventoryItemEntity {
   final int quantityInStock;
   final int reorderLevel;
   final double unitCost;
+  // What this item is sold/billed to the customer for — distinct from
+  // unitCost (what the company paid). Snapshotted per-row into an
+  // installation's BOM so material profit can be tracked per item.
+  final double sellPrice;
   final String? supplier;
   final String? notes;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  // Null means unspecified/legacy — only matched by the "All" filter, not
-  // by the Wireless or Fiber filter chips.
-  final InventoryConnectionType? connectionType;
+  final InventoryConnectionType connectionType;
 
   const InventoryItemEntity({
     required this.id,
@@ -24,10 +26,11 @@ class InventoryItemEntity {
     required this.quantityInStock,
     required this.reorderLevel,
     required this.unitCost,
+    required this.sellPrice,
     this.supplier,
     this.notes,
     this.createdAt,
     this.updatedAt,
-    this.connectionType,
+    required this.connectionType,
   });
 }

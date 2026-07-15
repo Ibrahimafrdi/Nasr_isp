@@ -227,8 +227,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           .fold(0.0, (sum, i) => sum + i.installationCost);
       final monthlyInstallationCost = currentMonthCompletedInstallations.fold(
           0.0, (sum, i) => sum + (i.materialCost ?? 0.0) + (i.laborCost ?? 0.0));
-      final monthlyInstallationProfit =
-          monthlyInstallationRevenue - monthlyInstallationCost;
+      // Uses the canonical InstallationEntity.profit getter (installationCost
+      // - materialCost - laborCost + materialRevenue) rather than
+      // re-deriving it from revenue/cost above, so this stays in sync with
+      // the entity's formula automatically.
+      final monthlyInstallationProfit = currentMonthCompletedInstallations
+          .fold(0.0, (sum, i) => sum + (i.profit ?? 0.0));
 
       final stats = DashboardStatsModel(
         totalCustomers: totalCustomers,
