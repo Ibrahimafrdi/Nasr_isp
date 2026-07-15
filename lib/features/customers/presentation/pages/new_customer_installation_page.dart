@@ -7,6 +7,7 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart';
@@ -150,8 +151,8 @@ class _NewCustomerInstallationPageState
     final newCustomer = CustomerModel(
       id: customerId,
       name: _nameController.text.trim(),
-      phone: _phoneController.text.trim(),
-      cnic: _cnicController.text.trim(),
+      phone: AppInputFormatters.digitsOnly(_phoneController.text),
+      cnic: AppInputFormatters.digitsOnly(_cnicController.text),
       address: _addressController.text.trim(),
       connectionType:
           _connectionType == ConnectionType.opticalFibre ? 'fiber' : 'wireless',
@@ -322,17 +323,20 @@ class _NewCustomerInstallationPageState
                                           label: 'Full Name',
                                           isRequired: true,
                                           controller: _nameController,
-                                          validator: (v) => (v == null || v.trim().isEmpty)
-                                              ? 'Required'
-                                              : null,
+                                          validator: (v) =>
+                                              ValidationUtils.validateName(
+                                                  v, 'Full Name'),
                                         ),
                                         AppFormField(
                                           label: 'Phone Number',
                                           isRequired: true,
                                           controller: _phoneController,
-                                          validator: (v) => (v == null || v.trim().isEmpty)
-                                              ? 'Required'
-                                              : null,
+                                          keyboardType: TextInputType.phone,
+                                          inputFormatters:
+                                              AppInputFormatters.phone,
+                                          hintText: '0314 9498314',
+                                          validator:
+                                              ValidationUtils.validatePhonePk,
                                         ),
                                       ]),
                                       const SizedBox(height: 16),
@@ -340,9 +344,12 @@ class _NewCustomerInstallationPageState
                                         label: 'CNIC / National ID',
                                         isRequired: true,
                                         controller: _cnicController,
-                                        validator: (v) => (v == null || v.trim().isEmpty)
-                                            ? 'Required'
-                                            : null,
+                                        keyboardType: TextInputType.number,
+                                        inputFormatters:
+                                            AppInputFormatters.cnic,
+                                        hintText: '17301-1937353-5',
+                                        validator:
+                                            ValidationUtils.validateCnic,
                                       ),
                                       const SizedBox(height: 16),
                                       AppFormField(
@@ -410,12 +417,11 @@ class _NewCustomerInstallationPageState
                                         controller: _monthlyBillController,
                                         keyboardType:
                                             const TextInputType.numberWithOptions(decimal: true),
-                                        validator: (v) {
-                                          if (v == null || v.trim().isEmpty) return 'Required';
-                                          return double.tryParse(v.trim()) == null
-                                              ? 'Enter a valid number'
-                                              : null;
-                                        },
+                                        inputFormatters:
+                                            AppInputFormatters.decimal,
+                                        validator: (v) =>
+                                            ValidationUtils.validateAmount(v,
+                                                fieldName: 'Monthly Bill'),
                                       ),
                                       const SizedBox(height: 30),
 
@@ -460,12 +466,13 @@ class _NewCustomerInstallationPageState
                                         controller: _installationChargesController,
                                         keyboardType: const TextInputType.numberWithOptions(
                                             decimal: true),
-                                        validator: (v) {
-                                          if (v == null || v.trim().isEmpty) return 'Required';
-                                          return double.tryParse(v.trim()) == null
-                                              ? 'Enter a valid number'
-                                              : null;
-                                        },
+                                        inputFormatters:
+                                            AppInputFormatters.decimal,
+                                        validator: (v) =>
+                                            ValidationUtils.validateAmount(v,
+                                                fieldName:
+                                                    'Installation Charges',
+                                                allowZero: true),
                                       ),
                                       const SizedBox(height: 16),
                                       _materialsUsedSection(),
@@ -475,6 +482,8 @@ class _NewCustomerInstallationPageState
                                         controller: _laborCostController,
                                         keyboardType:
                                             const TextInputType.numberWithOptions(decimal: true),
+                                        inputFormatters:
+                                            AppInputFormatters.decimal,
                                         validator: (v) {
                                           if (v == null || v.trim().isEmpty) return null;
                                           return double.tryParse(v.trim()) == null

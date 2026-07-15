@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/domain/entities/customer_entity.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
@@ -442,7 +443,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         decoration: const InputDecoration(
                           labelText: 'Setup Fee Billed (PKR)',
                         ),
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: AppInputFormatters.decimal,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Billed cost is required';
                           if (double.tryParse(v) == null) return 'Enter a numeric value';
@@ -469,7 +473,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           decoration: const InputDecoration(
                             labelText: 'Setup Fee Billed (PKR)',
                           ),
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: AppInputFormatters.decimal,
                           validator: (v) {
                             if (v == null || v.isEmpty) return 'Billed cost is required';
                             if (double.tryParse(v) == null) return 'Enter a numeric value';
@@ -633,6 +640,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           initialValue: row['qty'].toString(),
                           decoration: const InputDecoration(labelText: 'Qty'),
                           keyboardType: TextInputType.number,
+                          inputFormatters: AppInputFormatters.integer,
                           enabled: !materialsLocked,
                           onChanged: (val) {
                             final parsed = int.tryParse(val) ?? 0;

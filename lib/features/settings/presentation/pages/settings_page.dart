@@ -5,6 +5,7 @@ import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
@@ -336,6 +337,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                         label: 'Helpline / Phone',
                                         controller: _companyPhoneController,
                                         isRequired: true,
+                                        keyboardType: TextInputType.phone,
                                         validator: (val) => ValidationUtils.validateRequired(val, 'Helpline'),
                                       ),
                                     ),
@@ -353,6 +355,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                   label: 'Helpline / Phone',
                                   controller: _companyPhoneController,
                                   isRequired: true,
+                                  keyboardType: TextInputType.phone,
                                   validator: (val) => ValidationUtils.validateRequired(val, 'Helpline'),
                                 ),
                               ],
@@ -365,6 +368,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                         label: 'Support Email',
                                         controller: _companyEmailController,
                                         isRequired: true,
+                                        keyboardType: TextInputType.emailAddress,
                                         validator: (val) => ValidationUtils.validateEmail(val),
                                       ),
                                     ),
@@ -384,6 +388,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                   label: 'Support Email',
                                   controller: _companyEmailController,
                                   isRequired: true,
+                                  keyboardType: TextInputType.emailAddress,
                                   validator: (val) => ValidationUtils.validateEmail(val),
                                 ),
                                 const SizedBox(height: 20),
@@ -452,11 +457,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                         controller: _dueReminderDaysController,
                                         isRequired: true,
                                         keyboardType: TextInputType.number,
-                                        validator: (val) {
-                                          if (val == null || val.isEmpty) return 'Reminder Days is required';
-                                          if (int.tryParse(val) == null) return 'Must be a valid integer';
-                                          return null;
-                                        },
+                                        inputFormatters: AppInputFormatters.integer,
+                                        validator: (val) => ValidationUtils.validateInteger(val, fieldName: 'Reminder Days'),
                                       ),
                                     ),
                                   ],
@@ -474,11 +476,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                   controller: _dueReminderDaysController,
                                   isRequired: true,
                                   keyboardType: TextInputType.number,
-                                  validator: (val) {
-                                    if (val == null || val.isEmpty) return 'Reminder Days is required';
-                                    if (int.tryParse(val) == null) return 'Must be a valid integer';
-                                    return null;
-                                  },
+                                  inputFormatters: AppInputFormatters.integer,
+                                  validator: (val) => ValidationUtils.validateInteger(val, fieldName: 'Reminder Days'),
                                 ),
                               ],
                               const SizedBox(height: 20),
@@ -491,11 +490,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                         controller: _lateFeeAmountController,
                                         isRequired: true,
                                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        validator: (val) {
-                                          if (val == null || val.isEmpty) return 'Late fee is required';
-                                          if (double.tryParse(val) == null) return 'Must be a valid decimal';
-                                          return null;
-                                        },
+                                        inputFormatters: AppInputFormatters.decimal,
+                                        validator: (val) => ValidationUtils.validateAmount(val, fieldName: 'Late Fee', allowZero: true),
                                       ),
                                     ),
                                     const SizedBox(width: 24),
@@ -515,11 +511,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                                   controller: _lateFeeAmountController,
                                   isRequired: true,
                                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  validator: (val) {
-                                    if (val == null || val.isEmpty) return 'Late fee is required';
-                                    if (double.tryParse(val) == null) return 'Must be a valid decimal';
-                                    return null;
-                                  },
+                                  inputFormatters: AppInputFormatters.decimal,
+                                  validator: (val) => ValidationUtils.validateAmount(val, fieldName: 'Late Fee', allowZero: true),
                                 ),
                                 const SizedBox(height: 20),
                                 AppFormField(

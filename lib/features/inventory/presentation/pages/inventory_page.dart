@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/core/constants/inventory_catalog.dart';
 import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
@@ -241,6 +242,7 @@ class _InventoryViewState extends State<_InventoryView> {
                           controller: quantityController,
                           hintText: 'e.g. 10',
                           keyboardType: TextInputType.number,
+                          inputFormatters: AppInputFormatters.integer,
                           isRequired: true,
                           validator: (v) {
                             if (v == null || v.isEmpty)
@@ -256,6 +258,7 @@ class _InventoryViewState extends State<_InventoryView> {
                           controller: reorderController,
                           hintText: 'e.g. 5',
                           keyboardType: TextInputType.number,
+                          inputFormatters: AppInputFormatters.integer,
                           isRequired: true,
                           validator: (v) {
                             if (v == null || v.isEmpty)
@@ -273,6 +276,7 @@ class _InventoryViewState extends State<_InventoryView> {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          inputFormatters: AppInputFormatters.decimal,
                           isRequired: true,
                           validator: (v) {
                             if (v == null || v.isEmpty)
@@ -290,6 +294,7 @@ class _InventoryViewState extends State<_InventoryView> {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          inputFormatters: AppInputFormatters.decimal,
                           isRequired: true,
                           validator: (v) {
                             if (v == null || v.isEmpty)
@@ -466,6 +471,7 @@ class _InventoryViewState extends State<_InventoryView> {
                         controller: qtyController,
                         hintText: 'e.g. 10',
                         keyboardType: TextInputType.number,
+                        inputFormatters: AppInputFormatters.integer,
                         isRequired: true,
                         validator: (v) {
                           if (v == null || v.isEmpty)

@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/employees/domain/entities/employee_entity.dart';
 import 'package:nasr_isp/features/employees/data/models/employee_model.dart';
@@ -113,7 +115,11 @@ class _EmployeesPageState extends State<EmployeesPage> {
   void _showAddEditEmployeeDialog(BuildContext context, [EmployeeEntity? employee]) {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: employee?.name ?? '');
-    final phoneController = TextEditingController(text: employee?.phone ?? '');
+    final phoneController = TextEditingController(
+      text: employee != null
+          ? AppInputFormatters.formatPhone(employee.phone)
+          : '',
+    );
     final emailController = TextEditingController(text: employee?.email ?? '');
     final addressController = TextEditingController(text: employee?.address ?? '');
     final designationController = TextEditingController(text: employee?.designation ?? '');
@@ -143,7 +149,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                 final updatedModel = EmployeeModel(
                   id: empId,
                   name: nameController.text.trim(),
-                  phone: phoneController.text.trim(),
+                  phone: AppInputFormatters.digitsOnly(phoneController.text),
                   email: emailController.text.trim(),
                   address: addressController.text.trim(),
                   designation: designationController.text.trim(),
@@ -204,17 +210,18 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       labelText: 'Employee Full Name *',
                     ),
                     validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Name is required' : null,
+                        ValidationUtils.validateName(v, 'Name'),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: phoneController,
                     decoration: const InputDecoration(
                       labelText: 'Contact Number *',
+                      hintText: '0314 9498314',
                     ),
                     keyboardType: TextInputType.phone,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Phone is required' : null,
+                    inputFormatters: AppInputFormatters.phone,
+                    validator: ValidationUtils.validatePhonePk,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -223,15 +230,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       labelText: 'Email Address',
                     ),
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) {
-                      if (v != null && v.trim().isNotEmpty) {
-                        final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                        if (!emailRegex.hasMatch(v.trim())) {
-                          return 'Invalid email format';
-                        }
-                      }
-                      return null;
-                    },
+                    validator: ValidationUtils.validateOptionalEmail,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -273,11 +272,9 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       labelText: 'Salary (PKR) *',
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Salary is required';
-                      if (double.tryParse(v.trim()) == null) return 'Enter a valid number';
-                      return null;
-                    },
+                    inputFormatters: AppInputFormatters.decimal,
+                    validator: (v) =>
+                        ValidationUtils.validateAmount(v, fieldName: 'Salary'),
                   ),
                   const SizedBox(height: 16),
                   // Join Date Picker Row

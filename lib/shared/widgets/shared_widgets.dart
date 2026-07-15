@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
@@ -453,6 +454,7 @@ class AppFormField extends StatelessWidget {
   final bool isPassword;
   final Widget? suffixIcon;
   final void Function(String)? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AppFormField({
     Key? key,
@@ -467,6 +469,7 @@ class AppFormField extends StatelessWidget {
     this.isPassword = false,
     this.suffixIcon,
     this.onChanged,
+    this.inputFormatters,
   }) : super(key: key);
 
   @override
@@ -498,6 +501,7 @@ class AppFormField extends StatelessWidget {
           obscureText: isPassword,
           maxLines: isPassword ? 1 : maxLines,
           minLines: minLines,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             hintText: hintText,
             suffixIcon: suffixIcon,

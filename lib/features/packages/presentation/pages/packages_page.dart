@@ -5,6 +5,7 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/auth_helpers.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
@@ -718,6 +719,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
                         TextFormField(
                           controller: _speedCtrl,
                           keyboardType: TextInputType.number,
+                          inputFormatters: AppInputFormatters.integer,
                           decoration: const InputDecoration(
                             labelText: 'Speed (Mbps) *',
                             suffixText: 'Mbps',
@@ -743,6 +745,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
                             controller: _costPriceCtrl,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
+                            inputFormatters: AppInputFormatters.decimal,
                             decoration: const InputDecoration(
                               labelText: 'Buy Price (PKR) *',
                               helperText: 'What we pay upstream for this package',
@@ -764,6 +767,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
                             controller: _priceCtrl,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
+                            inputFormatters: AppInputFormatters.decimal,
                             decoration: const InputDecoration(
                               labelText: 'Sell Price (PKR) *',
                               helperText: 'What the customer is billed',

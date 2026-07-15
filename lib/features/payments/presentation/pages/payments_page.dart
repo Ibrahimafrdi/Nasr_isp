@@ -6,6 +6,7 @@ import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
@@ -388,7 +389,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           DropdownButtonFormField<CustomerModel>(
-                            value: selectedCustomer,
+                            isExpanded: true,
+                            value: selectedCustomer == null
+                                ? null
+                                : customers
+                                      .where(
+                                        (c) => c.id == selectedCustomer!.id,
+                                      )
+                                      .firstOrNull,
                             decoration: const InputDecoration(
                               labelText: 'Select Customer',
                             ),
@@ -483,7 +491,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                   'Full bill: PKR ${selectedCustomer?.monthlyBill ?? ''}',
                               prefixText: 'PKR ',
                             ),
-                            keyboardType: TextInputType.number,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: AppInputFormatters.decimal,
                             validator: (v) {
                               if (v == null || v.isEmpty) {
                                 return 'Please enter amount';
@@ -772,7 +783,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     labelText: 'Payment Amount Received (PKR)',
                     prefixText: 'PKR ',
                   ),
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: AppInputFormatters.decimal,
                   validator: (v) {
                     if (v == null || v.isEmpty) {
                       return 'Please enter an amount';

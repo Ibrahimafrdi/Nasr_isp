@@ -6,6 +6,7 @@ import 'package:nasr_isp/core/responsive/responsive_layout.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/expenses/domain/entities/expense_entity.dart';
 import 'package:nasr_isp/features/expenses/presentation/bloc/expenses_bloc.dart';
@@ -677,7 +678,11 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                   labelText: 'Amount (PKR)',
                                   prefixText: 'PKR ',
                                 ),
-                                keyboardType: TextInputType.number,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                inputFormatters: AppInputFormatters.decimal,
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Amount is required';

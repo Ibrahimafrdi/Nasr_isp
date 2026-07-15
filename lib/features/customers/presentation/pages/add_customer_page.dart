@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -115,8 +116,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   void _fillForm(CustomerModel customer) {
     setState(() {
       _nameController.text = customer.name;
-      _phoneController.text = customer.phone;
-      _cnicController.text = customer.cnic;
+      _phoneController.text = AppInputFormatters.formatPhone(customer.phone);
+      _cnicController.text = AppInputFormatters.formatCnic(customer.cnic);
       _addressController.text = customer.address;
       _selectedConnectionType = customer.connectionType == 'fiber'
           ? ConnectionType.opticalFibre
@@ -197,8 +198,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       final newCustomer = CustomerModel(
         id: customerId,
         name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        cnic: _cnicController.text.trim(),
+        phone: AppInputFormatters.digitsOnly(_phoneController.text),
+        cnic: AppInputFormatters.digitsOnly(_cnicController.text),
         address: _addressController.text.trim(),
         connectionType: _selectedConnectionType == ConnectionType.opticalFibre
             ? 'fiber'
@@ -357,12 +358,23 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                               label: 'Full Name',
                                               isRequired: true,
                                               controller: _nameController,
+                                              validator: (v) =>
+                                                  ValidationUtils.validateName(
+                                                    v,
+                                                    'Full Name',
+                                                  ),
                                             ),
                                             const SizedBox(height: 16),
                                             AppFormField(
                                               label: 'Phone Number',
                                               isRequired: true,
                                               controller: _phoneController,
+                                              keyboardType: TextInputType.phone,
+                                              inputFormatters:
+                                                  AppInputFormatters.phone,
+                                              hintText: '0314 9498314',
+                                              validator: ValidationUtils
+                                                  .validatePhonePk,
                                             ),
                                           ],
                                         )
@@ -373,6 +385,11 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                 label: 'Full Name',
                                                 isRequired: true,
                                                 controller: _nameController,
+                                                validator: (v) =>
+                                                    ValidationUtils.validateName(
+                                                      v,
+                                                      'Full Name',
+                                                    ),
                                               ),
                                             ),
                                             const SizedBox(width: 16),
@@ -381,6 +398,13 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                 label: 'Phone Number',
                                                 isRequired: true,
                                                 controller: _phoneController,
+                                                keyboardType:
+                                                    TextInputType.phone,
+                                                inputFormatters:
+                                                    AppInputFormatters.phone,
+                                                hintText: '0314 9498314',
+                                                validator: ValidationUtils
+                                                    .validatePhonePk,
                                               ),
                                             ),
                                           ],
@@ -393,6 +417,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                               label: 'CNIC / National ID',
                                               isRequired: true,
                                               controller: _cnicController,
+                                              keyboardType: TextInputType.number,
+                                              inputFormatters:
+                                                  AppInputFormatters.cnic,
+                                              hintText: '17301-1937353-5',
+                                              validator:
+                                                  ValidationUtils.validateCnic,
                                             ),
                                           ],
                                         )
@@ -403,6 +433,13 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                 label: 'CNIC / National ID',
                                                 isRequired: true,
                                                 controller: _cnicController,
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                inputFormatters:
+                                                    AppInputFormatters.cnic,
+                                                hintText: '17301-1937353-5',
+                                                validator: ValidationUtils
+                                                    .validateCnic,
                                               ),
                                             ),
                                           ],
@@ -593,6 +630,18 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                               isRequired: true,
                                               controller:
                                                   _monthlyBillController,
+                                              keyboardType:
+                                                  const TextInputType
+                                                      .numberWithOptions(
+                                                    decimal: true,
+                                                  ),
+                                              inputFormatters:
+                                                  AppInputFormatters.decimal,
+                                              validator: (v) =>
+                                                  ValidationUtils.validateAmount(
+                                                    v,
+                                                    fieldName: 'Monthly Bill',
+                                                  ),
                                             ),
                                           ],
                                         )
@@ -605,6 +654,18 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                 isRequired: true,
                                                 controller:
                                                     _monthlyBillController,
+                                                keyboardType:
+                                                    const TextInputType
+                                                        .numberWithOptions(
+                                                      decimal: true,
+                                                    ),
+                                                inputFormatters:
+                                                    AppInputFormatters.decimal,
+                                                validator: (v) => ValidationUtils
+                                                    .validateAmount(
+                                                      v,
+                                                      fieldName: 'Monthly Bill',
+                                                    ),
                                               ),
                                             ),
                                           ],

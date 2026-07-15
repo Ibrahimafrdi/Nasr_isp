@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/shared/widgets/app_filter_widgets.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
@@ -166,7 +167,10 @@ class _KhataaPageState extends State<KhataaPage> {
                     label: 'Amount Collected (Rs.)',
                     controller: amountController,
                     hintText: 'e.g. 1000',
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: AppInputFormatters.decimal,
                     isRequired: true,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Enter amount';
