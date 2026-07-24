@@ -127,7 +127,8 @@ class _EmployeesPageState extends State<EmployeesPage> {
       text: employee != null ? employee.salary.toStringAsFixed(0) : '',
     );
 
-    String selectedArea = employee?.sectorArea ?? 'DHA & Clifton';
+    String? selectedArea =
+        (employee != null && employee.sectorArea.isNotEmpty) ? employee.sectorArea : null;
     EmployeeStatus selectedStatus = employee?.status ?? EmployeeStatus.active;
     DateTime joinDate = employee?.joinDate ?? DateTime.now();
     bool isSaving = false;
@@ -153,7 +154,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                   email: emailController.text.trim(),
                   address: addressController.text.trim(),
                   designation: designationController.text.trim(),
-                  sectorArea: selectedArea,
+                  sectorArea: selectedArea ?? '',
                   status: selectedStatus,
                   salary: double.parse(salaryController.text.trim()),
                   joinDate: joinDate,
@@ -252,6 +253,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     value: selectedArea,
+                    hint: const Text('Select Sector Area'),
                     decoration: const InputDecoration(
                       labelText: 'Assigned Operational Sector Area',
                     ),
@@ -757,27 +759,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       const SizedBox(height: 20),
 
                       // ─── Main Body ─────────────────────────────────────────
-                      ResponsiveSwitcher(
-                        mobile: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildEmployeeTableCard(employeesList, state.installationCounts, isMobile: true),
-                            const SizedBox(height: 24),
-                            _buildTeamActivityCard(),
-                          ],
-                        ),
-                        desktop: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: _buildEmployeeTableCard(employeesList, state.installationCounts, isMobile: false),
-                            ),
-                            const SizedBox(width: 24),
-                            Expanded(flex: 2, child: _buildTeamActivityCard()),
-                          ],
-                        ),
-                      ),
+                      _buildEmployeeTableCard(employeesList, state.installationCounts, isMobile: isMobile),
                     ],
                   ),
                 );
@@ -922,64 +904,4 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
-  // ─── Team Activity Log Card ────────────────────────────────────────────────
-
-  Widget _buildTeamActivityCard() {
-    // TODO: Real-time Dispatch Log - NOT wired to real data in this pass.
-    // This requires creating an activity_log collection and adding triggers/write-hooks
-    // across multiple operational modules (Installations, Payments, etc.) which is out of scope.
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Real-time Team Dispatch Log',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 48),
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.history_toggle_off,
-                    size: 56,
-                    color: AppColors.mediumGray.withOpacity(0.4),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No recent activity',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: AppColors.charcoal,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Activity log will activate in a future release once background logging hooks are enabled.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.mediumGray,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 48),
-          ],
-        ),
-      ),
-    );
-  }
 }

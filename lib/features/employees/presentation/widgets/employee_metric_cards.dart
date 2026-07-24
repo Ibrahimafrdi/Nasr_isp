@@ -35,41 +35,13 @@ class EmployeeMetricCards extends StatelessWidget {
         icon: Icons.supervised_user_circle_outlined,
         subtitle: '${avgSubs.toStringAsFixed(0)} avg/tech (active only)',
       ),
-      DashboardCard(
-        label: 'Avg Billing Efficiency',
-        value: '—',
-        icon: Icons.assignment_turned_in_outlined,
-        backgroundColor: Colors.white,
-        subtitle: 'Attribution feature coming soon',
-        // TODO: Wire to real collection-efficiency data once payment-to-employee
-        // attribution exists. Currently no field links a Payment to the employee
-        // who collected it. Do not fabricate this number from unrelated data.
-      ),
     ];
-
-    if (isMobile) {
-      return Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 12),
-              Expanded(child: cards[1]),
-            ],
-          ),
-          const SizedBox(height: 12),
-          cards[2],
-        ],
-      );
-    }
 
     return Row(
       children: [
         Expanded(child: cards[0]),
-        const SizedBox(width: 16),
+        SizedBox(width: isMobile ? 12 : 16),
         Expanded(child: cards[1]),
-        const SizedBox(width: 16),
-        Expanded(child: cards[2]),
       ],
     );
   }

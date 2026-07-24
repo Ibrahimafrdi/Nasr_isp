@@ -200,7 +200,10 @@ class _PremiumDataTableState extends State<PremiumDataTable> {
                                   horizontal: 20,
                                   vertical: 14,
                                 ),
-                                height: 56, // Row spacing enhanced for premium layouts
+                                // Minimum, not fixed — lets rows grow for
+                                // multi-line cell content (e.g. a title +
+                                // notes) instead of overflowing.
+                                constraints: const BoxConstraints(minHeight: 56),
                                 child: Row(
                                   children: List.generate(
                                     widget.columns.length,

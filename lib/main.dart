@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nasr_isp/core/firebase/firebase_seeder.dart';
 import 'package:nasr_isp/firebase_options.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:nasr_isp/config/router.dart';

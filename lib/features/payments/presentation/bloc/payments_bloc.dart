@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -216,7 +217,7 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
               );
               await updateCustomer(updatedCustomer);
             } catch (e) {
-              print('Warning: Could not update customer nextDueDate: $e');
+              debugPrint('Warning: Could not update customer nextDueDate: $e');
             }
           }
 
@@ -227,6 +228,33 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
       }
 
       await addPayment(event.payment);
+
+      // Bug Fix #2 (counterpart): For brand-new full payments, update the
+      // customer's nextDueDate here in the BLoC, matching the logic already
+      // present in the existing-partial path above. The UI's submit() no
+      // longer dispatches UpdateCustomerEvent, so this is the single source
+      // of truth — eliminating the double-write race condition.
+      if (event.payment.status == 'paid') {
+        final paymentDate = event.payment.paymentDate ?? DateTime.now();
+        final newNextDueDate = DateTime(
+          paymentDate.year,
+          paymentDate.month + 1,
+          paymentDate.day,
+        );
+        try {
+          final customers = await getCustomers();
+          final customer = customers.firstWhere(
+            (c) => c.id == event.payment.customerId,
+          );
+          final updatedCustomer = (customer as CustomerModel).copyWith(
+            nextDueDate: newNextDueDate,
+          );
+          await updateCustomer(updatedCustomer);
+        } catch (e) {
+          debugPrint('Warning: Could not update customer nextDueDate: $e');
+        }
+      }
+
       await Future.delayed(const Duration(milliseconds: 300));
       await _onLoadPayments(const LoadPaymentsEvent(), emit);
     } catch (e) {
@@ -258,7 +286,7 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
           );
           await updateCustomer(updatedCustomer);
         } catch (e) {
-          print('Warning: Could not update customer nextDueDate: $e');
+          debugPrint('Warning: Could not update customer nextDueDate: $e');
         }
       }
 

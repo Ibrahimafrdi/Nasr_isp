@@ -59,7 +59,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
     try {
       final customers = await getIt<GetCustomers>()();
       final inventory = await getIt<GetInventoryItems>()();
-      final employeesSnap = await FirebaseFirestore.instance.collection('employees').get();
+      final employeesSnap =
+          await FirebaseFirestore.instance.collection('employee_directory').get();
 
       // Only offer active technicians for assignment — matches EmployeeModel's
       // own default (missing/null status is treated as active).
@@ -649,9 +650,21 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         );
                         final unitCostText = isAdmin
                             ? Text(
-                                '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)} '
-                                '/ sell ${DateTimeUtils.formatCurrency(row['sellPrice'] as double)}',
+                                '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)}',
                                 style: const TextStyle(fontSize: 12),
+                              )
+                            : null;
+                        final sellPriceField = isAdmin
+                            ? TextFormField(
+                                key: ValueKey('sellPrice_$idx'),
+                                initialValue: (row['sellPrice'] as double).toStringAsFixed(2),
+                                decoration: const InputDecoration(labelText: 'Sell Price'),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                enabled: !materialsLocked,
+                                onChanged: (val) {
+                                  final parsed = double.tryParse(val) ?? 0.0;
+                                  setDialogState(() => row['sellPrice'] = parsed);
+                                },
                               )
                             : null;
                         final deleteButton = IconButton(
@@ -676,6 +689,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                 Row(
                                   children: [
                                     Expanded(child: qtyField),
+                                    if (sellPriceField != null) ...[
+                                      const SizedBox(width: 8),
+                                      Expanded(child: sellPriceField),
+                                    ],
                                     if (unitCostText != null) ...[
                                       const SizedBox(width: 8),
                                       unitCostText,
@@ -696,6 +713,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                               const SizedBox(width: 8),
                               Expanded(flex: 1, child: qtyField),
                               const SizedBox(width: 8),
+                              if (sellPriceField != null) ...[
+                                Expanded(flex: 1, child: sellPriceField),
+                                const SizedBox(width: 8),
+                              ],
                               if (unitCostText != null) Expanded(flex: 1, child: unitCostText),
                               deleteButton,
                             ],

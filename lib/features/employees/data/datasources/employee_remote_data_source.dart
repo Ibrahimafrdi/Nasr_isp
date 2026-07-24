@@ -15,12 +15,21 @@ class EmployeeRemoteDataSourceImpl implements EmployeeRemoteDataSource {
 
   CollectionReference get _col => _firestore.collection('employees');
 
+  // Public mirror of non-sensitive fields (no salary/phone/email/address),
+  // readable by any signed-in user — e.g. the installations technician
+  // dropdown — while the `employees` collection itself stays admin-only.
+  CollectionReference get _directoryCol =>
+      _firestore.collection('employee_directory');
+
   @override
   Future<void> addEmployee(EmployeeModel employee) async {
     final data = employee.toMap();
     data.remove('id');
     data['createdAt'] = FieldValue.serverTimestamp();
-    await _col.doc(employee.id).set(data);
+    final batch = _firestore.batch();
+    batch.set(_col.doc(employee.id), data);
+    batch.set(_directoryCol.doc(employee.id), _directoryData(employee));
+    await batch.commit();
   }
 
   @override
@@ -34,6 +43,16 @@ class EmployeeRemoteDataSourceImpl implements EmployeeRemoteDataSource {
     final data = employee.toMap();
     data.remove('id');
     data.remove('createdAt');
-    await _col.doc(employee.id).update(data);
+    final batch = _firestore.batch();
+    batch.update(_col.doc(employee.id), data);
+    batch.set(_directoryCol.doc(employee.id), _directoryData(employee));
+    await batch.commit();
+  }
+
+  Map<String, dynamic> _directoryData(EmployeeModel employee) {
+    return {
+      'name': employee.name,
+      'status': employee.status.name,
+    };
   }
 }

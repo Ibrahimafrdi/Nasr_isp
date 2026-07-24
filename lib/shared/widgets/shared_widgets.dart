@@ -35,6 +35,7 @@ class DashboardCard extends StatefulWidget {
   final String? subtitle;
   final IconData? icon;
   final Color? backgroundColor;
+  final Color? iconColor;
   final VoidCallback? onTap;
 
   const DashboardCard({
@@ -44,6 +45,7 @@ class DashboardCard extends StatefulWidget {
     this.subtitle,
     this.icon,
     this.backgroundColor,
+    this.iconColor,
     this.onTap,
   }) : super(key: key);
 
@@ -58,6 +60,7 @@ class _DashboardCardState extends State<DashboardCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.primaryColor;
+    final iconColor = widget.iconColor ?? primaryColor;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -91,7 +94,7 @@ class _DashboardCardState extends State<DashboardCard> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -112,10 +115,10 @@ class _DashboardCardState extends State<DashboardCard> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha: 0.08),
+                        color: iconColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Icon(widget.icon, color: primaryColor, size: 16),
+                      child: Icon(widget.icon, color: iconColor, size: 16),
                     ),
                 ],
               ),

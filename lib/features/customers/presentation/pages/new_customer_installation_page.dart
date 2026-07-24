@@ -619,9 +619,18 @@ class _NewCustomerInstallationPageState
               },
             );
             final unitCostText = Text(
-              '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)} '
-              '/ sell ${DateTimeUtils.formatCurrency(row['sellPrice'] as double)}',
+              '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)}',
               style: const TextStyle(fontSize: 12),
+            );
+            final sellPriceField = TextFormField(
+              key: ValueKey('sellPrice_$idx'),
+              initialValue: (row['sellPrice'] as double).toStringAsFixed(2),
+              decoration: const InputDecoration(labelText: 'Sell Price'),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (val) {
+                final parsed = double.tryParse(val) ?? 0.0;
+                setState(() => row['sellPrice'] = parsed);
+              },
             );
             final deleteButton = IconButton(
               icon: const Icon(Icons.delete, color: AppColors.errorRed),
@@ -640,6 +649,8 @@ class _NewCustomerInstallationPageState
                       children: [
                         Expanded(child: qtyField),
                         const SizedBox(width: 8),
+                        Expanded(child: sellPriceField),
+                        const SizedBox(width: 8),
                         unitCostText,
                         deleteButton,
                       ],
@@ -656,6 +667,8 @@ class _NewCustomerInstallationPageState
                   Expanded(flex: 3, child: itemDropdown),
                   const SizedBox(width: 8),
                   Expanded(flex: 1, child: qtyField),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 1, child: sellPriceField),
                   const SizedBox(width: 8),
                   Expanded(flex: 1, child: unitCostText),
                   deleteButton,

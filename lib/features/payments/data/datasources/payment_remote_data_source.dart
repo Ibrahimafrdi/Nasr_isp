@@ -42,10 +42,14 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
     if (payment.completedDate != null) {
       data['completedDate'] = Timestamp.fromDate(payment.completedDate!);
     }
-    await _col.doc(payment.id).set(data);
+    // Fix #9: Use a Firestore auto-generated document ID instead of the
+    // client-side `pay_${milliseconds}` ID, which is not collision-safe
+    // when two sessions create payments at the exact same millisecond.
+    final docRef = _col.doc();
+    data['id'] = docRef.id;
+    await docRef.set(data);
   }
 
-  @override
   @override
   Future<List<PaymentModel>> getPayments({
     int limit = 10,

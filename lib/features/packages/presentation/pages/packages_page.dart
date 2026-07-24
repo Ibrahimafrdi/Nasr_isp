@@ -538,9 +538,28 @@ class PackageFormSheet extends StatefulWidget {
 }
 
 class _PackageFormSheetState extends State<PackageFormSheet> {
+  static const List<String> _commonSpeedSuggestions = [
+    '5 Mbps',
+    '10 Mbps',
+    '15 Mbps',
+    '20 Mbps',
+    '25 Mbps',
+    '30 Mbps',
+    '40 Mbps',
+    '50 Mbps',
+    '75 Mbps',
+    '100 Mbps',
+    '150 Mbps',
+    '200 Mbps',
+    '300 Mbps',
+    '500 Mbps',
+    '1000 Mbps',
+  ];
+
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameCtrl;
+  final FocusNode _nameFocusNode = FocusNode();
   late final TextEditingController _speedCtrl;
   late final TextEditingController _priceCtrl;
   late final TextEditingController _costPriceCtrl;
@@ -571,6 +590,7 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _nameFocusNode.dispose();
     _speedCtrl.dispose();
     _priceCtrl.dispose();
     _costPriceCtrl.dispose();
@@ -679,18 +699,64 @@ class _PackageFormSheetState extends State<PackageFormSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Package Name
-                        TextFormField(
-                          controller: _nameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Package Name *',
-                            hintText: 'e.g. 20 Mbps Home',
-                            prefixIcon: Icon(Icons.wifi),
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Name is required'
-                              : null,
-                        ),
+                        // Package Name — autocomplete over common speed
+                        // presets and names already used, so packages stay
+                        // consistently named instead of drifting (e.g.
+                        // "15mb" vs "15 Mbps"). Still freely editable.
+                        Builder(builder: (context) {
+                          final existingNames = <String>{};
+                          final blocState =
+                              context.read<PackagesBloc>().state;
+                          if (blocState is PackagesLoaded) {
+                            for (final p in blocState.packages) {
+                              if (!_isEdit || p.id != widget.existing!.id) {
+                                existingNames.add(p.name);
+                              }
+                            }
+                          }
+                          final suggestions = <String>{
+                            ...existingNames,
+                            ..._commonSpeedSuggestions,
+                          }.toList()
+                            ..sort();
+
+                          return Autocomplete<String>(
+                            textEditingController: _nameCtrl,
+                            focusNode: _nameFocusNode,
+                            optionsBuilder: (TextEditingValue value) {
+                              final query = value.text.trim().toLowerCase();
+                              if (query.isEmpty) return suggestions;
+                              return suggestions.where(
+                                  (s) => s.toLowerCase().contains(query));
+                            },
+                            onSelected: (selection) {
+                              _nameCtrl.text = selection;
+                              final match =
+                                  RegExp(r'(\d+)').firstMatch(selection);
+                              if (match != null &&
+                                  _speedCtrl.text.trim().isEmpty) {
+                                setState(
+                                    () => _speedCtrl.text = match.group(1)!);
+                              }
+                            },
+                            fieldViewBuilder:
+                                (context, controller, focusNode, onSubmit) {
+                              return TextFormField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Package Name *',
+                                  hintText: 'e.g. 20 Mbps Home',
+                                  prefixIcon: Icon(Icons.wifi),
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                        ? 'Name is required'
+                                        : null,
+                              );
+                            },
+                          );
+                        }),
                         const SizedBox(height: 16),
 
                         // Connection Type

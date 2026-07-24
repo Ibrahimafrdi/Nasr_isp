@@ -1,0 +1,117 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && currentUserDoc().role == 'admin';
+    }
+
+    // ── users: identity + role. This must be locked down first — every
+    // isAdmin() check in this file reads from here, so a writable `role`
+    // field would make every other admin-only rule below meaningless. ────
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isAdmin() || request.auth.uid == userId);
+
+      // The Firebase client SDK signs the browser in as the brand-new user
+      // immediately after createUserWithEmailAndPassword(), so the profile
+      // doc for a newly created account is written under that new user's
+      // own auth context, not the admin's. Rules can't verify "an admin
+      // initiated this" from here, so self-creation is capped to the
+      // 'employee' role and an active account; granting 'admin' must be
+      // done directly in the Firebase console.
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'employee'
+        && request.resource.data.isActive == true;
+
+      // Admins may change anything (including promoting/demoting roles and
+      // toggling isActive). A user editing their own doc may not touch
+      // role/isActive on themselves.
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == userId
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.isActive == resource.data.isActive);
+
+      allow delete: if isAdmin();
+    }
+
+    // ── employees: salary + personal contact info. Admin-only end to end.
+    // Technician-assignment/filter dropdowns read from the separate
+    // employee_directory mirror instead (see below), so non-admin users
+    // never need direct access to this collection. ───────────────────────
+    match /employees/{employeeId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Public, non-sensitive mirror (name + status only — no salary, phone,
+    // email or address) kept in sync by the app whenever an employee is
+    // added or edited. Readable by any signed-in user.
+    match /employee_directory/{employeeId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Everything else: baseline "must be signed in" gate. These
+    // collections are read and written by both admin and employee-role
+    // accounts through overlapping app flows (e.g. adding a customer also
+    // creates an installation and decrements inventory in a single
+    // transaction), so a finer-grained per-role split needs a dedicated
+    // pass through each flow before it can be safely tightened further. ──
+    match /customers/{customerId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /installations/{installationId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /packages/{packageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /payments/{paymentId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /inventory/{itemId} {
+      allow read, write: if isSignedIn();
+
+      match /movements/{movementId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /khataa/{entryId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /expenses/{expenseId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /app_settings/{docId} {
+      allow read: if isSignedIn();
+      // Auto-created with defaults on first read if missing (see
+      // SettingsRemoteDataSource.getSettings) — allow that one-time create
+      // for any signed-in user; further edits require admin.
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Deny anything not explicitly matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

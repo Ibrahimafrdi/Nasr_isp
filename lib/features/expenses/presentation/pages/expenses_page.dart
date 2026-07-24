@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +15,7 @@ import 'package:nasr_isp/features/expenses/presentation/bloc/expenses_bloc.dart'
 import 'package:nasr_isp/features/expenses/presentation/widgets/expense_card_list.dart';
 import 'package:nasr_isp/features/expenses/presentation/widgets/expense_filter_panel.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
+import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -29,6 +32,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
   String? _categoryFilter; // null == "All"
   DateTime? _dateRangeStart;
   DateTime? _dateRangeEnd;
+  Timer? _searchDebounce;
 
   // Cached last successfully loaded state, so a transient ExpensesLoading
   // or an ExpensesError doesn't blank out or replace an already-visible list.
@@ -51,6 +55,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -58,17 +63,33 @@ class _ExpensesPageState extends State<ExpensesPage> {
   /// Dispatches a load using the current search/category/date-range filters.
   void _dispatchLoad({int page = 1}) {
     context.read<ExpensesBloc>().add(
-          LoadExpensesEvent(
-            page: page,
-            searchQuery: _searchQuery,
-            filterCategories: _categoryFilter != null ? [_categoryFilter!] : [],
-            dateRangeStart: _dateRangeStart,
-            dateRangeEnd: _dateRangeEnd,
-          ),
-        );
+      LoadExpensesEvent(
+        page: page,
+        searchQuery: _searchQuery,
+        filterCategories: _categoryFilter != null ? [_categoryFilter!] : [],
+        dateRangeStart: _dateRangeStart,
+        dateRangeEnd: _dateRangeEnd,
+      ),
+    );
+  }
+
+  void _onSearchChanged(String val) {
+    setState(() => _searchQuery = val);
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(AppConstants.debounceDelay, () {
+      if (!mounted) return;
+      _dispatchLoad();
+    });
+  }
+
+  void _onCategoryFilterChanged(String? val) {
+    _searchDebounce?.cancel();
+    setState(() => _categoryFilter = val);
+    _dispatchLoad();
   }
 
   void _clearFilters() {
+    _searchDebounce?.cancel();
     setState(() {
       _searchController.clear();
       _searchQuery = '';
@@ -89,6 +110,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
           : null,
     );
     if (picked != null) {
+      _searchDebounce?.cancel();
       setState(() {
         _dateRangeStart = picked.start;
         _dateRangeEnd = picked.end;
@@ -97,12 +119,24 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
   }
 
+  void _onClearDateRange() {
+    _searchDebounce?.cancel();
+    setState(() {
+      _dateRangeStart = null;
+      _dateRangeEnd = null;
+    });
+    _dispatchLoad();
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
-        final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
+        final isAdmin =
+            authState is AuthAuthenticated && authState.user.isAdmin;
+        final currentUserName = authState is AuthAuthenticated
+            ? authState.user.name
+            : null;
         return BlocConsumer<ExpensesBloc, ExpensesState>(
           listener: (context, state) {
             if (state is ExpensesLoaded) {
@@ -144,7 +178,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       ),
                       if (isAdmin)
                         ElevatedButton.icon(
-                          onPressed: () => _showAddOrEditExpenseDialog(context),
+                          onPressed: () => _showAddOrEditExpenseDialog(
+                            context,
+                            currentUserName: currentUserName,
+                          ),
                           icon: const Icon(Icons.add, size: 18),
                           label: const Text('Add Expense'),
                           style: ElevatedButton.styleFrom(
@@ -163,26 +200,15 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     ExpenseFilterPanel(
                       searchController: _searchController,
                       categoryFilter: _categoryFilter,
-                      hasDateRange: _dateRangeStart != null && _dateRangeEnd != null,
+                      hasDateRange:
+                          _dateRangeStart != null && _dateRangeEnd != null,
                       dateRangeStart: _dateRangeStart,
                       dateRangeEnd: _dateRangeEnd,
                       activeFilterCount: _activeFilterCount,
-                      onSearchChanged: (val) {
-                        setState(() => _searchQuery = val);
-                        _dispatchLoad();
-                      },
+                      onSearchChanged: _onSearchChanged,
                       onPickDateRange: _pickDateRange,
-                      onClearDateRange: () {
-                        setState(() {
-                          _dateRangeStart = null;
-                          _dateRangeEnd = null;
-                        });
-                        _dispatchLoad();
-                      },
-                      onCategoryFilterChanged: (val) {
-                        setState(() => _categoryFilter = val);
-                        _dispatchLoad();
-                      },
+                      onClearDateRange: _onClearDateRange,
+                      onCategoryFilterChanged: _onCategoryFilterChanged,
                       onClearFilters: _clearFilters,
                     ),
                     const SizedBox(height: 24),
@@ -190,24 +216,27 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       builder: (context, constraints) {
                         final isDesktop = constraints.maxWidth > 800;
                         return isDesktop
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 3,
-                                    child: _buildExpenseSummaryCards(
-                                      state.totalExpenses,
-                                      state.totalThisMonth,
+                            ? IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: _buildExpenseSummaryCards(
+                                        state.totalExpenses,
+                                        state.totalThisMonth,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 24),
-                                  Expanded(
-                                    flex: 2,
-                                    child: _buildExpensePieChart(
-                                      state.expenses,
+                                    const SizedBox(width: 24),
+                                    Expanded(
+                                      flex: 2,
+                                      child: _buildExpensePieChart(
+                                        state.expenses,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               )
                             : Column(
                                 children: [
@@ -222,50 +251,57 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       },
                     ),
                     const SizedBox(height: 32),
-                    Card(
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: AppTheme.lightGray.withValues(alpha: 0.5),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Expense Registry',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Expense Registry',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 16),
-                            state.expenses.isEmpty
-                                ? const EmptyStateWidget(
-                                    icon: Icons.receipt_long,
-                                    title: 'No expenses recorded',
-                                  )
-                                : ResponsiveLayout(
-                                    mobile: ExpenseCardList(
-                                      expenses: state.expenses,
-                                      isAdmin: isAdmin,
-                                      onEdit: (expense) =>
-                                          _showAddOrEditExpenseDialog(context,
-                                              expense: expense),
-                                      onDelete: (expense) =>
-                                          _confirmDeleteExpense(context, expense),
+                        const SizedBox(height: 16),
+                        state.expenses.isEmpty
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 32,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: AppTheme.lightGray.withValues(
+                                      alpha: 0.8,
                                     ),
-                                    desktop: _buildExpensesTable(
-                                      state.expenses,
-                                      isAdmin,
-                                    ),
+                                    width: 1.5,
                                   ),
-                          ],
-                        ),
-                      ),
+                                ),
+                                child: EmptyStateWidget(
+                                  icon: Icons.receipt_long,
+                                  title: _activeFilterCount > 0
+                                      ? 'No expenses match your filters'
+                                      : 'No expenses recorded',
+                                ),
+                              )
+                            : ResponsiveLayout(
+                                mobile: ExpenseCardList(
+                                  expenses: state.expenses,
+                                  isAdmin: isAdmin,
+                                  onEdit: (expense) =>
+                                      _showAddOrEditExpenseDialog(
+                                        context,
+                                        expense: expense,
+                                        currentUserName: currentUserName,
+                                      ),
+                                  onDelete: (expense) =>
+                                      _confirmDeleteExpense(context, expense),
+                                ),
+                                desktop: _buildExpensesTable(
+                                  state.expenses,
+                                  isAdmin,
+                                  currentUserName,
+                                ),
+                              ),
+                      ],
                     ),
                     if (state.totalPages > 1) ...[
                       const SizedBox(height: 24),
@@ -311,30 +347,31 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  Widget _buildExpenseSummaryCards(double totalFiltered, double totalThisMonth) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildExpenseSummaryCards(
+    double totalFiltered,
+    double totalThisMonth,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: DashboardCard(
-                label: 'Total This Month',
-                value: DateTimeUtils.formatCurrency(totalThisMonth),
-                icon: Icons.calendar_month,
-                backgroundColor: AppTheme.errorColor.withValues(alpha: 0.05),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: DashboardCard(
-                label: 'Filtered Total Spend',
-                value: DateTimeUtils.formatCurrency(totalFiltered),
-                icon: Icons.account_balance_wallet,
-                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.05),
-              ),
-            ),
-          ],
+        Expanded(
+          child: DashboardCard(
+            label: 'Total This Month',
+            value: DateTimeUtils.formatCurrency(totalThisMonth),
+            icon: Icons.calendar_month,
+            backgroundColor: AppTheme.errorColor.withValues(alpha: 0.05),
+            iconColor: AppTheme.errorColor,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: DashboardCard(
+            label: 'Filtered Total Spend',
+            value: DateTimeUtils.formatCurrency(totalFiltered),
+            icon: Icons.account_balance_wallet,
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.05),
+            iconColor: AppTheme.primaryColor,
+          ),
         ),
       ],
     );
@@ -357,6 +394,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
       ExpenseCategory.other: Colors.grey,
     };
 
+    // Largest category first, matching how the legend reads top-to-bottom.
+    final sortedEntries = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
@@ -370,173 +411,184 @@ class _ExpensesPageState extends State<ExpensesPage> {
           children: [
             Text(
               'Cost Breakdown by Category',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 140,
-              child: sum == 0
-                  ? const Center(child: Text('No expense data'))
-                  : PieChart(
-                      PieChartData(
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 28,
-                        sections: totals.entries.map((entry) {
-                          final share = (entry.value / sum) * 100;
-                          return PieChartSectionData(
-                            value: entry.value,
-                            title: share >= 5 ? '${share.toStringAsFixed(0)}%' : '',
-                            color: colors[entry.key] ?? Colors.grey,
-                            radius: 28,
-                            titleStyle: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 12),
-            Column(
-              children: totals.entries.map((entry) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            sum == 0
+                ? const SizedBox(
+                    height: 140,
+                    child: Center(child: Text('No expense data')),
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: colors[entry.key] ?? Colors.grey,
-                              shape: BoxShape.circle,
-                            ),
+                      SizedBox(
+                        height: 140,
+                        width: 140,
+                        child: PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 28,
+                            sections: sortedEntries.map((entry) {
+                              final share = (entry.value / sum) * 100;
+                              return PieChartSectionData(
+                                value: entry.value,
+                                title: share >= 5
+                                    ? '${share.toStringAsFixed(0)}%'
+                                    : '',
+                                color: colors[entry.key] ?? Colors.grey,
+                                radius: 28,
+                                titleStyle: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              );
+                            }).toList(),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            entry.key.label,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ],
+                        ),
                       ),
-                      Text(
-                        DateTimeUtils.formatCurrency(entry.value),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: sortedEntries.map((entry) {
+                            final share = (entry.value / sum) * 100;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: colors[entry.key] ?? Colors.grey,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      entry.key.label,
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${share.toStringAsFixed(0)}%',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.mediumGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
                     ],
                   ),
-                );
-              }).toList(),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildExpensesTable(List<ExpenseEntity> expenses, bool isAdmin) {
-    return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Title')),
-        DataColumn(label: Text('Category')),
-        DataColumn(label: Text('Amount')),
-        DataColumn(label: Text('Paid By')),
-        DataColumn(label: Text('Date')),
-        DataColumn(label: Text('Actions')),
+  Widget _buildExpensesTable(
+    List<ExpenseEntity> expenses,
+    bool isAdmin,
+    String? currentUserName,
+  ) {
+    return PremiumDataTable(
+      columns: [
+        PremiumDataColumn(label: 'Title', width: 2.5),
+        PremiumDataColumn(label: 'Category', width: 1.2),
+        PremiumDataColumn(label: 'Amount', width: 1.2),
+        PremiumDataColumn(label: 'Paid By', width: 1.2),
+        PremiumDataColumn(label: 'Date', width: 1.3),
+        PremiumDataColumn(label: 'Actions', width: 1),
       ],
       rows: expenses.map((e) {
-        return DataRow(
+        return PremiumDataRow(
           cells: [
-            DataCell(
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e.title,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (e.notes != null && e.notes!.isNotEmpty)
                   Text(
-                    e.title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    e.notes!,
+                    style: TextStyle(fontSize: 11, color: AppTheme.mediumGray),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (e.notes != null && e.notes!.isNotEmpty)
-                    Text(
-                      e.notes!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.mediumGray,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
+              ],
             ),
-            DataCell(
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  e.category.label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
               ),
-            ),
-            DataCell(
-              Text(
-                DateTimeUtils.formatCurrency(e.amount),
+              child: Text(
+                e.category.label,
                 style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.primaryColor,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.errorColor,
                 ),
               ),
             ),
-            DataCell(Text(e.paidBy)),
-            DataCell(Text(DateTimeUtils.formatDate(e.date))),
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isAdmin) ...[
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      tooltip: 'Edit Expense',
-                      color: AppTheme.primaryColor,
-                      onPressed: () =>
-                          _showAddOrEditExpenseDialog(context, expense: e),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      tooltip: 'Delete Expense',
-                      color: AppTheme.errorColor,
-                      onPressed: () => _confirmDeleteExpense(context, e),
-                    ),
-                  ] else
-                    const Text('-'),
-                ],
+            Text(
+              DateTimeUtils.formatCurrency(e.amount),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.errorColor,
+                fontSize: 12.5,
               ),
+            ),
+            e.paidBy,
+            DateTimeUtils.formatDate(e.date),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isAdmin) ...[
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Edit Expense',
+                    color: AppTheme.primaryColor,
+                    onPressed: () => _showAddOrEditExpenseDialog(
+                      context,
+                      expense: e,
+                      currentUserName: currentUserName,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'Delete Expense',
+                    color: AppTheme.errorColor,
+                    onPressed: () => _confirmDeleteExpense(context, e),
+                  ),
+                ] else
+                  const Text('-'),
+              ],
             ),
           ],
         );
       }).toList(),
     );
   }
-
 
   void _confirmDeleteExpense(BuildContext context, ExpenseEntity expense) {
     bool isDeleting = false;
@@ -578,7 +630,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Failed to delete expense: ${result.message}'),
+                                  'Failed to delete expense: ${result.message}',
+                                ),
                                 backgroundColor: AppTheme.errorColor,
                               ),
                             );
@@ -588,7 +641,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Expense "${expense.title}" deleted'),
+                              content: Text(
+                                'Expense "${expense.title}" deleted',
+                              ),
                             ),
                           );
                         },
@@ -602,21 +657,29 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  void _showAddOrEditExpenseDialog(BuildContext context,
-      {ExpenseEntity? expense}) {
+  void _showAddOrEditExpenseDialog(
+    BuildContext context, {
+    ExpenseEntity? expense,
+    String? currentUserName,
+  }) {
     final isEditing = expense != null;
     final formKey = GlobalKey<FormState>();
-    final titleController =
-        TextEditingController(text: isEditing ? expense.title : '');
+    final titleController = TextEditingController(
+      text: isEditing ? expense.title : '',
+    );
     final amountController = TextEditingController(
-        text: isEditing ? expense.amount.toStringAsFixed(0) : '');
-    final paidByController =
-        TextEditingController(text: isEditing ? expense.paidBy : 'Admin');
-    final notesController =
-        TextEditingController(text: isEditing ? expense.notes ?? '' : '');
+      text: isEditing ? expense.amount.toStringAsFixed(0) : '',
+    );
+    final paidByController = TextEditingController(
+      text: isEditing ? expense.paidBy : (currentUserName ?? 'Admin'),
+    );
+    final notesController = TextEditingController(
+      text: isEditing ? expense.notes ?? '' : '',
+    );
 
-    ExpenseCategory selectedCategory =
-        isEditing ? expense.category : ExpenseCategory.other;
+    ExpenseCategory selectedCategory = isEditing
+        ? expense.category
+        : ExpenseCategory.other;
     DateTime selectedDate = isEditing ? expense.date : DateTime.now();
     bool isSaving = false;
 
@@ -626,7 +689,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(isEditing ? 'Edit Expense' : 'Record Operating Expense'),
+              title: Text(
+                isEditing ? 'Edit Expense' : 'Record Operating Expense',
+              ),
               content: Form(
                 key: formKey,
                 child: SizedBox(
@@ -665,7 +730,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                 onChanged: (val) {
                                   if (val != null) {
                                     setDialogState(
-                                        () => selectedCategory = val);
+                                      () => selectedCategory = val,
+                                    );
                                   }
                                 },
                               ),
@@ -680,15 +746,19 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                 ),
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
+                                      decimal: true,
+                                    ),
                                 inputFormatters: AppInputFormatters.decimal,
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Amount is required';
                                   }
-                                  if (double.tryParse(v) == null) {
+                                  final parsed = double.tryParse(v);
+                                  if (parsed == null) {
                                     return 'Enter valid number';
+                                  }
+                                  if (parsed <= 0) {
+                                    return 'Amount must be greater than 0';
                                   }
                                   return null;
                                 },
@@ -706,19 +776,21 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                     context: context,
                                     initialDate: selectedDate,
                                     firstDate: DateTime(2020),
-                                    lastDate: DateTime.now()
-                                        .add(const Duration(days: 365)),
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 365),
+                                    ),
                                   );
                                   if (picked != null) {
-                                    setDialogState(
-                                        () => selectedDate = picked);
+                                    setDialogState(() => selectedDate = picked);
                                   }
                                 },
                                 child: InputDecorator(
                                   decoration: const InputDecoration(
                                     labelText: 'Date',
-                                    suffixIcon: Icon(Icons.calendar_today,
-                                        size: 18),
+                                    suffixIcon: Icon(
+                                      Icons.calendar_today,
+                                      size: 18,
+                                    ),
                                   ),
                                   child: Text(
                                     DateTimeUtils.formatDate(selectedDate),
@@ -799,7 +871,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
                             setDialogState(() => isSaving = false);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Failed to save: ${result.message}'),
+                                content: Text(
+                                  'Failed to save: ${result.message}',
+                                ),
                                 backgroundColor: AppTheme.errorColor,
                               ),
                             );

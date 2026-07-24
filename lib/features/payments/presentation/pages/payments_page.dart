@@ -499,8 +499,34 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               if (v == null || v.isEmpty) {
                                 return 'Please enter amount';
                               }
-                              if (double.tryParse(v) == null) {
-                                return 'Enter a valid number';
+                              final val = double.tryParse(v);
+                              if (val == null) return 'Enter a valid number';
+                              if (val <= 0) {
+                                return 'Amount must be greater than zero';
+                              }
+                              // Bug Fix #4: Guard against overpayment.
+                              // If the customer has a partial payment, cap at
+                              // remaining balance; otherwise cap at monthly bill.
+                              if (selectedCustomer != null) {
+                                final partialPayment =
+                                    paymentsState is PaymentsLoaded
+                                    ? paymentsState.payments
+                                          .where(
+                                            (p) =>
+                                                p.customerId ==
+                                                    selectedCustomer!.id &&
+                                                p.status == 'partial',
+                                          )
+                                          .firstOrNull
+                                    : null;
+                                final maxAmount =
+                                    partialPayment?.remainingAmount ??
+                                    selectedCustomer!.monthlyBill.toDouble();
+                                if (val > maxAmount) {
+                                  return 'Cannot exceed '
+                                      '${partialPayment != null ? 'remaining balance' : 'billing amount'} '
+                                      '(PKR ${maxAmount.toStringAsFixed(0)})';
+                                }
                               }
                               return null;
                             },
@@ -578,15 +604,33 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   if (formKey.currentState!.validate()) {
                     setDialogState(() => isSubmitting = true);
 
-                    final billingMonth =
-                        '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}';
                     final customer = selectedCustomer!;
-                    final fullAmount = customer.monthlyBill.toDouble();
+
+                    // Bug Fix #3: When the customer has an existing partial
+                    // payment, use that record's billingMonth so the BLoC
+                    // can find and merge it. Without this, a top-up entered
+                    // in a different calendar month would create a duplicate
+                    // new record instead of updating the partial.
+                    final existingPartial = paymentsState is PaymentsLoaded
+                        ? paymentsState.payments
+                              .where(
+                                (p) =>
+                                    p.customerId == customer.id &&
+                                    p.status == 'partial',
+                              )
+                              .firstOrNull
+                        : null;
+                    final billingMonth = existingPartial?.billingMonth ??
+                        '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}';
+
+                    // Use the stored amount from the existing partial record
+                    // so the BLoC's isPaidInFull check is consistent.
+                    final fullAmount =
+                        existingPartial?.amount ?? customer.monthlyBill.toDouble();
                     final enteredAmount = double.parse(
                       amountController.text.trim(),
                     );
                     final isPaidInFull = enteredAmount >= fullAmount;
-                    final currentBillingMonth = billingMonth;
                     final nextDueDate = DateTime(
                       paymentDate.year,
                       paymentDate.month + 1,
@@ -604,24 +648,18 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       completedDate: isPaidInFull ? paymentDate : null,
                       method: selectedMethod,
                       notes: notes.isEmpty ? null : notes,
-                      billingMonth: currentBillingMonth,
+                      billingMonth: billingMonth,
                       createdAt: DateTime.now(),
                       paymentDate: paymentDate,
                     );
 
+                    // Bug Fix #2: Customer nextDueDate update is handled
+                    // entirely inside _onCreatePayment in the BLoC to avoid
+                    // a race-condition double-write to Firestore. Do NOT
+                    // also dispatch UpdateCustomerEvent from the UI here.
                     context.read<PaymentsBloc>().add(
                       CreatePaymentEvent(payment),
                     );
-
-                    // Only update nextDueDate on customer if fully paid
-                    if (isPaidInFull) {
-                      final updatedCustomer = customer.copyWith(
-                        nextDueDate: nextDueDate,
-                      );
-                      context.read<CustomersBloc>().add(
-                        UpdateCustomerEvent(updatedCustomer),
-                      );
-                    }
 
                     await Future.delayed(const Duration(milliseconds: 800));
                     if (!ctx.mounted) return;
@@ -746,10 +784,15 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 );
                 final newPaid =
                     payment.paidAmount + double.parse(amountController.text);
+                final isPaidInFull = newPaid >= payment.amount;
                 final updatedPayment = payment.copyWith(
                   paidAmount: newPaid,
-                  status: newPaid >= payment.amount ? 'paid' : 'partial',
-                  completedDate: DateTime.now(),
+                  status: isPaidInFull ? 'paid' : 'partial',
+                  // Bug Fix #1: Only set completedDate when the bill is fully
+                  // settled. Previously this was always DateTime.now(), which
+                  // caused _onUpdatePayment in the BLoC to push a new
+                  // nextDueDate to the customer even on partial payments.
+                  completedDate: isPaidInFull ? DateTime.now() : null,
                   method: selectedMethod,
                   notes: notes.isNotEmpty ? notes : null,
                 );

@@ -205,7 +205,12 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
           ? 1
           : (filtered.length / AppConstants.itemsPerPage).ceil();
 
-      final start = (event.page - 1) * AppConstants.itemsPerPage;
+      // Clamp back into range if the requested page no longer exists (e.g.
+      // deleting the last item on the last page shrinks totalPages below
+      // the page the UI was still showing).
+      final effectivePage = event.page.clamp(1, totalPages);
+
+      final start = (effectivePage - 1) * AppConstants.itemsPerPage;
       final end = (start + AppConstants.itemsPerPage)
           .clamp(0, filtered.length)
           .toInt();
@@ -218,7 +223,7 @@ class ExpensesBloc extends Bloc<ExpensesEvent, ExpensesState> {
           expenses: paginated,
           totalExpenses: totalExpenses,
           totalThisMonth: totalThisMonth,
-          currentPage: event.page,
+          currentPage: effectivePage,
           totalPages: totalPages,
           searchQuery: event.searchQuery,
           filterCategories: event.filterCategories,

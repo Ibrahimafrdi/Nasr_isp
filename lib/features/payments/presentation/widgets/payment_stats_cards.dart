@@ -20,18 +20,18 @@ class PaymentStatsCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final cards = [
       DashboardCard(
-        label: 'Current Billing Target',
+        label: 'Billing (Filtered View)',
         value: DateTimeUtils.formatCurrency(totalAmount),
         icon: Icons.monetization_on,
       ),
       DashboardCard(
-        label: 'Collections Realized',
+        label: 'Collected (Filtered View)',
         value: DateTimeUtils.formatCurrency(collectedAmount),
         icon: Icons.check_circle_outline,
         backgroundColor: AppTheme.successColor.withValues(alpha: 0.05),
       ),
       DashboardCard(
-        label: 'Total Outstanding Dues',
+        label: 'Outstanding (Filtered View)',
         value: DateTimeUtils.formatCurrency(totalAmount - collectedAmount),
         icon: Icons.pending_actions,
         backgroundColor: AppTheme.errorColor.withValues(alpha: 0.05),
