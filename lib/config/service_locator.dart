@@ -241,13 +241,14 @@ void setupServiceLocator() {
     ),
   );
 
-  // Dashboard (depends on Payments + Installations use cases registered above)
+  // Dashboard (depends on Payments + Installations + Packages use cases registered above)
   getIt.registerSingleton<DashboardBloc>(
     DashboardBloc(
       getCustomers: getIt<GetCustomers>(),
       getAllPayments: getIt<GetAllPayments>(),
       getExpenses: getIt<GetExpenses>(),
       getInstallations: getIt<GetInstallations>(),
+      getPackages: getIt<GetPackages>(),
     ),
   );
 

@@ -7,6 +7,8 @@ import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart
 import 'package:nasr_isp/features/expenses/domain/usecases/get_expenses.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
+import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
+import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
 
 // Dashboard Events
 abstract class DashboardEvent extends Equatable {
@@ -93,12 +95,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetAllPayments getAllPayments;
   final GetExpenses getExpenses;
   final GetInstallations getInstallations;
+  final GetPackages getPackages;
 
   DashboardBloc({
     required this.getCustomers,
     required this.getAllPayments,
     required this.getExpenses,
     required this.getInstallations,
+    required this.getPackages,
   }) : super(const DashboardInitial()) {
     on<LoadDashboardEvent>(_onLoadDashboard);
     on<RefreshDashboardEvent>(_onRefreshDashboard);
@@ -131,12 +135,16 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         getAllPayments(),
         getExpenses(),
         getInstallations(),
+        getPackages(),
       ]);
 
       final allCustomers = (results[0] as List).cast<CustomerModel>();
       final allPayments = (results[1] as List).cast<PaymentModel>();
       final allExpenses = (results[2] as List).cast<ExpenseModel>();
       final allInstallations = (results[3] as List).cast<InstallationEntity>();
+      final allPackages = (results[4] as List).cast<PackageEntity>();
+
+      final packageMap = {for (final p in allPackages) p.id: p};
 
       final now = DateTime.now();
 
@@ -195,6 +203,16 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final pendingPaymentsAmount = pendingPayments
           .fold(0.0, (sum, p) => sum + p.remainingAmount);
 
+      // Calculate total subscriber profit for active customers:
+      // Profit per customer = customer.monthlyBill - package.costPrice
+      final activeCustomerEntities = allCustomers.where((c) => c.status == 'active');
+      final totalSubscriberProfit = activeCustomerEntities.fold(0.0, (sum, c) {
+        final pkg = (c.packageId != null && c.packageId!.isNotEmpty)
+            ? packageMap[c.packageId]
+            : null;
+        return sum + c.calculateProfit(pkg);
+      });
+
       // Expense stats — current month only
       final currentMonthExpenses = allExpenses.where((e) {
         return e.date.year == now.year && e.date.month == now.month;
@@ -203,7 +221,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final monthlyExpenses = currentMonthExpenses
           .fold(0.0, (sum, e) => sum + e.amount);
 
-      final netProfit = monthlyRevenue - monthlyExpenses;
+      final netProfit = totalSubscriberProfit - monthlyExpenses;
 
       // Installation stats
       final pendingInstallations = allInstallations

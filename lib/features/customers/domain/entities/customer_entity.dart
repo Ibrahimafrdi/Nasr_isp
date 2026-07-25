@@ -1,3 +1,5 @@
+import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
+
 class CustomerEntity {
   final String id;
   final String name;
@@ -28,4 +30,12 @@ class CustomerEntity {
     this.joinDate,
     this.nextDueDate,
   });
+
+  /// Calculates monthly profit for this customer:
+  /// customer.monthlyBill - package.costPrice
+  /// If [package] is null or not found, cost price defaults to 0.0 safely.
+  double calculateProfit(PackageEntity? package) {
+    final costPrice = package?.costPrice ?? 0.0;
+    return monthlyBill - costPrice;
+  }
 }

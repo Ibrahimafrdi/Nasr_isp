@@ -238,6 +238,7 @@ void main() {
       getAllPayments: getAllPayments,
       getExpenses: getExpenses,
       getInstallations: getInstallations,
+      getPackages: getPackages,
     ));
     getIt.registerSingleton<CustomersBloc>(CustomersBloc(
       getCustomers: getCustomers,

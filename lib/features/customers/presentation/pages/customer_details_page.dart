@@ -16,6 +16,7 @@ import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 
 class CustomerDetailsPage extends StatefulWidget {
   final String customerId;
@@ -112,6 +113,19 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
       }
     }
     return 'Plan ID: $packageId';
+  }
+
+  PackageEntity? _getCustomerPackage(String? packageId) {
+    if (packageId == null || packageId.isEmpty) return null;
+    final state = context.read<PackagesBloc>().state;
+    if (state is PackagesLoaded) {
+      for (final pkg in state.packages) {
+        if (pkg.id == packageId) {
+          return pkg;
+        }
+      }
+    }
+    return null;
   }
 
   @override
@@ -325,13 +339,24 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                     Icons.speed,
                     AppTheme.primaryColor,
                   ),
-                  if (isAdmin)
+                  if (isAdmin) ...[
                     _overviewStatData(
                       'Monthly Cost',
                       DateTimeUtils.formatCurrency(_customer!.monthlyBill),
                       Icons.monetization_on,
                       AppTheme.successColor,
                     ),
+                    _overviewStatData(
+                      'Monthly Profit',
+                      DateTimeUtils.formatCurrency(
+                        _customer!.calculateProfit(
+                          _getCustomerPackage(_customer!.packageId),
+                        ),
+                      ),
+                      Icons.trending_up,
+                      AppColors.profitBlue,
+                    ),
+                  ],
                 ];
 
                 if (isNarrow) {

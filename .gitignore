@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# NASR ISP migration files
+nasr-isp-migration/node_modules/
+nasr-isp-migration/serviceAccountKey.json
+nasr-isp-migration/serviceAccountKey.json.json
+.env
