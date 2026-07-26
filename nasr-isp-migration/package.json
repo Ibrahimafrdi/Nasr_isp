@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "seed:packages": "node import-packages.js",
+    "seed:customers": "node import-customers.js",
+    "seed": "node import-packages.js && node import-customers.js"
+  },
   "dependencies": {
     "firebase-admin": "^14.2.0",
     "xlsx": "^0.18.5"

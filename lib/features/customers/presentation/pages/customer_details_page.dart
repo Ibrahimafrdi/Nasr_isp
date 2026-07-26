@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
@@ -11,7 +12,6 @@ import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart'
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
-import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
@@ -114,6 +114,12 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     }
     return 'Plan ID: $packageId';
   }
+
+  /// The loaded customer's monthly subscription margin, carrying a verdict on
+  /// whether the package behind it actually resolved. Only call once
+  /// [_customer] is non-null.
+  SubscriberMargin get _monthlyMargin =>
+      _customer!.monthlyMargin(_getCustomerPackage(_customer!.packageId));
 
   PackageEntity? _getCustomerPackage(String? packageId) {
     if (packageId == null || packageId.isEmpty) return null;
@@ -341,20 +347,33 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                   ),
                   if (isAdmin) ...[
                     _overviewStatData(
-                      'Monthly Cost',
+                      'Monthly Bill',
                       DateTimeUtils.formatCurrency(_customer!.monthlyBill),
                       Icons.monetization_on,
                       AppTheme.successColor,
                     ),
                     _overviewStatData(
+                      'Package Cost',
+                      _monthlyMargin.isReliable
+                          ? DateTimeUtils.formatCurrency(
+                              _monthlyMargin.money.costIncurred)
+                          : 'Not set',
+                      Icons.cloud_download_outlined,
+                      _monthlyMargin.isReliable
+                          ? AppTheme.darkGray
+                          : AppTheme.warningColor,
+                    ),
+                    _overviewStatData(
                       'Monthly Profit',
-                      DateTimeUtils.formatCurrency(
-                        _customer!.calculateProfit(
-                          _getCustomerPackage(_customer!.packageId),
-                        ),
-                      ),
+                      DateTimeUtils.formatCurrency(_monthlyMargin.money.profit),
                       Icons.trending_up,
-                      AppColors.profitBlue,
+                      // Warns whenever there is no usable package cost — no
+                      // package assigned, or a packageId that no longer
+                      // resolves. Cost falls back to zero in both cases, so the
+                      // whole bill shows as profit: an upper bound, not a fact.
+                      _monthlyMargin.isReliable
+                          ? AppColors.profitBlue
+                          : AppTheme.warningColor,
                     ),
                   ],
                 ];
@@ -969,28 +988,51 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                               ),
                             ),
                             Text(
-                              'Billed Fee: ${DateTimeUtils.formatCurrency(inst.installationCost)}',
+                              'Setup Fee: ${DateTimeUtils.formatCurrency(inst.installationCost)}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.darkGray,
                               ),
                             ),
-                            if (isAdmin && inst.materialCost != null) ...[
+                            // Materials are billed on top of the setup fee, so
+                            // the fee alone is not what the customer owes.
+                            if (inst.materialRevenue > 0)
                               Text(
-                                'Material Cost: ${DateTimeUtils.formatCurrency(inst.materialCost!)}',
+                                'Materials Billed: ${DateTimeUtils.formatCurrency(inst.materialRevenue)}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.darkGray,
                                 ),
                               ),
+                            Text(
+                              'Total Billed: ${DateTimeUtils.formatCurrency(inst.money.amountBilled)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.darkGray,
+                              ),
+                            ),
+                            if (isAdmin) ...[
+                              if (inst.materialCost != null)
+                                Text(
+                                  'Material Cost: ${DateTimeUtils.formatCurrency(inst.materialCost!)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.darkGray,
+                                  ),
+                                ),
                               Text(
-                                'Profit: ${DateTimeUtils.formatCurrency(inst.profit!)}',
+                                'Profit: ${DateTimeUtils.formatCurrency(inst.profit)}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: inst.profit! > 0
-                                      ? AppTheme.successColor
-                                      : AppTheme.errorColor,
+                                  // Neutral when no costs were logged: exact,
+                                  // but it assumes zero cost.
+                                  color: !inst.hasCostData
+                                      ? AppTheme.darkGray
+                                      : (inst.profit >= 0
+                                          ? AppTheme.successColor
+                                          : AppTheme.errorColor),
                                 ),
                               ),
                             ],

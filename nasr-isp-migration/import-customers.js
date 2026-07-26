@@ -57,6 +57,52 @@ function cleanString(value) {
     return String(value).trim();
 }
 
+/**
+ * Every customer's packageId must point at a real package document — that is
+ * where their upstream cost comes from. When it doesn't resolve, the app falls
+ * back to a zero cost and reports the customer's ENTIRE monthly bill as profit.
+ * Run import-packages.js first.
+ */
+async function verifyPackagesExist() {
+    const referenced = [
+        ...new Set(
+            rows.map((r) => cleanString(r["packageId"])).filter(Boolean)
+        ),
+    ];
+
+    const snapshots = await Promise.all(
+        referenced.map((id) =>
+            db.collection("packages").doc(id).get()
+        )
+    );
+
+    const missing = referenced.filter((id, i) => !snapshots[i].exists);
+
+    if (missing.length) {
+        console.error("");
+        console.error("=================================");
+        console.error("ABORTED: referenced packages do not exist");
+        console.error("=================================");
+        console.error(
+            `${missing.length} of ${referenced.length} package ids have no document:`
+        );
+        missing.forEach((id) => console.error(`  - ${id}`));
+        console.error("");
+        console.error("Importing now would leave every affected customer");
+        console.error("with no upstream cost, so their full monthly bill");
+        console.error("would be reported as profit.");
+        console.error("");
+        console.error("Run:  node import-packages.js");
+        console.error("=================================");
+
+        throw new Error(`${missing.length} referenced packages are missing.`);
+    }
+
+    console.log(
+        `Verified all ${referenced.length} referenced packages exist.`
+    );
+}
+
 async function importCustomers() {
     console.log(`Found ${rows.length} customers in Excel.`);
 
@@ -65,6 +111,8 @@ async function importCustomers() {
             `WARNING: Expected 99 customers, but found ${rows.length}.`
         );
     }
+
+    await verifyPackagesExist();
 
     let batch = db.batch();
     let batchCount = 0;

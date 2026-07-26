@@ -72,9 +72,8 @@ class _InstallationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = installationStatusColor(inst.status);
-    final double cost = inst.materialCost ?? 0.0;
-    final double fee = inst.installationCost;
-    final double profit = inst.profit ?? 0.0;
+    // Same MoneyLine the desktop table uses, so the two layouts can't drift.
+    final money = inst.money;
 
     String bomText = 'No items logged';
     if (inst.itemsUsed != null && inst.itemsUsed!.isNotEmpty) {
@@ -153,21 +152,24 @@ class _InstallationCard extends StatelessWidget {
               if (isAdmin) ...[
                 InfoChip(
                   Icons.payments_outlined,
-                  'Fee: ${DateTimeUtils.formatCurrency(fee)}',
+                  'Billed: ${DateTimeUtils.formatCurrency(money.amountBilled)}',
                 ),
-                if (inst.materialCost != null)
+                if (inst.hasCostData)
                   InfoChip(
                     Icons.shopping_bag_outlined,
-                    'Cost: ${DateTimeUtils.formatCurrency(cost)}',
+                    'Cost: ${DateTimeUtils.formatCurrency(money.costIncurred)}',
                   ),
-                if (inst.profit != null)
-                  InfoChip(
-                    Icons.account_balance_wallet_outlined,
-                    'Profit: ${DateTimeUtils.formatCurrency(profit)}',
-                    color: profit > 0
-                        ? AppTheme.successColor
-                        : (profit < 0 ? AppTheme.errorColor : null),
-                  ),
+                InfoChip(
+                  Icons.account_balance_wallet_outlined,
+                  'Profit: ${DateTimeUtils.formatCurrency(money.profit)}',
+                  // Uncoloured when no costs were logged: the figure is exact
+                  // but assumes zero cost, so it shouldn't read as a win.
+                  color: !inst.hasCostData
+                      ? null
+                      : (money.profit > 0
+                          ? AppTheme.successColor
+                          : (money.profit < 0 ? AppTheme.errorColor : null)),
+                ),
               ],
             ],
           ),

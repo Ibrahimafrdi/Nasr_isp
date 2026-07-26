@@ -43,6 +43,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
 
   String? _existingStatus;
   DateTime? _existingCreatedAt;
+  DateTime? _existingNextDueDate;
 
   // True whenever we're editing an existing customer and haven't yet
   // confirmed their real status/createdAt — saving in this window would
@@ -128,6 +129,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       _notesController.text = customer.notes;
       _existingStatus = customer.status;
       _existingCreatedAt = customer.createdAt;
+      _existingNextDueDate = customer.nextDueDate;
       if (customer.joinDate != null) _joinDate = customer.joinDate!;
       _isLoadingExisting = false;
     });
@@ -187,11 +189,14 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
 
-      final nextDueDate = DateTime(
-        _joinDate.year,
-        _joinDate.month + 1,
-        _joinDate.day,
-      );
+      // Only derive nextDueDate for brand-new customers. On an edit the
+      // stored value is authoritative — PaymentsBloc advances it on every
+      // paid payment, so recomputing from joinDate would rewind the billing
+      // cycle just because someone corrected a phone number.
+      final nextDueDate = widget.customerId == null
+          ? DateTime(_joinDate.year, _joinDate.month + 1, _joinDate.day)
+          : (_existingNextDueDate ??
+              DateTime(_joinDate.year, _joinDate.month + 1, _joinDate.day));
 
       final customerId = widget.customerId ?? const Uuid().v4();
 
@@ -536,6 +541,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                   : null,
                                               decoration: const InputDecoration(
                                                 labelText: 'Select Package',
+                                                helperText:
+                                                    'Sets the upstream cost used for monthly profit',
                                               ),
                                               hint:
                                                   const Text('Select Package'),
@@ -548,6 +555,14 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                 );
                                               }).toList(),
                                               onChanged: _onPackageChanged,
+                                              // Required: without a package there
+                                              // is no upstream cost to subtract,
+                                              // and the customer's whole bill
+                                              // would be reported as profit.
+                                              validator: (v) =>
+                                                  (v == null || v.isEmpty)
+                                                      ? 'Select a package — it sets the cost side of profit'
+                                                      : null,
                                             ),
                                           ],
                                         )
@@ -603,6 +618,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                         const InputDecoration(
                                                           labelText:
                                                               'Select Package',
+                                                          helperText:
+                                                              'Sets the upstream cost used for monthly profit',
                                                         ),
                                                     hint: const Text(
                                                       'Select Package',
@@ -617,6 +634,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                                     ).toList(),
                                                     onChanged:
                                                         _onPackageChanged,
+                                                    // Required: see the mobile
+                                                    // variant above.
+                                                    validator: (v) =>
+                                                        (v == null || v.isEmpty)
+                                                            ? 'Select a package — it sets the cost side of profit'
+                                                            : null,
                                                   ),
                                             ),
                                           ],

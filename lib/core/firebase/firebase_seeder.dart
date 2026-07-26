@@ -5,8 +5,11 @@ class FirestoreSeeder {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   static Future<void> seedAll() async {
-    await _seedPackages();
-    await _seedCustomers();
+    // Customers must be linked to real package documents: the package is
+    // where their upstream cost comes from, and without it their entire
+    // monthly bill is reported as profit.
+    final packageIdsByName = await _seedPackages();
+    await _seedCustomers(packageIdsByName);
     await _seedEmployees();
     await _seedInstallations();
     await _seedPayments();
@@ -15,13 +18,17 @@ class FirestoreSeeder {
   }
 
   // ─── PACKAGES ───────────────────────────────────────────
-  static Future<void> _seedPackages() async {
+  static Future<Map<String, String>> _seedPackages() async {
+    // connectionType must match a ConnectionType enum name ('wireless' /
+    // 'opticalFibre'). Omitting it makes PackageModel default every package to
+    // wireless, which silently mislabels the fibre tiers.
     final packages = [
       {
         'name': '5 Mbps',
         'speed': 5,
         'price': 1000,
         'costPrice': 600,
+        'connectionType': 'wireless',
         'description': 'Basic Internet',
       },
       {
@@ -29,6 +36,7 @@ class FirestoreSeeder {
         'speed': 10,
         'price': 1500,
         'costPrice': 900,
+        'connectionType': 'wireless',
         'description': 'Standard Internet',
       },
       {
@@ -36,6 +44,7 @@ class FirestoreSeeder {
         'speed': 20,
         'price': 2500,
         'costPrice': 1500,
+        'connectionType': 'opticalFibre',
         'description': 'Unlimited Internet',
       },
       {
@@ -43,6 +52,7 @@ class FirestoreSeeder {
         'speed': 50,
         'price': 4000,
         'costPrice': 2400,
+        'connectionType': 'opticalFibre',
         'description': 'Fast Internet',
       },
       {
@@ -50,21 +60,31 @@ class FirestoreSeeder {
         'speed': 100,
         'price': 6000,
         'costPrice': 3600,
+        'connectionType': 'opticalFibre',
         'description': 'Ultra Fast Internet',
       },
     ];
 
+    // Returns name -> generated document id, so customers can be linked to a
+    // real package rather than an empty packageId.
+    final idsByName = <String, String>{};
     for (final pkg in packages) {
-      await _db.collection('packages').add({
+      final ref = await _db.collection('packages').add({
         ...pkg,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      idsByName[pkg['name'] as String] = ref.id;
     }
     print('✅ packages seeded');
+    return idsByName;
   }
 
   // ─── CUSTOMERS ──────────────────────────────────────────
-  static Future<void> _seedCustomers() async {
+  static Future<void> _seedCustomers(Map<String, String> packageIdsByName) async {
+    // monthlyBill is intentionally independent of the package price — it is
+    // the negotiated rate for this customer and stays editable. The packageId
+    // supplies the upstream cost, so profit = monthlyBill - package.costPrice.
+    // Ahmad Shah below is billed 3000 on a 2500 package: margin 1500, not 3000.
     final customers = [
       {
         'name': 'Ali Khan',
@@ -72,9 +92,8 @@ class FirestoreSeeder {
         'cnic': '12345-1234567-1',
         'address': 'Peshawar',
         'connectionType': 'wireless',
-        'packageId': '',
-        'installationCost': 3000,
-        'monthlyBill': 1500,
+        'packageId': packageIdsByName['10 Mbps'] ?? '',
+        'monthlyBill': 1500, // list price; margin 1500 - 900 = 600
         'status': 'active',
         'notes': '',
       },
@@ -84,9 +103,8 @@ class FirestoreSeeder {
         'cnic': '54321-7654321-2',
         'address': 'Nowshera',
         'connectionType': 'fiber',
-        'packageId': '',
-        'installationCost': 8000,
-        'monthlyBill': 3000,
+        'packageId': packageIdsByName['20 Mbps'] ?? '',
+        'monthlyBill': 3000, // negotiated above list; margin 3000 - 1500 = 1500
         'status': 'active',
         'notes': '',
       },

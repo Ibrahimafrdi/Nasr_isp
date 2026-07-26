@@ -97,7 +97,14 @@ class InstallationModel extends InstallationEntity {
       }).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
-      'equipmentCost': equipmentCost,
+      // Legacy-only field (see InstallationEntity.equipmentCost). Never
+      // written by any UI path, so it is omitted when null: both update paths
+      // use a key-scoped Firestore update(), where an absent key preserves the
+      // stored value. Writing an unconditional null here would blow away the
+      // only material cost a pre-BOM document has.
+      if (equipmentCost != null) 'equipmentCost': equipmentCost,
+      // Unconditional on purpose — an explicit 0 must be persistable, and the
+      // edit dialog always supplies a number.
       'laborCost': laborCost,
     };
   }
@@ -107,6 +114,7 @@ class InstallationModel extends InstallationEntity {
     return InstallationModel.fromMap(data, doc.id);
   }
 
+  @override
   InstallationModel copyWith({
     String? id,
     String? customerId,
@@ -118,7 +126,10 @@ class InstallationModel extends InstallationEntity {
     double? installationCost,
     InstallationStatus? status,
     String? remarks,
-    List<InstallationItemUsedModel>? itemsUsed,
+    // covariant: InstallationEntity.copyWith declares this as
+    // List<InstallationItemUsedEntity>?, and narrowing an override's parameter
+    // type is only legal when the narrowing is explicit.
+    covariant List<InstallationItemUsedModel>? itemsUsed,
     DateTime? createdAt,
     DateTime? completedAt,
     double? equipmentCost,

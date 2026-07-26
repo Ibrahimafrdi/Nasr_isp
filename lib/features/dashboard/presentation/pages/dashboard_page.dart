@@ -197,7 +197,8 @@ class _DashboardPageState extends State<DashboardPage> {
                             activeCustomers: 0,
                             expiredCustomers: 0,
                             expiringsoon: 0,
-                            monthlyRevenue: 0,
+                            subscriberRunRateMargin: 0,
+                            cashCollectedThisMonth: 0,
                             monthlyExpenses: 0,
                             netProfit: 0,
                             pendingPayments: 0,
@@ -385,6 +386,11 @@ class _DashboardPageState extends State<DashboardPage> {
     return '${amount.toStringAsFixed(0)} PKR';
   }
 
+  /// Unabbreviated, for the Net Profit reconciliation subtitle. The
+  /// abbreviated form above rounds to the nearest thousand, which would make
+  /// "142K + 39K − 61K" visibly fail to add up to the headline figure.
+  String _formatCurrencyFull(double amount) => 'Rs ${amount.toStringAsFixed(0)}';
+
   // ===== KPI CARDS (real data-driven) =====
   Widget _buildKPICards(bool isAdmin, DashboardStatsModel stats) {
     return ResponsiveBuilder(
@@ -434,33 +440,57 @@ class _DashboardPageState extends State<DashboardPage> {
               gradient: AppColors.greenGradient,
               sparklineData: const [4, 5, 4, 6, 5, 7, 8, 7, 9, 9],
             ),
+            // The next four cards are the accrual chain:
+            // Recurring Margin + Installation Profit − Expenses = Net Profit.
             if (isAdmin)
               KPICard(
-                title: 'Monthly Revenue',
-                value: _formatCurrency(stats.monthlyRevenue),
-                subtitle: 'Collected this month',
+                title: 'Recurring Margin',
+                value: _formatCurrency(stats.subscriberRunRateMargin),
+                subtitle: stats.unpricedCustomerCount > 0
+                    // Overstated: these customers have no package cost to
+                    // subtract, so their full bill is counted as margin.
+                    ? 'Overstated · ${stats.unpricedCustomerCount} of ${stats.activeCustomers} have no package cost'
+                    : 'Accrual run rate · ${stats.activeCustomers} active subscribers',
                 trend: null,
-                isTrendPositive: true,
-                icon: Icons.trending_up,
-                gradient: AppColors.purpleGradient,
+                isTrendPositive: stats.subscriberRunRateMargin >= 0,
+                icon: Icons.autorenew,
+                gradient: AppColors.greenGradient,
                 sparklineData: const [5, 4, 6, 7, 6, 8, 7, 9, 10, 11],
               ),
             if (isAdmin)
               KPICard(
-                title: 'Total Expenses',
+                title: 'Installation Profit',
+                value: _formatCurrency(stats.monthlyInstallationProfit),
+                subtitle:
+                    '${_formatCurrency(stats.monthlyInstallationRevenue)} billed − '
+                    '${_formatCurrency(stats.monthlyInstallationCost)} cost · completed this month',
+                trend: null,
+                isTrendPositive: stats.monthlyInstallationProfit >= 0,
+                icon: Icons.engineering,
+                gradient: AppColors.orangeGradient,
+                sparklineData: const [3, 4, 3, 5, 6, 5, 7, 6, 8, 9],
+              ),
+            if (isAdmin)
+              KPICard(
+                title: 'Operating Expenses',
                 value: _formatCurrency(stats.monthlyExpenses),
-                subtitle: 'Month to date',
+                subtitle: 'Logged this month to date',
                 trend: null,
                 isTrendPositive: false,
                 icon: Icons.receipt,
-                gradient: AppColors.orangeGradient,
+                gradient: AppColors.redGradient,
                 sparklineData: const [8, 7, 6, 5, 4, 3, 4, 5, 4, 3],
               ),
             if (isAdmin)
               KPICard(
-                title: 'Net Profit',
+                title: 'Net Profit (Accrual)',
                 value: _formatCurrency(stats.netProfit),
-                subtitle: 'After expenses',
+                // Spells out the arithmetic so the three cards above visibly
+                // reconcile to this one even when the grid wraps them onto
+                // separate rows.
+                subtitle: '${_formatCurrencyFull(stats.subscriberRunRateMargin)}'
+                    ' + ${_formatCurrencyFull(stats.monthlyInstallationProfit)}'
+                    ' − ${_formatCurrencyFull(stats.monthlyExpenses)}',
                 trend: null,
                 isTrendPositive: stats.netProfit >= 0,
                 icon: Icons.attach_money,
@@ -469,9 +499,23 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             if (isAdmin)
               KPICard(
+                title: 'Cash Collected',
+                value: _formatCurrency(stats.cashCollectedThisMonth),
+                // Explicitly fenced off from the accrual chain above: different
+                // basis, and installation billing never reaches the payments
+                // ledger, so this is subscription cash only.
+                subtitle: 'Subscription payments received · excludes installations',
+                trend: null,
+                isTrendPositive: true,
+                icon: Icons.account_balance_wallet,
+                gradient: AppColors.blueGradient,
+                sparklineData: const [5, 4, 6, 7, 6, 8, 7, 9, 10, 11],
+              ),
+            if (isAdmin)
+              KPICard(
                 title: 'Pending Payments',
                 value: _formatCurrency(stats.pendingPayments),
-                subtitle: '${stats.expiringsoon} expiring soon',
+                subtitle: '${stats.pendingPaymentsCount} unpaid or partial invoices',
                 trend: null,
                 isTrendPositive: false,
                 icon: Icons.schedule,

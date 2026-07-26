@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
@@ -13,6 +14,7 @@ import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entit
 import 'package:nasr_isp/features/inventory/domain/usecases/get_inventory_items.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_item_used_entity.dart';
+import 'package:nasr_isp/features/installations/domain/utils/installation_aggregates.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
 import 'package:nasr_isp/features/installations/presentation/utils/installation_item_autofill.dart';
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_card_list.dart';
@@ -141,6 +143,11 @@ class _InstallationsPageState extends State<InstallationsPage> {
       text: existing != null ? existing.installationCost.toStringAsFixed(0) : '3000',
     );
     final remarksController = TextEditingController(text: existing?.remarks ?? '');
+    // Seeded from the stored value so an edit can never silently zero it —
+    // before this field existed, saving from this dialog wiped laborCost.
+    final laborCostController = TextEditingController(
+      text: (existing?.laborCost ?? 0).toStringAsFixed(0),
+    );
 
     InstallationStatus status = existing?.status ?? InstallationStatus.pending;
 
@@ -179,18 +186,22 @@ class _InstallationsPageState extends State<InstallationsPage> {
             final materialsLocked =
                 existing != null && existing.status == InstallationStatus.completed;
 
-            // Calculate live material cost/revenue
-            double materialCostTotal = 0.0;
-            double materialRevenueTotal = 0.0;
-            int totalItemsDeductQty = 0;
-            for (final row in itemsUsedState) {
-              final qty = row['qty'] as int;
-              final unitCost = row['unitCost'] as double;
-              final sellPrice = row['sellPrice'] as double;
-              materialCostTotal += qty * unitCost;
-              materialRevenueTotal += qty * sellPrice;
-              totalItemsDeductQty += qty;
-            }
+            // Live BOM totals, through the same MaterialTotals used by the
+            // saved entity — so this preview and the record it produces
+            // cannot disagree.
+            final materials = MaterialTotals.fromRows(itemsUsedState);
+            final totalItemsDeductQty = itemsUsedState.fold<int>(
+                0, (acc, row) => acc + ((row['qty'] as num?)?.toInt() ?? 0));
+
+            // What the job will be worth once saved. Materials are billed on
+            // top of the setup fee, so they land on both sides of the ledger.
+            final previewMoney = MoneyLine(
+              amountBilled:
+                  (double.tryParse(costController.text.trim()) ?? 0.0) +
+                      materials.revenue,
+              costIncurred: materials.cost +
+                  (double.tryParse(laborCostController.text.trim()) ?? 0.0),
+            );
 
             // Auto-fills the BOM with every inventory item tagged for the
             // selected connection type (or "both") the moment a connection
@@ -255,21 +266,46 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 }
 
                 final customer = selectedCustomer!;
-                final updatedInstallation = InstallationEntity(
-                  id: existing?.id ?? const Uuid().v4(),
-                  customerId: customer.id,
-                  customerName: customer.name,
-                  connectionType: connectionType,
-                  installationDate: installationDate,
-                  assignedEmployeeId: assignedEmployeeId,
-                  assignedEmployeeName: assignedEmployeeName,
-                  installationCost: double.parse(costController.text),
-                  status: status,
-                  remarks: remarksController.text.trim(),
-                  itemsUsed: items.isEmpty ? null : items,
-                  createdAt: existing?.createdAt ?? DateTime.now(),
-                  completedAt: existing?.completedAt,
-                );
+                // Non-admins never see the labor field, so their saves must
+                // carry the stored value through untouched rather than
+                // parsing an empty controller.
+                final double? enteredLabor = isAdmin
+                    ? (double.tryParse(laborCostController.text.trim()) ?? 0.0)
+                    : existing?.laborCost;
+
+                final InstallationEntity updatedInstallation = existing == null
+                    ? InstallationEntity(
+                        id: const Uuid().v4(),
+                        customerId: customer.id,
+                        customerName: customer.name,
+                        connectionType: connectionType,
+                        installationDate: installationDate,
+                        assignedEmployeeId: assignedEmployeeId,
+                        assignedEmployeeName: assignedEmployeeName,
+                        installationCost: double.parse(costController.text),
+                        status: status,
+                        remarks: remarksController.text.trim(),
+                        itemsUsed: items.isEmpty ? null : items,
+                        createdAt: DateTime.now(),
+                        laborCost: enteredLabor,
+                      )
+                    // copyWith, not a fresh constructor: any field this dialog
+                    // does not edit — equipmentCost, completedAt, createdAt,
+                    // and anything added later — is carried over instead of
+                    // being silently defaulted to null on save.
+                    : existing.copyWith(
+                        customerId: customer.id,
+                        customerName: customer.name,
+                        connectionType: connectionType,
+                        installationDate: installationDate,
+                        assignedEmployeeId: assignedEmployeeId,
+                        assignedEmployeeName: assignedEmployeeName,
+                        installationCost: double.parse(costController.text),
+                        status: status,
+                        remarks: remarksController.text.trim(),
+                        itemsUsed: items, // empty list reads as no BOM, same as null
+                        laborCost: enteredLabor,
+                      );
 
                 if (!mounted) return;
 
@@ -448,12 +484,33 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           decimal: true,
                         ),
                         inputFormatters: AppInputFormatters.decimal,
+                        onChanged: (_) => setDialogState(() {}),
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Billed cost is required';
                           if (double.tryParse(v) == null) return 'Enter a numeric value';
                           return null;
                         },
                       ),
+                      if (isAdmin) ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: laborCostController,
+                          decoration: const InputDecoration(
+                            labelText: 'Technician / Labor Cost (PKR)',
+                            helperText: 'Paid to the installer. Reduces job profit.',
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: AppInputFormatters.decimal,
+                          onChanged: (_) => setDialogState(() {}),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return null; // treated as 0
+                            if (double.tryParse(v) == null) return 'Enter a numeric value';
+                            return null;
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       DropdownButtonFormField<InstallationStatus>(
                         value: status,
@@ -478,6 +535,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                             decimal: true,
                           ),
                           inputFormatters: AppInputFormatters.decimal,
+                          onChanged: (_) => setDialogState(() {}),
                           validator: (v) {
                             if (v == null || v.isEmpty) return 'Billed cost is required';
                             if (double.tryParse(v) == null) return 'Enter a numeric value';
@@ -485,6 +543,27 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           },
                         ),
                       ),
+                      if (isAdmin) ...[
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: laborCostController,
+                            decoration: const InputDecoration(
+                              labelText: 'Labor Cost (PKR)',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: AppInputFormatters.decimal,
+                            onChanged: (_) => setDialogState(() {}),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return null; // treated as 0
+                              if (double.tryParse(v) == null) return 'Enter a numeric value';
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<InstallationStatus>(
@@ -748,7 +827,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         children: [
                           const Text('Estimated Material Cost:'),
                           Text(
-                            DateTimeUtils.formatCurrency(materialCostTotal),
+                            DateTimeUtils.formatCurrency(materials.cost),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -759,8 +838,24 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         children: [
                           const Text('Estimated Material Margin:'),
                           Text(
-                            DateTimeUtils.formatCurrency(materialRevenueTotal - materialCostTotal),
+                            DateTimeUtils.formatCurrency(materials.markup),
                             style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Estimated Job Profit:'),
+                          Text(
+                            DateTimeUtils.formatCurrency(previewMoney.profit),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: previewMoney.profit >= 0
+                                  ? AppTheme.successColor
+                                  : AppTheme.errorColor,
+                            ),
                           ),
                         ],
                       ),
@@ -1029,13 +1124,15 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   {
                     final list = state.installations;
 
-                    double totalFee = list.fold(0.0, (s, i) => s + i.installationCost);
-
-                    double totalCost = 0.0;
-                    for (final inst in list) {
-                      totalCost += (inst.materialCost ?? 0.0) + (inst.laborCost ?? 0.0);
-                    }
-                    double netMargin = totalFee - totalCost;
+                    // SCOPE: the financial cards cover completed jobs only,
+                    // within the current filters. Cancelled and pending jobs
+                    // never contribute money on any screen. The table below
+                    // still shows every job — it is an operations log, not a
+                    // ledger.
+                    final billable = list
+                        .where((i) => isFinanciallyCountable(i.status))
+                        .toList();
+                    final totals = installationsMoney(billable);
 
                     return Column(
                       children: [
@@ -1045,30 +1142,33 @@ class _InstallationsPageState extends State<InstallationsPage> {
                             children: [
                               Expanded(
                                 child: DashboardCard(
-                                  label: 'Gross Installation Fees',
-                                  value: DateTimeUtils.formatCurrency(totalFee),
+                                  label: 'Billed to Customers',
+                                  value: DateTimeUtils.formatCurrency(totals.amountBilled),
                                   icon: Icons.payments,
+                                  subtitle: 'Setup fees + materials · '
+                                      '${billable.length} completed of ${list.length} in view',
                                 ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: DashboardCard(
-                                  label: 'Total Material, Cable & Labor Costs',
-                                  value: DateTimeUtils.formatCurrency(totalCost),
+                                  label: 'Material & Labor Cost',
+                                  value: DateTimeUtils.formatCurrency(totals.costIncurred),
                                   icon: Icons.shopping_bag_outlined,
                                   backgroundColor: AppTheme.errorColor.withOpacity(0.04),
+                                  subtitle: 'Completed jobs in current view',
                                 ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: DashboardCard(
                                   label: 'Net Installation Profit',
-                                  value: DateTimeUtils.formatCurrency(netMargin),
+                                  value: DateTimeUtils.formatCurrency(totals.profit),
                                   icon: Icons.account_balance_wallet,
                                   backgroundColor: AppTheme.successColor.withOpacity(0.05),
-                                  subtitle: totalFee > 0
-                                      ? '${((netMargin / totalFee) * 100).toStringAsFixed(1)}% profit margin'
-                                      : 'No revenue records',
+                                  subtitle: totals.marginPct != null
+                                      ? '${totals.marginPct!.toStringAsFixed(1)}% margin · billed − cost'
+                                      : 'No completed jobs in view',
                                 ),
                               ),
                             ],
@@ -1134,17 +1234,17 @@ class _InstallationsPageState extends State<InstallationsPage> {
         const DataColumn(label: Text('Date Installed')),
         const DataColumn(label: Text('Materials Used (BOM)')),
         if (isAdmin) ...[
-          const DataColumn(label: Text('Material Cost')),
-          const DataColumn(label: Text('Setup Fee Charged')),
+          const DataColumn(label: Text('Cost (Materials + Labor)')),
+          const DataColumn(label: Text('Billed (Fee + Materials)')),
           const DataColumn(label: Text('Net Return')),
         ],
         const DataColumn(label: Text('Status')),
         if (isAdmin) const DataColumn(label: Text('Actions')),
       ],
       rows: installations.map((inst) {
-        final double cost = inst.materialCost ?? 0.0;
-        final double fee = inst.installationCost;
-        final double profit = inst.profit ?? 0.0;
+        // Every figure here comes off the one MoneyLine, so the visible
+        // columns always satisfy Billed − Cost = Net Return.
+        final money = inst.money;
 
         // Construct BOM text
         String bomText = 'No items logged';
@@ -1179,16 +1279,30 @@ class _InstallationsPageState extends State<InstallationsPage> {
               ),
             ),
             if (isAdmin) ...[
-              DataCell(Text(inst.materialCost == null ? 'N/A' : DateTimeUtils.formatCurrency(cost))),
-              DataCell(Text(DateTimeUtils.formatCurrency(fee))),
+              DataCell(Text(inst.hasCostData
+                  ? DateTimeUtils.formatCurrency(money.costIncurred)
+                  : 'N/A')),
+              DataCell(Text(DateTimeUtils.formatCurrency(money.amountBilled))),
               DataCell(
-                Text(
-                  inst.profit == null ? 'N/A' : DateTimeUtils.formatCurrency(profit),
-                  style: TextStyle(
-                    color: profit > 0
-                        ? AppTheme.successColor
-                        : (profit < 0 ? AppTheme.errorColor : AppColors.charcoal),
-                    fontWeight: FontWeight.bold,
+                Tooltip(
+                  // A job with no logged costs still has an exact profit — it
+                  // just equals what was billed. Caveat it rather than hiding
+                  // it behind 'N/A', which made the column un-summable.
+                  message: inst.hasCostData
+                      ? ''
+                      : 'No material or labour cost recorded — profit assumes zero cost.',
+                  child: Text(
+                    DateTimeUtils.formatCurrency(money.profit),
+                    style: TextStyle(
+                      color: !inst.hasCostData
+                          ? AppColors.charcoal
+                          : (money.profit > 0
+                              ? AppTheme.successColor
+                              : (money.profit < 0
+                                  ? AppTheme.errorColor
+                                  : AppColors.charcoal)),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

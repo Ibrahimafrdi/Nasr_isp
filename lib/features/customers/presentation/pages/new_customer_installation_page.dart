@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
@@ -117,17 +118,19 @@ class _NewCustomerInstallationPageState
 
   double get _previewCharges =>
       double.tryParse(_installationChargesController.text.trim()) ?? 0.0;
-  // Mirrors InstallationEntity.materialCost/materialRevenue: sum of the
-  // Materials Used BOM rows' cost/sell price snapshots.
-  double get _previewMaterialCost => _itemsUsedState.fold<double>(
-      0.0, (sum, row) => sum + (row['qty'] as int) * (row['unitCost'] as double));
-  double get _previewMaterialRevenue => _itemsUsedState.fold<double>(
-      0.0, (sum, row) => sum + (row['qty'] as int) * (row['sellPrice'] as double));
   double get _previewLabor =>
       double.tryParse(_laborCostController.text.trim()) ?? 0.0;
-  // Mirrors InstallationEntity.profit exactly.
-  double get _previewProfit =>
-      _previewCharges - _previewMaterialCost - _previewLabor + _previewMaterialRevenue;
+
+  MaterialTotals get _previewMaterials =>
+      MaterialTotals.fromRows(_itemsUsedState);
+
+  /// The same construction InstallationEntity.money uses, over the
+  /// not-yet-saved form state — so this preview and the record it saves
+  /// cannot disagree.
+  MoneyLine get _previewMoney => MoneyLine(
+        amountBilled: _previewCharges + _previewMaterials.revenue,
+        costIncurred: _previewMaterials.cost + _previewLabor,
+      );
 
   void _onPackageChanged(String? packageId, List<PackageEntity> packages) {
     if (packageId == null) return;
@@ -399,6 +402,8 @@ class _NewCustomerInstallationPageState
                                           initialValue: _selectedPackageId,
                                           decoration: const InputDecoration(
                                             labelText: 'Select Package',
+                                            helperText:
+                                                'Sets the upstream cost used for monthly profit',
                                           ),
                                           items: availablePackages
                                               .map((pkg) => DropdownMenuItem(
@@ -408,6 +413,13 @@ class _NewCustomerInstallationPageState
                                               .toList(),
                                           onChanged: (val) =>
                                               _onPackageChanged(val, availablePackages),
+                                          // Required: without a package there is
+                                          // no upstream cost to subtract, and the
+                                          // customer's whole bill would be
+                                          // reported as profit.
+                                          validator: (v) => (v == null || v.isEmpty)
+                                              ? 'Select a package — it sets the cost side of profit'
+                                              : null,
                                         ),
                                       ]),
                                       const SizedBox(height: 16),
@@ -701,7 +713,7 @@ class _NewCustomerInstallationPageState
             children: [
               const Text('Estimated Material Cost:'),
               Text(
-                DateTimeUtils.formatCurrency(_previewMaterialCost),
+                DateTimeUtils.formatCurrency(_previewMaterials.cost),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
@@ -712,7 +724,7 @@ class _NewCustomerInstallationPageState
             children: [
               const Text('Estimated Material Margin:'),
               Text(
-                DateTimeUtils.formatCurrency(_previewMaterialRevenue - _previewMaterialCost),
+                DateTimeUtils.formatCurrency(_previewMaterials.markup),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
@@ -749,10 +761,11 @@ class _NewCustomerInstallationPageState
   }
 
   Widget _profitPreviewCard() {
-    final isProfit = _previewProfit >= 0;
-    final marginPct = _previewCharges > 0
-        ? (_previewProfit / _previewCharges * 100).toStringAsFixed(1)
-        : null;
+    final money = _previewMoney;
+    final isProfit = money.profit >= 0;
+    // Margin is against everything billed (fee + materials), not the setup
+    // fee alone — the old denominator could put margin above 100%.
+    final marginPct = money.marginPct?.toStringAsFixed(1);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -781,7 +794,7 @@ class _NewCustomerInstallationPageState
                   style: TextStyle(fontSize: 12, color: AppTheme.mediumGray),
                 ),
                 Text(
-                  DateTimeUtils.formatCurrency(_previewProfit),
+                  DateTimeUtils.formatCurrency(money.profit),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

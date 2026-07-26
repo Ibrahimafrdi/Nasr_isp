@@ -62,19 +62,14 @@ class InstallationRemoteDataSourceImpl implements InstallationRemoteDataSource {
     // ---- Writes (only after every read above has completed) ----
     if (customerDoc.exists) {
       final customerData = customerDoc.data() as Map<String, dynamic>? ?? {};
-      final currentCost = (customerData['installationCost'] as num?)?.toDouble() ?? 0.0;
-
-      final Map<String, dynamic> customerUpdates = {};
-      if (currentCost == 0.0) {
-        customerUpdates['installationCost'] = installation.installationCost;
-      }
+      // We deliberately do NOT mirror installationCost onto the customer doc.
+      // CustomerModel neither reads nor writes that key, nothing renders it,
+      // and the old first-write-wins guard made it wrong the moment a
+      // customer had a second installation. Per-job billing is read from the
+      // installations collection instead (see customer_details_page).
       final currentStatus = customerData['status'] as String? ?? '';
       if (currentStatus != 'active') {
-        customerUpdates['status'] = 'active';
-      }
-
-      if (customerUpdates.isNotEmpty) {
-        transaction.update(customerDocRef, customerUpdates);
+        transaction.update(customerDocRef, {'status': 'active'});
       }
     }
 
