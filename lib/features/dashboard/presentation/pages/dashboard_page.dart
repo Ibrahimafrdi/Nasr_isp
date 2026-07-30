@@ -691,8 +691,8 @@ class _DashboardPageState extends State<DashboardPage> {
         PremiumDataColumn(label: 'Connection Type'),
         PremiumDataColumn(label: 'Due Date'),
         PremiumDataColumn(label: 'Days Left'),
-        PremiumDataColumn(label: 'Status', width: 0.15),
-        PremiumDataColumn(label: 'Action', width: 0.15),
+        PremiumDataColumn(label: 'Status', width: 0.8),
+        PremiumDataColumn(label: 'Action', width: 0.8),
       ],
       rows: customers.map((customer) {
         final due =
@@ -803,7 +803,7 @@ class _DashboardPageState extends State<DashboardPage> {
         PremiumDataColumn(label: 'Customer'),
         PremiumDataColumn(label: 'Method'),
         PremiumDataColumn(label: 'Amount'),
-        PremiumDataColumn(label: 'Status', width: 0.15),
+        PremiumDataColumn(label: 'Status', width: 0.8),
         PremiumDataColumn(label: 'Date'),
       ],
       rows: payments.map((payment) {

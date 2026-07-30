@@ -181,6 +181,12 @@ class AppTheme {
           textStyle: AppTypography.labelLarge,
         ),
       ),
+      // Card lists use `IconButton(iconSize: 18)` for their row actions,
+      // which would otherwise shrink the hit area below the 44dp minimum
+      // touch target on phones.
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(44, 44)),
+      ),
 
       // Divider
       dividerTheme: DividerThemeData(

@@ -6,7 +6,8 @@ import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/core/constants/inventory_catalog.dart';
-import 'package:nasr_isp/core/responsive/responsive_layout.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
+import 'package:nasr_isp/shared/widgets/adaptive_form_dialog.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
@@ -64,7 +65,6 @@ class _InventoryViewState extends State<_InventoryView> {
   String _categoryLabel(InventoryCategory c) =>
       c == InventoryCategory.equipment ? 'Equipment' : 'Consumable';
 
-
   // ---------- Add / Edit Item Dialog ----------
 
   void _showItemDialog(
@@ -97,233 +97,215 @@ class _InventoryViewState extends State<_InventoryView> {
         existing?.connectionType ?? InventoryConnectionType.both;
     bool isSaving = false;
 
-    showDialog(
+    showAppFormDialog(
       context: pageContext,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.whiteColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              title: Text(
-                existing == null ? 'Add Inventory Item' : 'Edit Inventory Item',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+            return AdaptiveFormDialog(
+              title: existing == null
+                  ? 'Add Inventory Item'
+                  : 'Edit Inventory Item',
+              desktopWidth: 420,
+              canClose: !isSaving,
+              onClose: () => Navigator.pop(dialogContext),
               content: Form(
                 key: formKey,
-                child: SizedBox(
-                  width: 420,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (existing == null)
-                          Autocomplete<InventoryCatalogEntry>(
-                            optionsBuilder: (textEditingValue) {
-                              if (textEditingValue.text.isEmpty) {
-                                return kInventoryCatalog;
-                              }
-                              final query = textEditingValue.text
-                                  .toLowerCase();
-                              return kInventoryCatalog.where(
-                                (entry) =>
-                                    entry.name.toLowerCase().contains(query),
-                              );
-                            },
-                            displayStringForOption: (entry) => entry.name,
-                            fieldViewBuilder:
-                                (ctx, textController, focusNode, _) {
-                              if (textController.text.isEmpty &&
-                                  nameController.text.isNotEmpty) {
-                                textController.text = nameController.text;
-                              }
-                              return TextFormField(
-                                controller: textController,
-                                focusNode: focusNode,
-                                decoration: const InputDecoration(
-                                  labelText: 'Item Name',
-                                  hintText:
-                                      'Pick from catalog or type a new item',
-                                  suffixIcon: Icon(Icons.search, size: 18),
-                                ),
-                                validator: (v) => v == null || v.isEmpty
-                                    ? 'Name required'
-                                    : null,
-                                onChanged: (v) => nameController.text = v,
-                              );
-                            },
-                            onSelected: (entry) {
-                              nameController.text = entry.name;
-                              setDialogState(() {
-                                category = entry.category;
-                                connectionType = entry.connectionType;
-                                unitController.text = entry.unit;
-                                unitCostController.text = entry.unitCost
-                                    .toString();
-                                if (sellPriceController.text.isEmpty) {
-                                  sellPriceController.text = entry.unitCost
-                                      .toString();
-                                }
-                                if (quantityController.text.isEmpty) {
-                                  quantityController.text = entry
-                                      .quantityInStock
-                                      .toString();
-                                }
-                                if (reorderController.text.isEmpty) {
-                                  reorderController.text = entry.reorderLevel
-                                      .toString();
-                                }
-                              });
-                            },
-                          )
-                        else
-                          AppFormField(
-                            label: 'Item Name',
-                            controller: nameController,
-                            hintText: 'e.g. TP-Link Router AC1200',
-                            isRequired: true,
-                            validator: (v) => v == null || v.isEmpty
-                                ? 'Name required'
-                                : null,
-                          ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<InventoryCategory>(
-                          value: category,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                          ),
-                          items: InventoryCategory.values
-                              .map(
-                                (c) => DropdownMenuItem(
-                                  value: c,
-                                  child: Text(_categoryLabel(c)),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (val) {
-                            if (val != null)
-                              setDialogState(() => category = val);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<InventoryConnectionType>(
-                          value: connectionType,
-                          decoration: const InputDecoration(
-                            labelText: 'Applicable To',
-                          ),
-                          items: InventoryConnectionType.values
-                              .map(
-                                (c) => DropdownMenuItem(
-                                  value: c,
-                                  child: Text(c.label),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setDialogState(() => connectionType = val);
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (existing == null)
+                      Autocomplete<InventoryCatalogEntry>(
+                        optionsBuilder: (textEditingValue) {
+                          if (textEditingValue.text.isEmpty) {
+                            return kInventoryCatalog;
+                          }
+                          final query = textEditingValue.text.toLowerCase();
+                          return kInventoryCatalog.where(
+                            (entry) => entry.name.toLowerCase().contains(query),
+                          );
+                        },
+                        displayStringForOption: (entry) => entry.name,
+                        fieldViewBuilder: (ctx, textController, focusNode, _) {
+                          if (textController.text.isEmpty &&
+                              nameController.text.isNotEmpty) {
+                            textController.text = nameController.text;
+                          }
+                          return TextFormField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            decoration: const InputDecoration(
+                              labelText: 'Item Name',
+                              hintText: 'Pick from catalog or type a new item',
+                              suffixIcon: Icon(Icons.search, size: 18),
+                            ),
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'Name required' : null,
+                            onChanged: (v) => nameController.text = v,
+                          );
+                        },
+                        onSelected: (entry) {
+                          nameController.text = entry.name;
+                          setDialogState(() {
+                            category = entry.category;
+                            connectionType = entry.connectionType;
+                            unitController.text = entry.unit;
+                            unitCostController.text = entry.unitCost.toString();
+                            if (sellPriceController.text.isEmpty) {
+                              sellPriceController.text = entry.unitCost
+                                  .toString();
                             }
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Unit',
-                          controller: unitController,
-                          hintText: 'pcs / meters / box',
-                          isRequired: true,
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Unit required' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Quantity in Stock',
-                          controller: quantityController,
-                          hintText: 'e.g. 10',
-                          keyboardType: TextInputType.number,
-                          inputFormatters: AppInputFormatters.integer,
-                          isRequired: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty)
-                              return 'Quantity required';
-                            if (int.tryParse(v) == null || int.parse(v) < 0)
-                              return 'Enter a valid number';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Reorder Level',
-                          controller: reorderController,
-                          hintText: 'e.g. 5',
-                          keyboardType: TextInputType.number,
-                          inputFormatters: AppInputFormatters.integer,
-                          isRequired: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty)
-                              return 'Reorder level required';
-                            if (int.tryParse(v) == null || int.parse(v) < 0)
-                              return 'Enter a valid number';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Unit Cost',
-                          controller: unitCostController,
-                          hintText: 'e.g. 4500',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: AppInputFormatters.decimal,
-                          isRequired: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty)
-                              return 'Unit cost required';
-                            if (double.tryParse(v) == null)
-                              return 'Enter a valid amount';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Sell Price',
-                          controller: sellPriceController,
-                          hintText: 'Price billed to the customer, e.g. 5000',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: AppInputFormatters.decimal,
-                          isRequired: true,
-                          validator: (v) {
-                            if (v == null || v.isEmpty)
-                              return 'Sell price required';
-                            if (double.tryParse(v) == null)
-                              return 'Enter a valid amount';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Supplier',
-                          controller: supplierController,
-                          hintText: 'Optional',
-                        ),
-                        const SizedBox(height: 16),
-                        AppFormField(
-                          label: 'Notes',
-                          controller: notesController,
-                          hintText: 'Optional',
-                        ),
-                      ],
+                            if (quantityController.text.isEmpty) {
+                              quantityController.text = entry.quantityInStock
+                                  .toString();
+                            }
+                            if (reorderController.text.isEmpty) {
+                              reorderController.text = entry.reorderLevel
+                                  .toString();
+                            }
+                          });
+                        },
+                      )
+                    else
+                      AppFormField(
+                        label: 'Item Name',
+                        controller: nameController,
+                        hintText: 'e.g. TP-Link Router AC1200',
+                        isRequired: true,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Name required' : null,
+                      ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<InventoryCategory>(
+                      value: category,
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      items: InventoryCategory.values
+                          .map(
+                            (c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(_categoryLabel(c)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => category = val);
+                      },
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<InventoryConnectionType>(
+                      value: connectionType,
+                      decoration: const InputDecoration(
+                        labelText: 'Applicable To',
+                      ),
+                      items: InventoryConnectionType.values
+                          .map(
+                            (c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => connectionType = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Unit',
+                      controller: unitController,
+                      hintText: 'pcs / meters / box',
+                      isRequired: true,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Unit required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Quantity in Stock',
+                      controller: quantityController,
+                      hintText: 'e.g. 10',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: AppInputFormatters.integer,
+                      isRequired: true,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Quantity required';
+                        if (int.tryParse(v) == null || int.parse(v) < 0)
+                          return 'Enter a valid number';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Reorder Level',
+                      controller: reorderController,
+                      hintText: 'e.g. 5',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: AppInputFormatters.integer,
+                      isRequired: true,
+                      validator: (v) {
+                        if (v == null || v.isEmpty)
+                          return 'Reorder level required';
+                        if (int.tryParse(v) == null || int.parse(v) < 0)
+                          return 'Enter a valid number';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Unit Cost',
+                      controller: unitCostController,
+                      hintText: 'e.g. 4500',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: AppInputFormatters.decimal,
+                      isRequired: true,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Unit cost required';
+                        if (double.tryParse(v) == null)
+                          return 'Enter a valid amount';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Sell Price',
+                      controller: sellPriceController,
+                      hintText: 'Price billed to the customer, e.g. 5000',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: AppInputFormatters.decimal,
+                      isRequired: true,
+                      validator: (v) {
+                        if (v == null || v.isEmpty)
+                          return 'Sell price required';
+                        if (double.tryParse(v) == null)
+                          return 'Enter a valid amount';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Supplier',
+                      controller: supplierController,
+                      hintText: 'Optional',
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Notes',
+                      controller: notesController,
+                      hintText: 'Optional',
+                    ),
+                  ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                  onPressed: isSaving
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text(
                     'Cancel',
                     style: TextStyle(color: AppTheme.mediumGray),
@@ -373,7 +355,8 @@ class _InventoryViewState extends State<_InventoryView> {
                             ScaffoldMessenger.of(pageContext).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Failed to save item: ${result.message}'),
+                                  'Failed to save item: ${result.message}',
+                                ),
                                 backgroundColor: AppTheme.errorColor,
                               ),
                             );
@@ -384,7 +367,9 @@ class _InventoryViewState extends State<_InventoryView> {
                           ScaffoldMessenger.of(pageContext).showSnackBar(
                             SnackBar(
                               content: Text(
-                                existing == null ? 'Item added' : 'Item updated',
+                                existing == null
+                                    ? 'Item added'
+                                    : 'Item updated',
                               ),
                               backgroundColor: AppTheme.successColor,
                             ),
@@ -420,92 +405,86 @@ class _InventoryViewState extends State<_InventoryView> {
       'Adjustment',
     ];
 
-    showDialog(
+    showAppFormDialog(
       context: pageContext,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.whiteColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              title: Text(
-                'Adjust Stock — ${item.name}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+            return AdaptiveFormDialog(
+              title: 'Adjust Stock — ${item.name}',
+              desktopWidth: 380,
+              canClose: !isSaving,
+              onClose: () => Navigator.pop(dialogContext),
               content: Form(
                 key: formKey,
-                child: SizedBox(
-                  width: 380,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Current stock: ${item.quantityInStock} ${item.unit}',
-                        style: const TextStyle(color: AppTheme.mediumGray),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Current stock: ${item.quantityInStock} ${item.unit}',
+                      style: const TextStyle(color: AppTheme.mediumGray),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<StockMovementType>(
+                      value: type,
+                      decoration: const InputDecoration(
+                        labelText: 'Movement Type',
                       ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<StockMovementType>(
-                        value: type,
-                        decoration: const InputDecoration(
-                          labelText: 'Movement Type',
+                      items: const [
+                        DropdownMenuItem(
+                          value: StockMovementType.stockIn,
+                          child: Text('Stock In (+)'),
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: StockMovementType.stockIn,
-                            child: Text('Stock In (+)'),
-                          ),
-                          DropdownMenuItem(
-                            value: StockMovementType.stockOut,
-                            child: Text('Stock Out (-)'),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setDialogState(() => type = val);
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      AppFormField(
-                        label: 'Quantity',
-                        controller: qtyController,
-                        hintText: 'e.g. 10',
-                        keyboardType: TextInputType.number,
-                        inputFormatters: AppInputFormatters.integer,
-                        isRequired: true,
-                        validator: (v) {
-                          if (v == null || v.isEmpty)
-                            return 'Quantity required';
-                          final n = int.tryParse(v);
-                          if (n == null || n <= 0)
-                            return 'Enter a valid positive number';
-                          if (type == StockMovementType.stockOut &&
-                              n > item.quantityInStock) {
-                            return 'Cannot remove more than current stock (${item.quantityInStock})';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: reason,
-                        decoration: const InputDecoration(labelText: 'Reason'),
-                        items: reasons
-                            .map(
-                              (r) => DropdownMenuItem(value: r, child: Text(r)),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) setDialogState(() => reason = val);
-                        },
-                      ),
-                    ],
-                  ),
+                        DropdownMenuItem(
+                          value: StockMovementType.stockOut,
+                          child: Text('Stock Out (-)'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => type = val);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    AppFormField(
+                      label: 'Quantity',
+                      controller: qtyController,
+                      hintText: 'e.g. 10',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: AppInputFormatters.integer,
+                      isRequired: true,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Quantity required';
+                        final n = int.tryParse(v);
+                        if (n == null || n <= 0)
+                          return 'Enter a valid positive number';
+                        if (type == StockMovementType.stockOut &&
+                            n > item.quantityInStock) {
+                          return 'Cannot remove more than current stock (${item.quantityInStock})';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: reason,
+                      decoration: const InputDecoration(labelText: 'Reason'),
+                      items: reasons
+                          .map(
+                            (r) => DropdownMenuItem(value: r, child: Text(r)),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => reason = val);
+                      },
+                    ),
+                  ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                  onPressed: isSaving
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text(
                     'Cancel',
                     style: TextStyle(color: AppTheme.mediumGray),
@@ -544,7 +523,8 @@ class _InventoryViewState extends State<_InventoryView> {
                             ScaffoldMessenger.of(pageContext).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Failed to update stock: ${result.message}'),
+                                  'Failed to update stock: ${result.message}',
+                                ),
                                 backgroundColor: AppTheme.errorColor,
                               ),
                             );
@@ -584,8 +564,9 @@ class _InventoryViewState extends State<_InventoryView> {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      isDeleting ? null : () => Navigator.pop(dialogContext),
+                  onPressed: isDeleting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -609,7 +590,8 @@ class _InventoryViewState extends State<_InventoryView> {
                             ScaffoldMessenger.of(pageContext).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Failed to delete item: ${result.message}'),
+                                  'Failed to delete item: ${result.message}',
+                                ),
                                 backgroundColor: AppTheme.errorColor,
                               ),
                             );
@@ -643,11 +625,16 @@ class _InventoryViewState extends State<_InventoryView> {
       barrierDismissible: true,
       barrierLabel: 'Item Detail',
       pageBuilder: (_, __, ___) {
+        // A 420dp side sheet has nowhere to sit on a phone — it would clamp
+        // to the full width anyway, so make that explicit rather than
+        // rendering a "side" sheet that covers everything.
+        final isMobile = Responsive.isMobile(pageContext);
+
         return Align(
-          alignment: Alignment.centerRight,
+          alignment: isMobile ? Alignment.center : Alignment.centerRight,
           child: Material(
             child: Container(
-              width: 420,
+              width: isMobile ? double.infinity : 420,
               height: double.infinity,
               color: AppTheme.whiteColor,
               child: SafeArea(
@@ -858,7 +845,8 @@ class _InventoryViewState extends State<_InventoryView> {
               final matchesCategory =
                   _selectedCategory == null ||
                   item.category == _selectedCategory;
-              final matchesConnectionType = _selectedConnectionType == null ||
+              final matchesConnectionType =
+                  _selectedConnectionType == null ||
                   item.connectionType == _selectedConnectionType;
               return matchesSearch && matchesCategory && matchesConnectionType;
             }).toList();
@@ -875,7 +863,7 @@ class _InventoryViewState extends State<_InventoryView> {
             );
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -890,23 +878,26 @@ class _InventoryViewState extends State<_InventoryView> {
                   ),
                   const SizedBox(height: 16),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Inventory Management',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Track equipment and consumable stock levels.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Inventory Management',
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Track equipment and consumable stock levels.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 12),
                       ElevatedButton.icon(
                         onPressed: () => _showItemDialog(context),
                         icon: const Icon(Icons.add),
@@ -965,12 +956,14 @@ class _InventoryViewState extends State<_InventoryView> {
                     searchController: _searchController,
                     selectedCategory: _selectedCategory,
                     selectedConnectionType: _selectedConnectionType,
-                    activeFilterCount: (_selectedCategory != null ? 1 : 0) +
+                    activeFilterCount:
+                        (_selectedCategory != null ? 1 : 0) +
                         (_selectedConnectionType != null ? 1 : 0) +
                         (_searchController.text.isNotEmpty ? 1 : 0),
                     categoryLabel: _categoryLabel,
                     onSearchChanged: (_) => setState(() {}),
-                    onCategoryChanged: (cat) => setState(() => _selectedCategory = cat),
+                    onCategoryChanged: (cat) =>
+                        setState(() => _selectedCategory = cat),
                     onConnectionTypeChanged: (type) =>
                         setState(() => _selectedConnectionType = type),
                     onClearFilters: _clearFilters,
@@ -991,13 +984,16 @@ class _InventoryViewState extends State<_InventoryView> {
                           ),
                         ),
                         const Divider(),
-                        ResponsiveLayout(
+                        ResponsiveSwitcher(
                           mobile: InventoryCardList(
                             items: filteredItems,
                             categoryLabel: _categoryLabel,
-                            onViewDetail: (item) => _showItemDetail(context, item),
-                            onAdjustStock: (item) => _showAdjustStockDialog(context, item),
-                            onEdit: (item) => _showItemDialog(context, existing: item),
+                            onViewDetail: (item) =>
+                                _showItemDetail(context, item),
+                            onAdjustStock: (item) =>
+                                _showAdjustStockDialog(context, item),
+                            onEdit: (item) =>
+                                _showItemDialog(context, existing: item),
                             onDelete: (item) => _confirmDelete(context, item),
                           ),
                           desktop: DataTableWrapper(
@@ -1036,9 +1032,7 @@ class _InventoryViewState extends State<_InventoryView> {
                                     onTap: () => _showItemDetail(context, item),
                                   ),
                                   DataCell(Text(_categoryLabel(item.category))),
-                                  DataCell(
-                                    Text(item.connectionType.label),
-                                  ),
+                                  DataCell(Text(item.connectionType.label)),
                                   DataCell(
                                     Text(
                                       '${item.quantityInStock} ${item.unit}',
@@ -1086,15 +1080,22 @@ class _InventoryViewState extends State<_InventoryView> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
-                                          icon: const Icon(Icons.tune, size: 18),
-                                          tooltip: 'Adjust Stock',
-                                          onPressed: () => _showAdjustStockDialog(
-                                            context,
-                                            item,
+                                          icon: const Icon(
+                                            Icons.tune,
+                                            size: 18,
                                           ),
+                                          tooltip: 'Adjust Stock',
+                                          onPressed: () =>
+                                              _showAdjustStockDialog(
+                                                context,
+                                                item,
+                                              ),
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.edit, size: 18),
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            size: 18,
+                                          ),
                                           tooltip: 'Edit',
                                           onPressed: () => _showItemDialog(
                                             context,

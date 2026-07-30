@@ -131,9 +131,12 @@ class _CustomerCard extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 8),
 
-          // Action row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Action row — Wrap so three labelled buttons can spill onto a
+          // second line instead of overflowing a narrow card.
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               TextButton.icon(
                 icon: const Icon(Icons.visibility, size: 16),
@@ -142,7 +145,6 @@ class _CustomerCard extends StatelessWidget {
                   context.go('${RoutePaths.customers}/${customer.id}');
                 },
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
                 icon: const Icon(Icons.edit, size: 16),
                 label: const Text('Edit', style: TextStyle(fontSize: 12)),
@@ -151,7 +153,6 @@ class _CustomerCard extends StatelessWidget {
                   context.go('${RoutePaths.customers}/${customer.id}/edit');
                 },
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
                 icon: const Icon(Icons.delete, size: 16),
                 label: const Text('Delete', style: TextStyle(fontSize: 12)),

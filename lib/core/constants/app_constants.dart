@@ -31,17 +31,8 @@ class AppConstants {
   static const double iconSizeLarge = 32;
   static const double iconSizeXLarge = 48;
 
-  // Breakpoints for responsive design
-  static const double mobileBreakpoint = 600;
-  static const double tabletBreakpoint = 1024;
-  static const double desktopBreakpoint = 1440;
-
-  // Sidebar
-  static const double sidebarWidthExpanded = 280;
-  static const double sidebarWidthCollapsed = 80;
-
-  // Max content width
-  static const double maxContentWidth = 1920;
+  // Breakpoints intentionally live in `shared/utils/responsive.dart` — the
+  // single source of truth. Do not re-declare them here.
 }
 
 /// Route paths

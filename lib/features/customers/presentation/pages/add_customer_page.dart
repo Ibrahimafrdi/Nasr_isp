@@ -6,6 +6,8 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
+import 'package:nasr_isp/shared/widgets/adaptive_form_actions.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:nasr_isp/shared/models/models.dart';
@@ -278,10 +280,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     }
   }
 
-  bool _isMobile(BuildContext context) {
-    return MediaQuery.of(context).size.width < 700;
-  }
-
   @override
   Widget build(BuildContext context) {
     final isEditMode = widget.customerId != null;
@@ -302,7 +300,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
 
             return Scaffold(
               body: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppConstants.paddingLarge),
+                padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -339,7 +337,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.all(32),
+                            padding: Responsive.cardPaddingFor(
+                              Responsive.deviceTypeOf(context),
+                            ),
                             child: Form(
                               key: _formKey,
                               child: Column(
@@ -356,7 +356,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                         ),
                                   ),
                                   const Divider(height: 24),
-                                  _isMobile(context)
+                                  Responsive.isMobile(context)
                                       ? Column(
                                           children: [
                                             AppFormField(
@@ -415,7 +415,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                           ],
                                         ),
                                   const SizedBox(height: 16),
-                                  _isMobile(context)
+                                  Responsive.isMobile(context)
                                       ? Column(
                                           children: [
                                             AppFormField(
@@ -503,7 +503,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                         ),
                                   ),
                                   const Divider(height: 24),
-                                  _isMobile(context)
+                                  Responsive.isMobile(context)
                                       ? Column(
                                           children: [
                                             DropdownButtonFormField<
@@ -645,7 +645,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                           ],
                                         ),
                                   const SizedBox(height: 16),
-                                  _isMobile(context)
+                                  Responsive.isMobile(context)
                                       ? Column(
                                           children: [
                                             AppFormField(
@@ -694,30 +694,26 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                           ],
                                         ),
                                   const SizedBox(height: 30),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      OutlinedButton(
-                                        onPressed: () {
-                                          context.go(RoutePaths.customers);
-                                        },
-                                        child: const Text("Cancel"),
+                                  AdaptiveFormActions(
+                                    secondary: OutlinedButton(
+                                      onPressed: () {
+                                        context.go(RoutePaths.customers);
+                                      },
+                                      child: const Text("Cancel"),
+                                    ),
+                                    primary: ElevatedButton.icon(
+                                      onPressed: (_isSaving || _isLoadingExisting)
+                                          ? null
+                                          : _saveForm,
+                                      icon: const Icon(Icons.save),
+                                      label: Text(
+                                        _isSaving
+                                            ? "Saving..."
+                                            : (_isLoadingExisting
+                                                ? "Loading..."
+                                                : "Save Configuration"),
                                       ),
-                                      const SizedBox(width: 16),
-                                      ElevatedButton.icon(
-                                        onPressed: (_isSaving || _isLoadingExisting)
-                                            ? null
-                                            : _saveForm,
-                                        icon: const Icon(Icons.save),
-                                        label: Text(
-                                          _isSaving
-                                              ? "Saving..."
-                                              : (_isLoadingExisting
-                                                  ? "Loading..."
-                                                  : "Save Configuration"),
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ],
                               ),

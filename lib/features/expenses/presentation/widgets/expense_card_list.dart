@@ -82,19 +82,28 @@ class ExpenseCardList extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    DateTimeUtils.formatCurrency(e.amount),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.errorColor,
+                  Flexible(
+                    child: Text(
+                      DateTimeUtils.formatCurrency(e.amount),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.errorColor,
+                      ),
                     ),
                   ),
-                  Text(
-                    DateTimeUtils.formatDate(e.date),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.mediumGray,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      DateTimeUtils.formatDate(e.date),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.mediumGray,
+                      ),
                     ),
                   ),
                 ],
@@ -105,11 +114,15 @@ class ExpenseCardList extends StatelessWidget {
                   Icon(Icons.person_outline,
                       size: 14, color: AppTheme.mediumGray),
                   const SizedBox(width: 4),
-                  Text(
-                    'Paid by: ${e.paidBy}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.mediumGray,
+                  Expanded(
+                    child: Text(
+                      'Paid by: ${e.paidBy}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.mediumGray,
+                      ),
                     ),
                   ),
                 ],
@@ -127,15 +140,16 @@ class ExpenseCardList extends StatelessWidget {
               ],
               if (isAdmin) ...[
                 const Divider(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
                     TextButton.icon(
                       onPressed: () => onEdit(e),
                       icon: const Icon(Icons.edit_outlined, size: 16),
                       label: const Text('Edit'),
                     ),
-                    const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: () => onDelete(e),
                       icon: const Icon(Icons.delete_outline,

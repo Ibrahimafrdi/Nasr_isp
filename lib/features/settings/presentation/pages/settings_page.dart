@@ -178,7 +178,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
           ),
         ],
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppConstants.paddingLarge),
+          padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -607,15 +607,17 @@ class _SettingsPageContentState extends State<SettingsPageContent>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'System Access Accounts',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.black,
-                          ),
+                    Expanded(
+                      child: Text(
+                        'System Access Accounts',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.black,
+                            ),
+                      ),
                     ),
+                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: () => _showAddUserDialog(context),
                       style: ElevatedButton.styleFrom(

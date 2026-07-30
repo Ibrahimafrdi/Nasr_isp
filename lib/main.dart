@@ -2,7 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/firebase_options.dart';
-import 'package:responsive_framework/responsive_framework.dart';
 import 'package:nasr_isp/config/router.dart';
 import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
@@ -58,14 +57,13 @@ class MyApp extends StatelessWidget {
             themeMode: ThemeMode.light,
             routerConfig: router,
             debugShowCheckedModeBanner: false,
-            builder: (context, child) => ResponsiveBreakpoints.builder(
-              breakpoints: [
-                const Breakpoint(start: 0, end: 450, name: MOBILE),
-                const Breakpoint(start: 451, end: 1024, name: TABLET),
-                const Breakpoint(start: 1025, end: 1440, name: DESKTOP),
-                const Breakpoint(start: 1441, end: double.infinity, name: '4K'),
-              ],
-              child: MaxWidthBox(maxWidth: 1920, child: child!),
+            // Caps the layout on ultra-wide displays. Breakpoint decisions
+            // live in `shared/utils/responsive.dart`, not here.
+            builder: (context, child) => Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1920),
+                child: child!,
+              ),
             ),
           );
         },

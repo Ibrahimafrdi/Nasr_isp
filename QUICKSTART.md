@@ -234,8 +234,8 @@ flutter pub upgrade
 - Close and reopen app
 
 ### Sidebar not collapsing
-- Check responsive_framework breakpoints
-- Verify ResponsiveRowColumn usage
+- The sidebar is hidden below 1024px wide; `AppShell` swaps it for an `AppBar` + `Drawer`
+- Check `Responsive.deviceTypeForWidth` in `lib/shared/utils/responsive.dart`
 
 ### Navigation issues
 - Check route path spelling

@@ -176,8 +176,12 @@ class _InventoryCard extends StatelessWidget {
           ),
 
           const Divider(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Wrap, not Row: three labelled buttons need ~225dp and the card
+          // has ~244dp on a 320dp phone — one longer label would overflow.
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 4,
+            runSpacing: 4,
             children: [
               TextButton.icon(
                 icon: const Icon(Icons.tune, size: 16),

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/responsive/responsive_layout.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
+import 'package:nasr_isp/shared/widgets/adaptive_field_row.dart';
+import 'package:nasr_isp/shared/widgets/adaptive_form_dialog.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
@@ -158,7 +160,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
             final state = rawState is ExpensesLoaded ? rawState : _lastLoaded;
             final loadingOrError = state == null ? rawState : null;
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -282,7 +284,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                       : 'No expenses recorded',
                                 ),
                               )
-                            : ResponsiveLayout(
+                            : ResponsiveSwitcher(
                                 mobile: ExpenseCardList(
                                   expenses: state.expenses,
                                   isAdmin: isAdmin,
@@ -683,147 +685,125 @@ class _ExpensesPageState extends State<ExpensesPage> {
     DateTime selectedDate = isEditing ? expense.date : DateTime.now();
     bool isSaving = false;
 
-    showDialog(
+    showAppFormDialog(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(
-                isEditing ? 'Edit Expense' : 'Record Operating Expense',
-              ),
+            return AdaptiveFormDialog(
+              title: isEditing ? 'Edit Expense' : 'Record Operating Expense',
+              desktopWidth: 480,
+              canClose: !isSaving,
+              onClose: () => Navigator.pop(ctx),
               content: Form(
                 key: formKey,
-                child: SizedBox(
-                  width: 480,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Expense Title',
+                        hintText: 'e.g., Office Rent June, Fiber Repair',
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Title is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    AdaptiveFieldRow(
                       children: [
-                        TextFormField(
-                          controller: titleController,
+                        DropdownButtonFormField<ExpenseCategory>(
+                          value: selectedCategory,
                           decoration: const InputDecoration(
-                            labelText: 'Expense Title',
-                            hintText: 'e.g., Office Rent June, Fiber Repair',
+                            labelText: 'Category',
                           ),
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Title is required'
-                              : null,
+                          items: ExpenseCategory.values
+                              .map(
+                                (cat) => DropdownMenuItem(
+                                  value: cat,
+                                  child: Text(cat.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedCategory = val);
+                            }
+                          },
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<ExpenseCategory>(
-                                value: selectedCategory,
-                                decoration: const InputDecoration(
-                                  labelText: 'Category',
-                                ),
-                                items: ExpenseCategory.values
-                                    .map(
-                                      (cat) => DropdownMenuItem(
-                                        value: cat,
-                                        child: Text(cat.label),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setDialogState(
-                                      () => selectedCategory = val,
-                                    );
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextFormField(
-                                controller: amountController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Amount (PKR)',
-                                  prefixText: 'PKR ',
-                                ),
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                inputFormatters: AppInputFormatters.decimal,
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Amount is required';
-                                  }
-                                  final parsed = double.tryParse(v);
-                                  if (parsed == null) {
-                                    return 'Enter valid number';
-                                  }
-                                  if (parsed <= 0) {
-                                    return 'Amount must be greater than 0';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: selectedDate,
-                                    firstDate: DateTime(2020),
-                                    lastDate: DateTime.now().add(
-                                      const Duration(days: 365),
-                                    ),
-                                  );
-                                  if (picked != null) {
-                                    setDialogState(() => selectedDate = picked);
-                                  }
-                                },
-                                child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Date',
-                                    suffixIcon: Icon(
-                                      Icons.calendar_today,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    DateTimeUtils.formatDate(selectedDate),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextFormField(
-                                controller: paidByController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Paid By',
-                                  hintText: 'e.g. Admin, Manager',
-                                ),
-                                validator: (v) => v == null || v.trim().isEmpty
-                                    ? 'Paid By is required'
-                                    : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
                         TextFormField(
-                          controller: notesController,
+                          controller: amountController,
                           decoration: const InputDecoration(
-                            labelText: 'Notes / Remarks (Optional)',
+                            labelText: 'Amount (PKR)',
+                            prefixText: 'PKR ',
                           ),
-                          maxLines: 2,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: AppInputFormatters.decimal,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Amount is required';
+                            }
+                            final parsed = double.tryParse(v);
+                            if (parsed == null) {
+                              return 'Enter valid number';
+                            }
+                            if (parsed <= 0) {
+                              return 'Amount must be greater than 0';
+                            }
+                            return null;
+                          },
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    AdaptiveFieldRow(
+                      children: [
+                        InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (picked != null) {
+                              setDialogState(() => selectedDate = picked);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Date',
+                              suffixIcon: Icon(Icons.calendar_today, size: 18),
+                            ),
+                            child: Text(DateTimeUtils.formatDate(selectedDate)),
+                          ),
+                        ),
+                        TextFormField(
+                          controller: paidByController,
+                          decoration: const InputDecoration(
+                            labelText: 'Paid By',
+                            hintText: 'e.g. Admin, Manager',
+                          ),
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Paid By is required'
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes / Remarks (Optional)',
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
                 ),
               ),
               actions: [

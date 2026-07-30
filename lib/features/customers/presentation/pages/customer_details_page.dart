@@ -14,7 +14,7 @@ import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
-import 'package:nasr_isp/shared/widgets/responsive_dashboard.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 
@@ -170,7 +170,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
           );
         }
 
-        final isMobile = ResponsiveDashboard.isMobile(context);
+        final isMobile = Responsive.isMobile(context);
 
         return SingleChildScrollView(
           padding: EdgeInsets.all(
@@ -243,7 +243,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
 
               const SizedBox(height: 20),
 
-              ResponsiveDashboard(
+              ResponsiveSwitcher(
                 mobile: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -643,7 +643,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
       },
     ];
 
-    final isMobile = ResponsiveDashboard.isMobile(context);
+    final isMobile = Responsive.isMobile(context);
 
     if (isMobile) {
       return Column(

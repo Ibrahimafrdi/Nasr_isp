@@ -133,7 +133,7 @@ class _CustomersPageState extends State<CustomersPage> {
         return BlocBuilder<CustomersBloc, CustomersState>(
           builder: (context, state) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(AppConstants.paddingLarge),
+              padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

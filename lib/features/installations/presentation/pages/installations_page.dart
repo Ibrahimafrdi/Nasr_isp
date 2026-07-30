@@ -1005,23 +1005,25 @@ class _InstallationsPageState extends State<InstallationsPage> {
         final isAdmin = authState.user.isAdmin;
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppConstants.paddingLarge),
+          padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Breadcrumb(
-                    items: [
-                      BreadcrumbItem(
-                        label: 'Home',
-                        onTap: () => context.go(RoutePaths.dashboard),
-                      ),
-                      BreadcrumbItem(label: 'Installations'),
-                    ],
+                  Expanded(
+                    child: Breadcrumb(
+                      items: [
+                        BreadcrumbItem(
+                          label: 'Home',
+                          onTap: () => context.go(RoutePaths.dashboard),
+                        ),
+                        BreadcrumbItem(label: 'Installations'),
+                      ],
+                    ),
                   ),
-                  if (isAdmin)
+                  if (isAdmin) ...[
+                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: _isLoadingDropdowns
                           ? null
@@ -1029,6 +1031,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       icon: const Icon(Icons.construction, size: 18),
                       label: const Text('Log Installation'),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 16),

@@ -40,20 +40,28 @@ class EmployeeCardList extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InkWell(
-                    onTap: () => onViewDetail(emp),
-                    child: Text(
-                      emp.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppTheme.primaryColor,
-                        decoration: TextDecoration.underline,
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => onViewDetail(emp),
+                      child: Padding(
+                        // Lifts the tap target to ~44dp; the bare Text was 17dp.
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          emp.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppTheme.primaryColor,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(

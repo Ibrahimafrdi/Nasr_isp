@@ -21,12 +21,20 @@ class InfoChip extends StatelessWidget {
       children: [
         Icon(icon, size: 12, color: color ?? AppTheme.mediumGray),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: color ?? AppTheme.mediumGray,
-            fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
+        // Flexible, not a bare Text: a chip inside a Wrap is constrained to
+        // the Wrap's width, so a long value (an address, a sector name, a
+        // customer's full name) would otherwise overflow the card on a
+        // phone rather than truncating.
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: color ?? AppTheme.mediumGray,
+              fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
         ),
       ],

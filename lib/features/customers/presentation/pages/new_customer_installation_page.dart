@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nasr_isp/config/service_locator.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
+import 'package:nasr_isp/shared/widgets/adaptive_form_actions.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
@@ -141,8 +143,6 @@ class _NewCustomerInstallationPageState
     });
   }
 
-  bool _isMobile(BuildContext context) => MediaQuery.of(context).size.width < 700;
-
   Future<void> _saveForm() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -274,7 +274,7 @@ class _NewCustomerInstallationPageState
 
                 return Scaffold(
                   body: SingleChildScrollView(
-                    padding: const EdgeInsets.all(AppConstants.paddingLarge),
+                    padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -313,7 +313,9 @@ class _NewCustomerInstallationPageState
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.all(32),
+                                padding: Responsive.cardPaddingFor(
+                                  Responsive.deviceTypeOf(context),
+                                ),
                                 child: Form(
                                   key: _formKey,
                                   child: Column(
@@ -513,24 +515,20 @@ class _NewCustomerInstallationPageState
                                       _profitPreviewCard(),
                                       const SizedBox(height: 30),
 
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
-                                        children: [
-                                          OutlinedButton(
-                                            onPressed: _isSaving
-                                                ? null
-                                                : () => context.go(RoutePaths.customers),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          ElevatedButton.icon(
-                                            onPressed: _isSaving ? null : _saveForm,
-                                            icon: const Icon(Icons.save),
-                                            label: Text(_isSaving
-                                                ? 'Saving...'
-                                                : 'Create Customer & Installation'),
-                                          ),
-                                        ],
+                                      AdaptiveFormActions(
+                                        secondary: OutlinedButton(
+                                          onPressed: _isSaving
+                                              ? null
+                                              : () => context.go(RoutePaths.customers),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        primary: ElevatedButton.icon(
+                                          onPressed: _isSaving ? null : _saveForm,
+                                          icon: const Icon(Icons.save),
+                                          label: Text(_isSaving
+                                              ? 'Saving...'
+                                              : 'Create Customer & Installation'),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -562,7 +560,7 @@ class _NewCustomerInstallationPageState
   }
 
   Widget _responsiveRow(BuildContext context, List<Widget> children) {
-    if (_isMobile(context)) {
+    if (Responsive.isMobile(context)) {
       return Column(
         children: [
           for (int i = 0; i < children.length; i++) ...[
@@ -649,7 +647,7 @@ class _NewCustomerInstallationPageState
               onPressed: () => setState(() => _itemsUsedState.removeAt(idx)),
             );
 
-            if (_isMobile(context)) {
+            if (Responsive.isMobile(context)) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Column(

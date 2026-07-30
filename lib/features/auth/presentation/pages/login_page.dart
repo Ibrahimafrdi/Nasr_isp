@@ -91,20 +91,24 @@ class _LoginPageState extends State<LoginPage>
               left: -60,
               child: _GlowOrb(color: _accentGreen.withOpacity(0.10), size: 300),
             ),
-            // Main content
-            Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Responsive.isMobile(context) ? 16 : 24,
-                  vertical: 24,
-                ),
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: SlideTransition(
-                    position: _slideAnim,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 380),
-                      child: _buildCard(context),
+            // Main content. The login page sits outside AppShell, so it does
+            // not inherit that shell's SafeArea — it needs its own to clear
+            // the notch and home indicator.
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: Responsive.isMobile(context) ? 16 : 24,
+                    vertical: 24,
+                  ),
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: SlideTransition(
+                      position: _slideAnim,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 380),
+                        child: _buildCard(context),
+                      ),
                     ),
                   ),
                 ),
@@ -411,15 +415,20 @@ class _LoginPageState extends State<LoginPage>
                     )
                   : const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.login_rounded, size: 18),
                         SizedBox(width: 8),
-                        Text(
-                          'Sign in to dashboard',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
+                        Flexible(
+                          child: Text(
+                            'Sign in to dashboard',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
                           ),
                         ),
                       ],

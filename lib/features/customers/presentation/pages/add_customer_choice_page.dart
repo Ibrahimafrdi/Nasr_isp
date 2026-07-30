@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 
 /// Entry point for "Add Customer" — lets the admin choose between
@@ -15,7 +16,7 @@ class AddCustomerChoicePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppConstants.paddingLarge),
+        padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

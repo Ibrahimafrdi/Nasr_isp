@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
 
-/// A wrapper widget that adaptively chooses between a full tabular format on desktop (>=768px)
-/// and a vertical stack of custom items (mobileItemBuilder) on mobile screens.
+/// Chooses between a full tabular layout and a vertical stack of custom items
+/// ([mobileItemBuilder]), using the canonical mobile breakpoint applied to
+/// this widget's own constraints rather than the window.
 class ResponsiveTable extends StatelessWidget {
   final List<PremiumDataColumn> columns;
   final List<PremiumDataRow> rows;
@@ -32,7 +34,9 @@ class ResponsiveTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 768;
+        final isMobile =
+            Responsive.deviceTypeForWidth(constraints.maxWidth) ==
+            DeviceType.mobile;
 
         if (isMobile) {
           if (isLoading) {
@@ -41,7 +45,9 @@ class ResponsiveTable extends StatelessWidget {
               child: Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primaryBlue,
+                  ),
                 ),
               ),
             );
@@ -79,15 +85,22 @@ class ResponsiveTable extends StatelessWidget {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.chevron_left, size: 20),
-                      onPressed: currentPage > 1 ? () => onPageChange?.call(currentPage - 1) : null,
+                      onPressed: currentPage > 1
+                          ? () => onPageChange?.call(currentPage - 1)
+                          : null,
                     ),
                     Text(
                       'Page $currentPage',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.chevron_right, size: 20),
-                      onPressed: (currentPage * rowsPerPage) < totalRows! ? () => onPageChange?.call(currentPage + 1) : null,
+                      onPressed: (currentPage * rowsPerPage) < totalRows!
+                          ? () => onPageChange?.call(currentPage + 1)
+                          : null,
                     ),
                   ],
                 ),

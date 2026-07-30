@@ -68,7 +68,7 @@ lib/
 2. **BLoC Pattern**: State management via `flutter_bloc` for scalability
 3. **Separation of Concerns**: Clear separation between UI, business logic, and data
 4. **Reusability**: Common components in `shared/widgets/` and `shared/models/`
-5. **Responsive Design**: Primary desktop focus with secondary mobile support via `responsive_framework`
+5. **Responsive Design**: Desktop and mobile are both first-class. All breakpoint decisions come from `lib/shared/utils/responsive.dart` (mobile <600, tablet 600–<1024, desktop >=1024) — see the doc comment there for when to use `Responsive.isMobile` (window width) vs `ResponsiveBuilder`/`ResponsiveSwitcher` (local constraints). Do not introduce a second breakpoint set.
 6. **Type Safety**: Equatable models for proper equality checks
 
 ## 🔐 Authentication
@@ -179,7 +179,6 @@ Employee Account:
 | **flutter_bloc** | State management |
 | **go_router** | Navigation and routing |
 | **get_it** | Dependency injection |
-| **responsive_framework** | Responsive design |
 | **Google Fonts** | Typography |
 | **intl** | Internationalization & formatting |
 | **equatable** | Value equality and hashing |
@@ -270,7 +269,6 @@ dependencies:
   bloc: ^8.1.2
   go_router: ^13.1.0
   get_it: ^7.6.0
-  responsive_framework: ^0.9.0
   equatable: ^2.0.5
   intl: ^0.19.0
   uuid: ^4.0.0

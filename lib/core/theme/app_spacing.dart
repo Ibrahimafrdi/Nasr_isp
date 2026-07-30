@@ -22,8 +22,8 @@ class AppSpacing {
   static const double radiusXxl = 24;
   static const double radiusCircle = 50;
 
-  // Sidebar dimensions
-  static const double sidebarWidth = 280;
+  // Sidebar dimensions — must match the widths `DashboardSidebar` renders.
+  static const double sidebarWidth = 260;
   static const double sidebarCollapsedWidth = 80;
 
   // Header/Navbar
