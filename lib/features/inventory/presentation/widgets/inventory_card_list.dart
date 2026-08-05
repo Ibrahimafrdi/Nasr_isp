@@ -69,13 +69,17 @@ class _InventoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLow = item.quantityInStock <= item.reorderLevel;
-    final statusText = item.quantityInStock == 0
+    final isOut = item.quantityInStock <= 0;
+    final isLow = !isOut && item.quantityInStock <= item.reorderLevel;
+    final statusText = isOut
         ? 'Out of Stock'
         : (isLow ? 'Low Stock' : 'Available');
-    final statusColor = item.quantityInStock == 0
+    final statusColor = isOut
         ? AppTheme.errorColor
         : (isLow ? AppTheme.warningColor : AppTheme.successColor);
+
+    final unitLabel = item.unit.trim().isEmpty ? 'pcs' : item.unit;
+    final qtyDisplay = isOut ? '0 $unitLabel' : '${item.quantityInStock} $unitLabel';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -146,7 +150,7 @@ class _InventoryCard extends StatelessWidget {
               ),
               InfoChip(
                 Icons.inventory_2_outlined,
-                '${item.quantityInStock} ${item.unit}',
+                qtyDisplay,
                 color: statusColor,
               ),
               InfoChip(

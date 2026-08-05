@@ -701,7 +701,12 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           hint: const Text('Select Material'),
                           items: _allInventoryItems.map((item) => DropdownMenuItem(
                             value: item.id,
-                            child: Text('${item.name} (Stock: ${item.quantityInStock})'),
+                            child: Text(
+                              item.quantityInStock <= 0
+                                  ? '${item.name} (0 pcs — Out of Stock)'
+                                  : '${item.name} (Stock: ${item.quantityInStock} ${item.unit.isEmpty ? 'pcs' : item.unit})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           )).toList(),
                           onChanged: materialsLocked
                               ? null

@@ -22,16 +22,80 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
 
   @override
   Future<void> addInventoryItem(InventoryItemModel item) async {
-    final data = item.toFirestore();
-    data['createdAt'] = FieldValue.serverTimestamp();
-    data['updatedAt'] = FieldValue.serverTimestamp();
-    await _col.doc(item.id).set(data);
+    final querySnapshot = await _col.get();
+    DocumentSnapshot? existingDoc;
+
+    final targetName = item.name.trim().toLowerCase();
+    for (final doc in querySnapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final name = (data['name'] as String? ?? '').trim().toLowerCase();
+      if (name == targetName) {
+        existingDoc = doc;
+        break;
+      }
+    }
+
+    if (existingDoc != null) {
+      // Item with matching name exists! Update stock of existing item instead of creating duplicate entry.
+      final existingData = existingDoc.data() as Map<String, dynamic>? ?? {};
+      final currentQty = (existingData['quantityInStock'] as num?)?.toInt() ?? 0;
+      final newQty = currentQty + item.quantityInStock;
+
+      final updatedData = item.toFirestore();
+      updatedData['id'] = existingDoc.id;
+      updatedData['quantityInStock'] = newQty;
+      updatedData.remove('createdAt');
+      updatedData['updatedAt'] = FieldValue.serverTimestamp();
+
+      await _col.doc(existingDoc.id).update(updatedData);
+
+      // Record stock-in movement for the restock
+      final movementDocRef = _col.doc(existingDoc.id).collection('movements').doc();
+      await movementDocRef.set({
+        'id': movementDocRef.id,
+        'itemId': existingDoc.id,
+        'type': StockMovementType.stockIn.name,
+        'quantity': item.quantityInStock,
+        'reason': 'Restocked via Add Item',
+        'date': FieldValue.serverTimestamp(),
+        'performedBy': 'Admin',
+      });
+    } else {
+      final data = item.toFirestore();
+      data['createdAt'] = FieldValue.serverTimestamp();
+      data['updatedAt'] = FieldValue.serverTimestamp();
+      await _col.doc(item.id).set(data);
+    }
   }
 
   @override
   Future<List<InventoryItemModel>> getInventoryItems() async {
     final snapshot = await _col.orderBy('name').get();
-    return snapshot.docs.map((doc) => InventoryItemModel.fromFirestore(doc)).toList();
+    final Map<String, InventoryItemModel> itemsMap = {};
+
+    for (final doc in snapshot.docs) {
+      final item = InventoryItemModel.fromFirestore(doc);
+      final key = item.name.trim().toLowerCase();
+      if (itemsMap.containsKey(key)) {
+        // Consolidate duplicate records if any exist in database
+        final existing = itemsMap[key]!;
+        final mergedQty = existing.quantityInStock + item.quantityInStock;
+        final mergedModel = existing.copyWith(
+          quantityInStock: mergedQty,
+          unitCost: item.unitCost > 0 ? item.unitCost : existing.unitCost,
+          sellPrice: item.sellPrice > 0 ? item.sellPrice : existing.sellPrice,
+        );
+        itemsMap[key] = mergedModel;
+
+        // Clean up duplicate document in background
+        _col.doc(existing.id).update({'quantityInStock': mergedQty});
+        deleteInventoryItem(doc.id);
+      } else {
+        itemsMap[key] = item;
+      }
+    }
+
+    return itemsMap.values.toList();
   }
 
   @override

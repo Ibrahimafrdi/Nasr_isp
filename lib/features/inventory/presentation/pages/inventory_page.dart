@@ -176,6 +176,54 @@ class _InventoryViewState extends State<_InventoryView> {
                             v == null || v.isEmpty ? 'Name required' : null,
                       ),
                     const SizedBox(height: 16),
+                    if (existing == null)
+                      BlocBuilder<InventoryBloc, InventoryState>(
+                        bloc: bloc,
+                        builder: (_, state) {
+                          if (state is! InventoryLoaded) return const SizedBox.shrink();
+                          return ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: nameController,
+                            builder: (__, nameValue, ___) {
+                              final typedName = nameValue.text.trim().toLowerCase();
+                              if (typedName.isEmpty) return const SizedBox.shrink();
+                              final match = state.items.where(
+                                (i) => i.name.trim().toLowerCase() == typedName,
+                              );
+                              if (match.isEmpty) return const SizedBox.shrink();
+                              final found = match.first;
+                              final unitLabel = found.unit.trim().isEmpty ? 'pcs' : found.unit;
+                              final curQty = found.quantityInStock <= 0
+                                  ? '0 $unitLabel'
+                                  : '${found.quantityInStock} $unitLabel';
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.blue.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'This item already exists (current stock: $curQty). '
+                                        'Saving will add quantity to the existing stock.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue.shade800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     DropdownButtonFormField<InventoryCategory>(
                       value: category,
                       decoration: const InputDecoration(labelText: 'Category'),
@@ -664,9 +712,24 @@ class _InventoryViewState extends State<_InventoryView> {
                       const Divider(),
                       Text('Category: ${_categoryLabel(item.category)}'),
                       const SizedBox(height: 4),
-                      Text(
-                        'Quantity in Stock: ${item.quantityInStock} ${item.unit}',
-                      ),
+                       Builder(builder: (context) {
+                         final unitLabel = item.unit.trim().isEmpty ? 'pcs' : item.unit;
+                         final qtyDisplay = item.quantityInStock <= 0
+                             ? '0 $unitLabel — Out of Stock'
+                             : '${item.quantityInStock} $unitLabel';
+                         final qtyColor = item.quantityInStock <= 0
+                             ? AppTheme.errorColor
+                             : null;
+                         return Text(
+                           'Quantity in Stock: $qtyDisplay',
+                           style: TextStyle(
+                             color: qtyColor,
+                             fontWeight: item.quantityInStock <= 0
+                                 ? FontWeight.bold
+                                 : FontWeight.normal,
+                           ),
+                         );
+                       }),
                       const SizedBox(height: 4),
                       Text('Reorder Level: ${item.reorderLevel} ${item.unit}'),
                       const SizedBox(height: 4),
@@ -1009,16 +1072,18 @@ class _InventoryViewState extends State<_InventoryView> {
                               DataColumn(label: Text('Actions')),
                             ],
                             rows: filteredItems.map((item) {
-                              final isLow =
-                                  item.quantityInStock <= item.reorderLevel;
-                              final statusText = item.quantityInStock == 0
+                              final isOut = item.quantityInStock <= 0;
+                              final isLow = !isOut && item.quantityInStock <= item.reorderLevel;
+                              final statusText = isOut
                                   ? 'Out of Stock'
                                   : (isLow ? 'Low Stock' : 'Available');
-                              final statusColor = item.quantityInStock == 0
+                              final statusColor = isOut
                                   ? AppTheme.errorColor
                                   : (isLow
                                         ? AppTheme.warningColor
                                         : AppTheme.successColor);
+                              final unitLabel = item.unit.trim().isEmpty ? 'pcs' : item.unit;
+                              final qtyDisplay = isOut ? '0 $unitLabel' : '${item.quantityInStock} $unitLabel';
 
                               return DataRow(
                                 cells: [
@@ -1035,7 +1100,7 @@ class _InventoryViewState extends State<_InventoryView> {
                                   DataCell(Text(item.connectionType.label)),
                                   DataCell(
                                     Text(
-                                      '${item.quantityInStock} ${item.unit}',
+                                      qtyDisplay,
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: statusColor,

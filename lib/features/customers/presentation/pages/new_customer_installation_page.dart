@@ -6,7 +6,6 @@ import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/adaptive_form_actions.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
@@ -29,11 +28,7 @@ import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 /// Onboards a brand-new subscriber together with their installation record
-/// in a single form — contact & plan details (same fields as the standard
-/// Add Customer form) plus installation date/type, cost, labor and profit.
-///
-/// This does NOT touch [AddCustomerPage] / the "Existing Customer" flow —
-/// it is an entirely separate, additive entry point.
+/// in a single form — contact & plan details plus installation date/type, cost, labor and profit.
 class NewCustomerInstallationPage extends StatefulWidget {
   const NewCustomerInstallationPage({super.key});
 
@@ -66,10 +61,10 @@ class _NewCustomerInstallationPageState
   String? _assignedEmployeeId;
   String? _assignedEmployeeName;
 
-  // Materials Used (BOM) state — same row shape ('itemId'/'qty'/'unitCost')
-  // and auto-select behavior as the standalone Add Installation form.
+  // Materials Used (BOM) state
   List<InstallationItemRow> _itemsUsedState = [];
   List<InventoryItemEntity> _allInventoryItems = [];
+  bool _isLoadingInventory = true;
 
   bool _isSaving = false;
 
@@ -80,6 +75,7 @@ class _NewCustomerInstallationPageState
     context.read<PackagesBloc>().add(const LoadPackagesEvent());
     _installationChargesController.addListener(_recomputePreview);
     _laborCostController.addListener(_recomputePreview);
+    _monthlyBillController.addListener(_recomputePreview);
     _loadInventoryItems();
   }
 
@@ -87,11 +83,15 @@ class _NewCustomerInstallationPageState
     try {
       final items = await getIt<GetInventoryItems>()();
       if (mounted) {
-        setState(() => _allInventoryItems = items);
+        setState(() {
+          _allInventoryItems = items;
+          _isLoadingInventory = false;
+        });
       }
     } catch (_) {
-      // Manual "Add Item" and auto-fill simply have nothing to offer;
-      // the rest of the form remains usable.
+      if (mounted) {
+        setState(() => _isLoadingInventory = false);
+      }
     }
   }
 
@@ -108,9 +108,12 @@ class _NewCustomerInstallationPageState
     _phoneController.dispose();
     _cnicController.dispose();
     _addressController.dispose();
+    _monthlyBillController.removeListener(_recomputePreview);
     _monthlyBillController.dispose();
     _notesController.dispose();
+    _installationChargesController.removeListener(_recomputePreview);
     _installationChargesController.dispose();
+    _laborCostController.removeListener(_recomputePreview);
     _laborCostController.dispose();
     _installationRemarksController.dispose();
     super.dispose();
@@ -120,19 +123,23 @@ class _NewCustomerInstallationPageState
 
   double get _previewCharges =>
       double.tryParse(_installationChargesController.text.trim()) ?? 0.0;
+
   double get _previewLabor =>
       double.tryParse(_laborCostController.text.trim()) ?? 0.0;
 
-  MaterialTotals get _previewMaterials =>
-      MaterialTotals.fromRows(_itemsUsedState);
-
-  /// The same construction InstallationEntity.money uses, over the
-  /// not-yet-saved form state — so this preview and the record it saves
-  /// cannot disagree.
-  MoneyLine get _previewMoney => MoneyLine(
-        amountBilled: _previewCharges + _previewMaterials.revenue,
-        costIncurred: _previewMaterials.cost + _previewLabor,
+  double get _previewMaterialCost => _itemsUsedState.fold(
+        0.0,
+        (sum, row) =>
+            sum +
+            ((row['qty'] as int? ?? 0) * (row['unitCost'] as double? ?? 0.0)),
       );
+
+  /// Installation Net Profit / Loss = Installation Fee Billed - Material Cost - Labour Cost
+  double get _installationProfit =>
+      _previewCharges - _previewMaterialCost - _previewLabor;
+
+  double get _previewMonthlyPackageRate =>
+      double.tryParse(_monthlyBillController.text.trim()) ?? 0.0;
 
   void _onPackageChanged(String? packageId, List<PackageEntity> packages) {
     if (packageId == null) return;
@@ -148,7 +155,16 @@ class _NewCustomerInstallationPageState
 
     setState(() => _isSaving = true);
 
-    final nextDueDate = DateTime(_joinDate.year, _joinDate.month + 1, _joinDate.day);
+    // Safe Month Overflow Calculation (e.g. Jan 31 -> Feb 28)
+    final nextMonth = _joinDate.month == 12 ? 1 : _joinDate.month + 1;
+    final nextYear = _joinDate.month == 12 ? _joinDate.year + 1 : _joinDate.year;
+    final daysInNextMonth = DateUtils.getDaysInMonth(nextYear, nextMonth);
+    final nextDueDate = DateTime(
+      nextYear,
+      nextMonth,
+      _joinDate.day > daysInNextMonth ? daysInNextMonth : _joinDate.day,
+    );
+
     final customerId = const Uuid().v4();
 
     final newCustomer = CustomerModel(
@@ -157,10 +173,11 @@ class _NewCustomerInstallationPageState
       phone: AppInputFormatters.digitsOnly(_phoneController.text),
       cnic: AppInputFormatters.digitsOnly(_cnicController.text),
       address: _addressController.text.trim(),
-      connectionType:
-          _connectionType == ConnectionType.opticalFibre ? 'fiber' : 'wireless',
+      connectionType: _connectionType == ConnectionType.opticalFibre
+          ? 'fiber'
+          : 'wireless',
       packageId: _selectedPackageId,
-      monthlyBill: double.tryParse(_monthlyBillController.text.trim()) ?? 0.0,
+      monthlyBill: _previewMonthlyPackageRate,
       status: 'active',
       notes: _notesController.text.trim(),
       createdAt: DateTime.now(),
@@ -171,19 +188,29 @@ class _NewCustomerInstallationPageState
     final customersBloc = context.read<CustomersBloc>();
     customersBloc.add(CreateCustomerEvent(newCustomer));
 
-    // The installation-completed sync (customer.status/installationCost)
-    // reads the customer doc in a transaction, so it must exist first.
-    final customerResult = await customersBloc.stream.firstWhere(
-      (s) => s is CustomersLoaded || s is CustomersError,
-    );
+    try {
+      final customerResult = await customersBloc.stream.firstWhere(
+        (s) => s is CustomersLoaded || s is CustomersError,
+      ).timeout(const Duration(seconds: 15));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (customerResult is CustomersError) {
+      if (customerResult is CustomersError) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create customer: ${customerResult.message}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to create customer: ${customerResult.message}'),
+          content: Text('Customer registration timed out or failed: ${e.toString()}'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -195,11 +222,12 @@ class _NewCustomerInstallationPageState
         InstallationItemUsedEntity(
           inventoryItemId: row['itemId'] as String,
           itemName: _allInventoryItems
-              .firstWhere((i) => i.id == row['itemId'])
-              .name,
+              .where((i) => i.id == row['itemId'])
+              .firstOrNull
+              ?.name ?? 'Material Item',
           quantity: row['qty'] as int,
           costPriceAtTime: row['unitCost'] as double,
-          sellPriceAtTime: row['sellPrice'] as double,
+          sellPriceAtTime: row['sellPrice'] as double? ?? row['unitCost'] as double,
         ),
     ];
 
@@ -224,18 +252,31 @@ class _NewCustomerInstallationPageState
     final installationBloc = context.read<InstallationBloc>();
     installationBloc.add(CreateInstallationEvent(installation));
 
-    final installationResult = await installationBloc.stream.firstWhere(
-      (s) => s is InstallationLoaded || s is InstallationError,
-    );
+    try {
+      final installationResult = await installationBloc.stream.firstWhere(
+        (s) => s is InstallationLoaded || s is InstallationError,
+      ).timeout(const Duration(seconds: 15));
 
-    if (!mounted) return;
-    setState(() => _isSaving = false);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
 
-    if (installationResult is InstallationError) {
+      if (installationResult is InstallationError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Customer created, but installation failed: ${installationResult.message}',
+            ),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'Customer created, but installation failed: ${installationResult.message}'),
+          content: Text('Installation registration timed out: ${e.toString()}'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -261,20 +302,23 @@ class _NewCustomerInstallationPageState
 
         return BlocBuilder<PackagesBloc, PackagesState>(
           builder: (context, packagesState) {
-            final availablePackages =
-                packagesState is PackagesLoaded ? packagesState.packages : <PackageEntity>[];
+            final availablePackages = packagesState is PackagesLoaded
+                ? packagesState.packages
+                : <PackageEntity>[];
 
             return BlocBuilder<EmployeeBloc, EmployeeState>(
               builder: (context, employeeState) {
                 final employees = employeeState is EmployeeLoaded
                     ? employeeState.employees
-                        .where((e) => e.status == EmployeeStatus.active)
-                        .toList()
+                          .where((e) => e.status == EmployeeStatus.active)
+                          .toList()
                     : <EmployeeEntity>[];
 
                 return Scaffold(
                   body: SingleChildScrollView(
-                    padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
+                    padding: Responsive.pagePaddingFor(
+                      Responsive.deviceTypeOf(context),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -298,9 +342,7 @@ class _NewCustomerInstallationPageState
                         const SizedBox(height: 20),
                         Text(
                           'New Customer & Installation',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
+                          style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 24),
@@ -310,7 +352,7 @@ class _NewCustomerInstallationPageState
                             child: Card(
                               elevation: 1,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               child: Padding(
                                 padding: Responsive.cardPaddingFor(
@@ -319,9 +361,13 @@ class _NewCustomerInstallationPageState
                                 child: Form(
                                   key: _formKey,
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      _sectionHeader(context, 'Account Information'),
+                                      _sectionHeader(
+                                        context,
+                                        'Customer Information',
+                                      ),
                                       const Divider(height: 24),
                                       _responsiveRow(context, [
                                         AppFormField(
@@ -330,7 +376,9 @@ class _NewCustomerInstallationPageState
                                           controller: _nameController,
                                           validator: (v) =>
                                               ValidationUtils.validateName(
-                                                  v, 'Full Name'),
+                                                v,
+                                                'Full Name',
+                                              ),
                                         ),
                                         AppFormField(
                                           label: 'Phone Number',
@@ -353,8 +401,7 @@ class _NewCustomerInstallationPageState
                                         inputFormatters:
                                             AppInputFormatters.cnic,
                                         hintText: '17301-1937353-5',
-                                        validator:
-                                            ValidationUtils.validateCnic,
+                                        validator: ValidationUtils.validateCnic,
                                       ),
                                       const SizedBox(height: 16),
                                       AppFormField(
@@ -379,128 +426,165 @@ class _NewCustomerInstallationPageState
                                       ),
                                       const SizedBox(height: 30),
 
-                                      _sectionHeader(context, 'Plan & Pricing Details'),
+                                      _sectionHeader(
+                                        context,
+                                        'Subscription Package (Recurring Revenue)',
+                                      ),
                                       const Divider(height: 24),
                                       _responsiveRow(context, [
                                         DropdownButtonFormField<ConnectionType>(
                                           initialValue: _connectionType,
+                                          isExpanded: true,
                                           decoration: const InputDecoration(
-                                            labelText: 'Connection / Installation Type',
+                                            labelText:
+                                                'Connection Type',
                                           ),
                                           items: ConnectionType.values
-                                              .map((t) => DropdownMenuItem(
-                                                    value: t,
-                                                    child: Text(t.displayName),
-                                                  ))
+                                              .map(
+                                                (t) => DropdownMenuItem(
+                                                  value: t,
+                                                  child: Text(t.displayName, overflow: TextOverflow.ellipsis),
+                                                ),
+                                              )
                                               .toList(),
                                           onChanged: (val) {
                                             if (val != null) {
-                                              setState(() => _connectionType = val);
-                                              _autoFillItemsForConnectionType(val);
+                                              setState(
+                                                () => _connectionType = val,
+                                              );
+                                              _autoFillItemsForConnectionType(
+                                                val,
+                                              );
                                             }
                                           },
                                         ),
                                         DropdownButtonFormField<String>(
                                           initialValue: _selectedPackageId,
+                                          isExpanded: true,
                                           decoration: const InputDecoration(
-                                            labelText: 'Select Package',
-                                            helperText:
-                                                'Sets the upstream cost used for monthly profit',
+                                            labelText: 'Select Internet Package',
                                           ),
                                           items: availablePackages
-                                              .map((pkg) => DropdownMenuItem(
-                                                    value: pkg.id,
-                                                    child: Text(pkg.name),
-                                                  ))
+                                              .map(
+                                                (pkg) => DropdownMenuItem(
+                                                  value: pkg.id,
+                                                  child: Text(
+                                                    '${pkg.name} (${DateTimeUtils.formatCurrency(pkg.price)}/mo)',
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              )
                                               .toList(),
-                                          onChanged: (val) =>
-                                              _onPackageChanged(val, availablePackages),
-                                          // Required: without a package there is
-                                          // no upstream cost to subtract, and the
-                                          // customer's whole bill would be
-                                          // reported as profit.
-                                          validator: (v) => (v == null || v.isEmpty)
-                                              ? 'Select a package — it sets the cost side of profit'
+                                          onChanged: (val) => _onPackageChanged(
+                                            val,
+                                            availablePackages,
+                                          ),
+                                          validator: (v) =>
+                                              (v == null || v.isEmpty)
+                                              ? 'Select an internet package'
                                               : null,
                                         ),
                                       ]),
                                       const SizedBox(height: 16),
                                       AppFormField(
-                                        label: 'Monthly Bill Rate (PKR)',
+                                        label: 'Monthly Rate (PKR / Month)',
                                         isRequired: true,
                                         controller: _monthlyBillController,
                                         keyboardType:
-                                            const TextInputType.numberWithOptions(decimal: true),
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
                                         inputFormatters:
                                             AppInputFormatters.decimal,
                                         validator: (v) =>
-                                            ValidationUtils.validateAmount(v,
-                                                fieldName: 'Monthly Bill'),
+                                            ValidationUtils.validateAmount(
+                                              v,
+                                              fieldName: 'Monthly Rate',
+                                            ),
                                       ),
                                       const SizedBox(height: 30),
 
-                                      _sectionHeader(context, 'Installation Details'),
-                                      const Divider(height: 24),
-                                      _datePickerTile(
+                                      _sectionHeader(
                                         context,
-                                        label: 'Installation Date',
-                                        value: _installationDate,
-                                        onPicked: (picked) => setState(() {
-                                          _installationDate = picked;
-                                        }),
+                                        'One-Time Installation Details',
                                       ),
-                                      const SizedBox(height: 16),
-                                      DropdownButtonFormField<String>(
-                                        initialValue: _assignedEmployeeId,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Assigned Technician (Optional)',
+                                      const Divider(height: 24),
+                                      _responsiveRow(context, [
+                                        _datePickerTile(
+                                          context,
+                                          label: 'Installation Date',
+                                          value: _installationDate,
+                                          onPicked: (picked) => setState(() {
+                                            _installationDate = picked;
+                                          }),
                                         ),
-                                        items: employees
-                                            .map((e) => DropdownMenuItem(
+                                        DropdownButtonFormField<String>(
+                                          initialValue: _assignedEmployeeId,
+                                          isExpanded: true,
+                                          decoration: const InputDecoration(
+                                            labelText:
+                                                'Assigned Technician (Optional)',
+                                          ),
+                                          items: employees
+                                              .map(
+                                                (e) => DropdownMenuItem(
                                                   value: e.id,
-                                                  child: Text(e.name),
-                                                ))
-                                            .toList(),
-                                        onChanged: (val) {
-                                          setState(() {
-                                            _assignedEmployeeId = val;
-                                            _assignedEmployeeName = val == null
-                                                ? null
-                                                : employees
-                                                    .firstWhere((e) => e.id == val)
-                                                    .name;
-                                          });
-                                        },
-                                      ),
+                                                  child: Text(e.name, overflow: TextOverflow.ellipsis),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (val) {
+                                            setState(() {
+                                              _assignedEmployeeId = val;
+                                              _assignedEmployeeName = val == null
+                                                  ? null
+                                                  : employees
+                                                        .firstWhere(
+                                                          (e) => e.id == val,
+                                                        )
+                                                        .name;
+                                            });
+                                          },
+                                        ),
+                                      ]),
                                       const SizedBox(height: 16),
                                       AppFormField(
-                                        label: 'Installation Charges (PKR)',
-                                        hintText: 'Fee billed to the customer',
+                                        label: 'Installation Fee Charged to Customer (PKR)',
+                                        hintText: 'One-time setup fee billed to customer',
                                         isRequired: true,
-                                        controller: _installationChargesController,
-                                        keyboardType: const TextInputType.numberWithOptions(
-                                            decimal: true),
+                                        controller:
+                                            _installationChargesController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
                                         inputFormatters:
                                             AppInputFormatters.decimal,
                                         validator: (v) =>
-                                            ValidationUtils.validateAmount(v,
-                                                fieldName:
-                                                    'Installation Charges',
-                                                allowZero: true),
+                                            ValidationUtils.validateAmount(
+                                              v,
+                                              fieldName: 'Installation Fee',
+                                              allowZero: true,
+                                            ),
                                       ),
                                       const SizedBox(height: 16),
                                       _materialsUsedSection(),
                                       const SizedBox(height: 16),
                                       AppFormField(
-                                        label: 'Technician / Labor Cost (PKR)',
+                                        label: 'Labour Cost / Technician Pay (PKR)',
                                         controller: _laborCostController,
                                         keyboardType:
-                                            const TextInputType.numberWithOptions(decimal: true),
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
                                         inputFormatters:
                                             AppInputFormatters.decimal,
                                         validator: (v) {
-                                          if (v == null || v.trim().isEmpty) return null;
-                                          return double.tryParse(v.trim()) == null
+                                          if (v == null || v.trim().isEmpty) {
+                                            return null;
+                                          }
+                                          return double.tryParse(v.trim()) ==
+                                                  null
                                               ? 'Enter a valid number'
                                               : null;
                                         },
@@ -508,26 +592,33 @@ class _NewCustomerInstallationPageState
                                       const SizedBox(height: 16),
                                       AppFormField(
                                         label: 'Installation Notes / Remarks',
-                                        controller: _installationRemarksController,
+                                        controller:
+                                            _installationRemarksController,
                                         maxLines: 2,
                                       ),
-                                      const SizedBox(height: 20),
-                                      _profitPreviewCard(),
+                                      const SizedBox(height: 24),
+                                      _financialSummaryCard(availablePackages),
                                       const SizedBox(height: 30),
 
                                       AdaptiveFormActions(
                                         secondary: OutlinedButton(
                                           onPressed: _isSaving
                                               ? null
-                                              : () => context.go(RoutePaths.customers),
+                                              : () => context.go(
+                                                  RoutePaths.customers,
+                                                ),
                                           child: const Text('Cancel'),
                                         ),
                                         primary: ElevatedButton.icon(
-                                          onPressed: _isSaving ? null : _saveForm,
+                                          onPressed: _isSaving
+                                              ? null
+                                              : _saveForm,
                                           icon: const Icon(Icons.save),
-                                          label: Text(_isSaving
-                                              ? 'Saving...'
-                                              : 'Create Customer & Installation'),
+                                          label: Text(
+                                            _isSaving
+                                                ? 'Saving...'
+                                                : 'Create Customer & Installation',
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -553,9 +644,9 @@ class _NewCustomerInstallationPageState
     return Text(
       title,
       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: AppTheme.primaryColor,
-            fontWeight: FontWeight.bold,
-          ),
+        color: AppTheme.primaryColor,
+        fontWeight: FontWeight.bold,
+      ),
     );
   }
 
@@ -585,108 +676,127 @@ class _NewCustomerInstallationPageState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Materials Used (optional — auto-filled from inventory for the '
-          'selected connection type)',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontSize: 13),
+          'Materials Used (optional — auto-filled based on connection type)',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _itemsUsedState.length,
-          itemBuilder: (context, idx) {
-            final row = _itemsUsedState[idx];
+        if (_isLoadingInventory)
+          const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text('Loading inventory materials...', style: TextStyle(fontSize: 12, color: AppTheme.mediumGray)),
+              ],
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _itemsUsedState.length,
+            itemBuilder: (context, idx) {
+              final row = _itemsUsedState[idx];
+              final itemId = row['itemId'] as String? ?? '';
 
-            final itemDropdown = DropdownButtonFormField<String>(
-              initialValue: row['itemId'] as String?,
-              hint: const Text('Select Material'),
-              items: _allInventoryItems
-                  .map((item) => DropdownMenuItem(
+              final itemDropdown = DropdownButtonFormField<String>(
+                initialValue: itemId.isEmpty ? null : itemId,
+                isExpanded: true,
+                hint: const Text('Select Material', overflow: TextOverflow.ellipsis),
+                items: _allInventoryItems
+                    .map(
+                      (item) => DropdownMenuItem(
                         value: item.id,
-                        child: Text('${item.name} (Stock: ${item.quantityInStock})'),
-                      ))
-                  .toList(),
-              onChanged: (val) {
-                if (val == null) return;
-                final selected = _allInventoryItems.firstWhere((i) => i.id == val);
-                setState(() {
-                  row['itemId'] = val;
-                  row['unitCost'] = selected.unitCost;
-                  row['sellPrice'] = selected.sellPrice;
-                });
-              },
-            );
-            final qtyField = TextFormField(
-              initialValue: row['qty'].toString(),
-              decoration: const InputDecoration(labelText: 'Qty'),
-              keyboardType: TextInputType.number,
-              onChanged: (val) {
-                final parsed = int.tryParse(val) ?? 0;
-                setState(() => row['qty'] = parsed);
-              },
-            );
-            final unitCostText = Text(
-              '@ ${DateTimeUtils.formatCurrency(row['unitCost'] as double)}',
-              style: const TextStyle(fontSize: 12),
-            );
-            final sellPriceField = TextFormField(
-              key: ValueKey('sellPrice_$idx'),
-              initialValue: (row['sellPrice'] as double).toStringAsFixed(2),
-              decoration: const InputDecoration(labelText: 'Sell Price'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (val) {
-                final parsed = double.tryParse(val) ?? 0.0;
-                setState(() => row['sellPrice'] = parsed);
-              },
-            );
-            final deleteButton = IconButton(
-              icon: const Icon(Icons.delete, color: AppColors.errorRed),
-              onPressed: () => setState(() => _itemsUsedState.removeAt(idx)),
-            );
+                        child: Text(
+                          item.quantityInStock <= 0
+                              ? '${item.name} (0 pcs — Out of Stock)'
+                              : '${item.name} (Stock: ${item.quantityInStock} ${item.unit.isEmpty ? 'pcs' : item.unit})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  if (val == null) return;
+                  final selected = _allInventoryItems.firstWhere(
+                    (i) => i.id == val,
+                  );
+                  setState(() {
+                    row['itemId'] = val;
+                    row['unitCost'] = selected.unitCost;
+                    row['sellPrice'] = selected.sellPrice;
+                  });
+                },
+              );
 
-            if (Responsive.isMobile(context)) {
+              final qtyField = SizedBox(
+                width: 75,
+                child: TextFormField(
+                  key: ValueKey('qty_${itemId}_$idx'),
+                  initialValue: (row['qty'] as int? ?? 1).toString(),
+                  decoration: const InputDecoration(labelText: 'Qty'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (val) {
+                    final parsed = int.tryParse(val) ?? 0;
+                    setState(() => row['qty'] = parsed);
+                  },
+                ),
+              );
+
+              final unitCostText = Text(
+                'Unit Cost: ${DateTimeUtils.formatCurrency((row['unitCost'] as double? ?? 0.0))}',
+                style: const TextStyle(fontSize: 12, color: AppTheme.mediumGray),
+                overflow: TextOverflow.ellipsis,
+              );
+
+              final deleteButton = IconButton(
+                icon: const Icon(Icons.delete, color: AppColors.errorRed),
+                onPressed: () => setState(() => _itemsUsedState.removeAt(idx)),
+              );
+
+              if (Responsive.isMobile(context)) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      itemDropdown,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          qtyField,
+                          const SizedBox(width: 12),
+                          Expanded(child: unitCostText),
+                          deleteButton,
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Row(
                   children: [
-                    itemDropdown,
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: qtyField),
-                        const SizedBox(width: 8),
-                        Expanded(child: sellPriceField),
-                        const SizedBox(width: 8),
-                        unitCostText,
-                        deleteButton,
-                      ],
-                    ),
+                    Expanded(flex: 5, child: itemDropdown),
+                    const SizedBox(width: 12),
+                    qtyField,
+                    const SizedBox(width: 12),
+                    Expanded(flex: 3, child: unitCostText),
+                    deleteButton,
                   ],
                 ),
               );
-            }
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 3, child: itemDropdown),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 1, child: qtyField),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 1, child: sellPriceField),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 1, child: unitCostText),
-                  deleteButton,
-                ],
-              ),
-            );
-          },
-        ),
+            },
+          ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: _allInventoryItems.isEmpty
@@ -702,28 +812,20 @@ class _NewCustomerInstallationPageState
                   });
                 },
           icon: const Icon(Icons.add, size: 16),
-          label: const Text('Add Item'),
+          label: const Text('Add Material Item'),
         ),
         if (_itemsUsedState.isNotEmpty) ...[
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Estimated Material Cost:'),
-              Text(
-                DateTimeUtils.formatCurrency(_previewMaterials.cost),
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              const Text(
+                'Total Material Cost:',
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Estimated Material Margin:'),
               Text(
-                DateTimeUtils.formatCurrency(_previewMaterials.markup),
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                DateTimeUtils.formatCurrency(_previewMaterialCost),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ],
           ),
@@ -758,61 +860,170 @@ class _NewCustomerInstallationPageState
     );
   }
 
-  Widget _profitPreviewCard() {
-    final money = _previewMoney;
-    final isProfit = money.profit >= 0;
-    // Margin is against everything billed (fee + materials), not the setup
-    // fee alone — the old denominator could put margin above 100%.
-    final marginPct = money.marginPct?.toStringAsFixed(1);
+  Widget _financialSummaryCard(List<PackageEntity> availablePackages) {
+    final selectedPackageName = availablePackages
+        .where((p) => p.id == _selectedPackageId)
+        .firstOrNull
+        ?.name ?? 'Selected Package';
+    final isProfit = _installationProfit >= 0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: (isProfit ? AppTheme.successColor : AppTheme.errorColor)
-            .withValues(alpha: 0.06),
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: (isProfit ? AppTheme.successColor : AppTheme.errorColor)
-              .withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: AppTheme.lightGray.withValues(alpha: 0.8)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.account_balance_wallet_outlined,
-            color: isProfit ? AppTheme.successColor : AppTheme.errorColor,
+          Row(
+            children: [
+              const Icon(Icons.analytics_outlined, color: AppColors.primaryBlue),
+              const SizedBox(width: 8),
+              Text(
+                'Financial Summary',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const Divider(height: 24),
+          
+          // Recurring Monthly Subscription Banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.primaryBlue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Installation Profit',
-                  style: TextStyle(fontSize: 12, color: AppTheme.mediumGray),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Monthly Package (Recurring Revenue)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      selectedPackageName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
-                  DateTimeUtils.formatCurrency(money.profit),
-                  style: TextStyle(
+                  '${DateTimeUtils.formatCurrency(_previewMonthlyPackageRate)}/mo',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isProfit ? AppTheme.successColor : AppTheme.errorColor,
+                    color: AppColors.primaryBlue,
                   ),
                 ),
               ],
             ),
           ),
-          if (marginPct != null)
-            Text(
-              '$marginPct% margin',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isProfit ? AppTheme.successColor : AppTheme.errorColor,
-              ),
+          const SizedBox(height: 20),
+
+          const Text(
+            'One-Time Installation Breakdown',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.mediumGray,
             ),
+          ),
+          const SizedBox(height: 12),
+
+          _summaryRow(
+            'Installation Fee Billed to Customer',
+            '+ ${DateTimeUtils.formatCurrency(_previewCharges)}',
+            isPositive: true,
+          ),
+          const SizedBox(height: 8),
+          _summaryRow(
+            'Material Cost',
+            '- ${DateTimeUtils.formatCurrency(_previewMaterialCost)}',
+            isNegative: true,
+          ),
+          const SizedBox(height: 8),
+          _summaryRow(
+            'Labour Cost / Technician Pay',
+            '- ${DateTimeUtils.formatCurrency(_previewLabor)}',
+            isNegative: true,
+          ),
+
+          const Divider(height: 24),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Installation Profit / Loss',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '(Installation Fee − Material Cost − Labour Cost)',
+                    style: TextStyle(fontSize: 11, color: AppTheme.mediumGray),
+                  ),
+                ],
+              ),
+              Text(
+                DateTimeUtils.formatCurrency(_installationProfit),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isProfit ? AppTheme.successColor : AppTheme.errorColor,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    String value, {
+    bool isPositive = false,
+    bool isNegative = false,
+  }) {
+    Color valColor = Colors.black87;
+    if (isPositive) valColor = AppTheme.successColor;
+    if (isNegative) valColor = AppColors.errorRed;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: Colors.black87),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: valColor,
+          ),
+        ),
+      ],
     );
   }
 }
