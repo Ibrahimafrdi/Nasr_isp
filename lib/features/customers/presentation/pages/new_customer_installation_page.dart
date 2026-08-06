@@ -6,6 +6,7 @@ import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/adaptive_form_actions.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
@@ -23,6 +24,8 @@ import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
+import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
+import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -141,6 +144,22 @@ class _NewCustomerInstallationPageState
   double get _previewMonthlyPackageRate =>
       double.tryParse(_monthlyBillController.text.trim()) ?? 0.0;
 
+  /// The upstream cost of the selected package, to snapshot onto the first
+  /// month's charge.
+  ///
+  /// Null when no package is selected or it carries no cost price — recording
+  /// zero would report the customer's whole bill as margin.
+  double? _selectedPackageCost() {
+    final id = _selectedPackageId;
+    if (id == null || id.isEmpty) return null;
+    final state = context.read<PackagesBloc>().state;
+    if (state is! PackagesLoaded) return null;
+    for (final pkg in state.packages) {
+      if (pkg.id == id) return pkg.costPrice > 0 ? pkg.costPrice : null;
+    }
+    return null;
+  }
+
   void _onPackageChanged(String? packageId, List<PackageEntity> packages) {
     if (packageId == null) return;
     final pkg = packages.firstWhere((p) => p.id == packageId);
@@ -155,15 +174,10 @@ class _NewCustomerInstallationPageState
 
     setState(() => _isSaving = true);
 
-    // Safe Month Overflow Calculation (e.g. Jan 31 -> Feb 28)
-    final nextMonth = _joinDate.month == 12 ? 1 : _joinDate.month + 1;
-    final nextYear = _joinDate.month == 12 ? _joinDate.year + 1 : _joinDate.year;
-    final daysInNextMonth = DateUtils.getDaysInMonth(nextYear, nextMonth);
-    final nextDueDate = DateTime(
-      nextYear,
-      nextMonth,
-      _joinDate.day > daysInNextMonth ? daysInNextMonth : _joinDate.day,
-    );
+    // Month-overflow safe (e.g. Jan 31 -> Feb 28), same rule the renewal flow
+    // applies, so a customer onboarded here shares one billing cycle
+    // definition with every customer onboarded any other way.
+    final nextDueDate = BillingCycle.addMonths(_joinDate);
 
     final customerId = const Uuid().v4();
 
@@ -247,6 +261,33 @@ class _NewCustomerInstallationPageState
       itemsUsed: itemsUsed.isEmpty ? null : itemsUsed,
       createdAt: DateTime.now(),
       laborCost: _previewLabor,
+    );
+
+    // Bill the first month, exactly as the plain Add Customer flow does.
+    // Without this the customer counted toward the accrual run rate from day
+    // one but had no charge in the ledger, so the dashboard reported them as
+    // an uncollected renewal for a month they had already paid for at setup.
+    context.read<PaymentsBloc>().add(
+      CreatePaymentEvent(
+        PaymentModel(
+          id: const Uuid().v4(),
+          customerId: customerId,
+          customerName: newCustomer.name,
+          amount: newCustomer.monthlyBill,
+          paidAmount: newCustomer.monthlyBill,
+          status: 'paid',
+          type: PaymentType.subscription,
+          billingMonth: BillingCycle.monthKey(_joinDate),
+          dueDate: _joinDate,
+          periodEnd: nextDueDate,
+          completedDate: _joinDate,
+          paymentDate: _joinDate,
+          method: 'cash',
+          packageCostAtBilling: _selectedPackageCost(),
+          notes: 'First month bill collected at connection setup',
+          createdAt: DateTime.now(),
+        ),
+      ),
     );
 
     final installationBloc = context.read<InstallationBloc>();

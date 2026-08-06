@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/customers/data/models/customer_model.dart';
@@ -21,16 +22,22 @@ class CustomerCardList extends StatelessWidget {
   /// Called when the user taps "Delete" on a card.
   final void Function(CustomerModel customer) onDelete;
 
+  /// Called when the user taps "Renew" on a card whose subscription is
+  /// expired or inside the renewal window.
+  final void Function(CustomerModel customer) onRenew;
+
   const CustomerCardList({
     super.key,
     required this.customers,
     required this.currentUser,
     required this.getPackageName,
     required this.onDelete,
+    required this.onRenew,
   });
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: customers.map((customer) => _CustomerCard(
@@ -38,6 +45,8 @@ class CustomerCardList extends StatelessWidget {
         currentUser: currentUser,
         getPackageName: getPackageName,
         onDelete: onDelete,
+        onRenew: onRenew,
+        now: now,
       )).toList(),
     );
   }
@@ -48,16 +57,34 @@ class _CustomerCard extends StatelessWidget {
   final UserModel currentUser;
   final String Function(String? packageId) getPackageName;
   final void Function(CustomerModel customer) onDelete;
+  final void Function(CustomerModel customer) onRenew;
+  final DateTime now;
 
   const _CustomerCard({
     required this.customer,
     required this.currentUser,
     required this.getPackageName,
     required this.onDelete,
+    required this.onRenew,
+    required this.now,
   });
+
+  /// Same wording as the desktop table's Next Due Date cell, so the two
+  /// layouts never describe the same customer differently.
+  static String _dueLabel(DateTime due, DateTime now) {
+    final days = BillingCycle.daysUntilDue(due, now);
+    if (days < 0) return 'Overdue by ${-days}d';
+    if (days == 0) return 'Due today';
+    if (days <= BillingCycle.renewalWindowDays) return 'Due in ${days}d';
+    return DateTimeUtils.formatDate(due);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDueForRenewal = customer.isDueForRenewalAt(now);
+    final isExpired = customer.isExpiredAt(now);
+    final due = customer.effectiveDueDate;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -125,19 +152,39 @@ class _CustomerCard extends StatelessWidget {
                   Icons.monetization_on,
                   DateTimeUtils.formatCurrency(customer.monthlyBill),
                 ),
+              if (due != null)
+                InfoChip(
+                  Icons.event,
+                  _dueLabel(due, now),
+                  color: isExpired
+                      ? AppTheme.errorColor
+                      : (isDueForRenewal ? Colors.orange.shade800 : null),
+                ),
             ],
           ),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 8),
 
-          // Action row — Wrap so three labelled buttons can spill onto a
+          // Action row — Wrap so the labelled buttons can spill onto a
           // second line instead of overflowing a narrow card.
           Wrap(
             alignment: WrapAlignment.end,
             spacing: 8,
             runSpacing: 4,
             children: [
+              if (isDueForRenewal)
+                TextButton.icon(
+                  icon: const Icon(Icons.autorenew, size: 16),
+                  label: const Text('Renew', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: isExpired
+                        ? AppTheme.errorColor
+                        : Colors.orange.shade700,
+                  ),
+                  onPressed: () => onRenew(customer),
+                ),
               TextButton.icon(
                 icon: const Icon(Icons.visibility, size: 16),
                 label: const Text('View', style: TextStyle(fontSize: 12)),

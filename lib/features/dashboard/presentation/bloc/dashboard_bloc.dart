@@ -157,55 +157,94 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // Customer stats
       final totalCustomers = allCustomers.length;
-      final activeCustomers = allCustomers
-          .where((c) => c.status == 'active').length;
+      final activeList =
+          allCustomers.where((c) => c.status == 'active').toList();
+      final activeCustomers = activeList.length;
       // Expired/expiring-soon only make sense for customers still on an
       // active subscription — a cancelled customer with a stale due date
-      // shouldn't surface as a renewal to chase.
-      final expiredCustomers = allCustomers
-          .where((c) {
-            if (c.status != 'active') return false;
-            final due = c.nextDueDate ??
-                (c.createdAt != null
-                    ? DateTime(c.createdAt!.year,
-                        c.createdAt!.month + 1, c.createdAt!.day)
-                    : null);
-            return due != null && due.isBefore(now);
-          }).length;
-      final expiringSoon = allCustomers.where((c) {
-        if (c.status != 'active') return false;
-        final due = c.nextDueDate ??
-            (c.createdAt != null
-                ? DateTime(c.createdAt!.year,
-                    c.createdAt!.month + 1, c.createdAt!.day)
-                : null);
+      // shouldn't surface as a renewal to chase. Both predicates live on
+      // CustomerEntity so this page, the customers list and the Renew button
+      // can never disagree about who has lapsed.
+      final expiredList = activeList.where((c) => c.isExpiredAt(now)).toList();
+      final expiredCustomers = expiredList.length;
+      final expiringSoon = activeList.where((c) {
+        final due = c.effectiveDueDate;
         if (due == null) return false;
-        final diff = due.difference(now).inDays;
-        return diff >= 0 && diff <= 7;
+        final days = BillingCycle.daysUntilDue(due, now);
+        return days >= 0 && days <= BillingCycle.renewalWindowDays;
       }).toList();
 
-      // Payment stats — current month only.
-      // Payment status is normalized to just 'paid' / 'unpaid' / 'partial'
-      // by PaymentRemoteDataSourceImpl before it ever reaches this bloc.
+      // Payment stats. Payment status is normalized to just
+      // 'paid' / 'unpaid' / 'partial' by PaymentRemoteDataSourceImpl before it
+      // ever reaches this bloc.
       //
       // NOTE: `payments` holds SUBSCRIPTION billing only. Installation setup
       // fees and materials are billed to the customer but never written to
-      // this collection, and PaymentEntity has no type discriminator. Any
-      // "cash collected" figure derived here is therefore subscription cash
-      // only — label it as such, and do not fold installations into it
-      // without the PaymentEntity.type work first.
-      final currentMonthPayments = allPayments.where((p) {
-        final date = p.completedDate ?? p.createdAt;
-        if (date == null) return false;
-        return date.year == now.year && date.month == now.month;
-      }).toList();
+      // this collection, so every cash figure derived here is subscription
+      // cash. PaymentType.subscription is filtered on explicitly rather than
+      // assumed, so that folding installations into the ledger later cannot
+      // silently contaminate these aggregates.
+      final subscriptionPayments =
+          allPayments.where((p) => p.isSubscription).toList();
 
-      final cashCollectedThisMonth = currentMonthPayments
-          .where((p) => p.status == 'paid')
-          .fold(0.0, (sum, p) => sum + p.paidAmount);
+      // CASH BASIS — bucketed by when the money arrived.
+      final cashCollectedThisMonth = subscriptionPayments
+          .where((p) {
+            if (p.status != 'paid') return false;
+            final date = p.completedDate ?? p.createdAt;
+            return date != null &&
+                date.year == now.year &&
+                date.month == now.month;
+          })
+          .fold(0.0, (total, p) => total + p.paidAmount);
 
-      // Pending payments (used for both the KPI total and the overdue list)
-      final pendingPayments = allPayments
+      // CURRENT BILLING MONTH — bucketed by the period the charge covers, so
+      // these reconcile against the accrual run rate below.
+      final currentMonthKey = BillingCycle.monthKey(now);
+      final currentMonthCharges = subscriptionPayments
+          .where((p) => p.billingMonth == currentMonthKey)
+          .toList();
+
+      final currentMonthBilled =
+          currentMonthCharges.fold(0.0, (total, p) => total + p.amount);
+      final currentMonthCollected =
+          currentMonthCharges.fold(0.0, (total, p) => total + p.paidAmount);
+      final currentMonthOutstanding =
+          currentMonthCharges.fold(0.0, (total, p) => total + p.remainingAmount);
+
+      // Realized margin. Charges written before the cost snapshot existed fall
+      // back to the customer's currently-resolved package cost — without that
+      // fallback every legacy row would report as 100% margin and the
+      // reconciliation against the run rate would be meaningless.
+      final customerById = {for (final c in allCustomers) c.id: c};
+      double liveCostFor(String customerId) {
+        final customer = customerById[customerId];
+        final packageId = customer?.packageId;
+        if (packageId == null || packageId.isEmpty) return 0.0;
+        return packageMap[packageId]?.costPrice ?? 0.0;
+      }
+
+      final currentMonthMarginCollected = MoneyLine.sum(
+        currentMonthCharges.map(
+          (p) => p.collectedMargin(fallbackCost: liveCostFor(p.customerId)),
+        ),
+      ).profit;
+
+      // Lapsed customers with no charge for this month at all — the renewals
+      // that have not been started. Disjoint from currentMonthOutstanding,
+      // which only covers customers who HAVE been renewed this month, so the
+      // two sum without double counting.
+      final billedThisMonth =
+          currentMonthCharges.map((p) => p.customerId).toSet();
+      final unbilledExpired = expiredList
+          .where((c) => !billedThisMonth.contains(c.id))
+          .toList();
+      final expiredCustomersDue =
+          unbilledExpired.fold(0.0, (total, c) => total + c.monthlyBill);
+
+      // Pending payments (used for both the KPI total and the overdue list) —
+      // all-time arrears, not just this month.
+      final pendingPayments = subscriptionPayments
           .where((p) => p.status == 'unpaid' || p.status == 'partial')
           .toList()
         ..sort((a, b) {
@@ -219,9 +258,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // ACCRUAL RUN RATE for active subscribers:
       // margin per customer = customer.monthlyBill - package.costPrice.
-      // A full-month figure, independent of who has actually paid.
-      final subscriberMargins = allCustomers
-          .where((c) => c.status == 'active')
+      // A full-month figure, independent of who has actually paid, and the
+      // yardstick currentMonthMarginCollected converges on as renewals come in.
+      final subscriberMargins = activeList
           .map((c) => c.monthlyMargin(
                 (c.packageId != null && c.packageId!.isNotEmpty)
                     ? packageMap[c.packageId]
@@ -296,6 +335,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         monthlyInstallationCost: monthlyInstallationCost,
         monthlyInstallationProfit: monthlyInstallationProfit,
         unpricedCustomerCount: unpricedCustomerCount,
+        currentMonthBilled: currentMonthBilled,
+        currentMonthCollected: currentMonthCollected,
+        currentMonthMarginCollected: currentMonthMarginCollected,
+        currentMonthOutstanding: currentMonthOutstanding,
+        expiredCustomersDue: expiredCustomersDue,
+        expiredCustomersDueCount: unbilledExpired.length,
       );
 
       // Recent payments (last 5 paid)

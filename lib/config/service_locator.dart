@@ -13,6 +13,7 @@ import 'package:nasr_isp/features/customers/domain/usecases/add_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/renew_subscription.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/inventory/data/datasources/inventory_remote_data_source.dart';
 import 'package:nasr_isp/features/inventory/data/repositories/inventory_repository_impl.dart';
@@ -129,6 +130,15 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(() => AddCustomer(getIt()));
   getIt.registerLazySingleton(() => UpdateCustomer(getIt()));
   getIt.registerLazySingleton(() => DeleteCustomer(getIt()));
+  // Spans customers + payments + packages: renewing writes the charge, snapshots
+  // the upstream cost onto it, and advances the expiry as one operation.
+  getIt.registerLazySingleton(
+    () => RenewSubscription(
+      paymentRepository: getIt(),
+      customerRepository: getIt(),
+      getPackages: getIt(),
+    ),
+  );
 
   // Use Cases - Packages
   getIt.registerLazySingleton(() => GetPackages(getIt()));
@@ -167,6 +177,7 @@ void setupServiceLocator() {
       addCustomer: getIt(),
       updateCustomer: getIt(),
       deleteCustomer: getIt(),
+      renewSubscription: getIt(),
     ),
   );
 
@@ -184,8 +195,6 @@ void setupServiceLocator() {
       getPayments: getIt(),
       addPayment: getIt(),
       updatePayment: getIt(),
-      getCustomers: getIt(),
-      updateCustomer: getIt(),
       getPaymentByCustomerAndMonth: getIt(),
     ),
   );

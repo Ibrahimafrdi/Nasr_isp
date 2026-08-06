@@ -1,11 +1,13 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/add_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/renew_subscription.dart';
 
 // Customers Events
 abstract class CustomersEvent extends Equatable {
@@ -62,6 +64,33 @@ class DeleteCustomerEvent extends CustomersEvent {
 
   @override
   List<Object?> get props => [customerId];
+}
+
+/// Renews [customer] for one month from [renewalDate], collecting
+/// [amountReceived] against their monthly bill.
+class RenewCustomerEvent extends CustomersEvent {
+  final CustomerModel customer;
+  final double amountReceived;
+  final DateTime renewalDate;
+  final String method;
+  final String? notes;
+
+  const RenewCustomerEvent({
+    required this.customer,
+    required this.amountReceived,
+    required this.renewalDate,
+    required this.method,
+    this.notes,
+  });
+
+  @override
+  List<Object?> get props => [
+    customer,
+    amountReceived,
+    renewalDate,
+    method,
+    notes,
+  ];
 }
 
 // Customers States
@@ -123,17 +152,51 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
   final AddCustomer addCustomer;
   final UpdateCustomer updateCustomer;
   final DeleteCustomer deleteCustomer;
+  final RenewSubscription renewSubscription;
+
+  /// Injectable clock so renewal-date defaults and expiry filtering are
+  /// testable across month boundaries.
+  final DateTime Function() clock;
 
   CustomersBloc({
     required this.getCustomers,
     required this.addCustomer,
     required this.updateCustomer,
     required this.deleteCustomer,
+    required this.renewSubscription,
+    this.clock = DateTime.now,
   }) : super(const CustomersInitial()) {
     on<LoadCustomersEvent>(_onLoadCustomers);
     on<CreateCustomerEvent>(_onCreateCustomer);
     on<UpdateCustomerEvent>(_onUpdateCustomer);
     on<DeleteCustomerEvent>(_onDeleteCustomer);
+    on<RenewCustomerEvent>(_onRenewCustomer);
+  }
+
+  /// The last renewal this bloc completed, for the dialog to report on. Held
+  /// outside the state so a renewal never has to push a transient state that
+  /// the customers page would render as a blank screen.
+  RenewalOutcome? lastRenewal;
+
+  Future<void> _onRenewCustomer(
+    RenewCustomerEvent event,
+    Emitter<CustomersState> emit,
+  ) async {
+    lastRenewal = null;
+    try {
+      lastRenewal = await renewSubscription(
+        customer: event.customer,
+        amountReceived: event.amountReceived,
+        renewalDate: event.renewalDate,
+        method: event.method,
+        notes: event.notes,
+      );
+      // Re-read rather than patching the cached row: the renewal wrote both a
+      // customer and a payment, and the list must reflect the persisted state.
+      await _onLoadCustomers(const LoadCustomersEvent(), emit);
+    } catch (e) {
+      emit(CustomersError(message: 'Failed to renew subscription: $e'));
+    }
   }
 
   Future<void> _onCreateCustomer(
@@ -250,20 +313,22 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     }
 
     if (status != null) {
-      final now = DateTime.now();
+      final now = clock();
       result = result.where((c) {
+        // All four buckets read the same effective due date, so a customer
+        // filtered as "Expired" is exactly the one whose row shows Overdue
+        // and whose Renew button is lit.
+        final due = c.effectiveDueDate;
         switch (status) {
           case CustomerStatus.active:
             return c.status == 'active' &&
-                (c.nextDueDate == null ||
-                    c.nextDueDate!.isAfter(now.add(const Duration(days: 7))));
+                (due == null || !BillingCycle.isDueForRenewal(due, now));
           case CustomerStatus.expiringSoon:
-            if (c.nextDueDate == null) return false;
-            final diff = c.nextDueDate!.difference(now).inDays;
-            return diff >= 0 && diff <= 7;
+            if (c.status != 'active' || due == null) return false;
+            final days = BillingCycle.daysUntilDue(due, now);
+            return days >= 0 && days <= BillingCycle.renewalWindowDays;
           case CustomerStatus.expired:
-            if (c.status != 'active' || c.nextDueDate == null) return false;
-            return c.nextDueDate!.isBefore(now);
+            return c.isExpiredAt(now);
           case CustomerStatus.inactive:
             return c.status == 'inactive';
         }

@@ -71,6 +71,7 @@ class CustomerModel extends CustomerEntity {
     return CustomerModel.fromMap({...data, 'id': doc.id});
   }
 
+  @override
   CustomerModel copyWith({
     String? id,
     String? name,

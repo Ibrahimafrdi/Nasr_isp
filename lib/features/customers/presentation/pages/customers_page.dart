@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
@@ -11,6 +12,7 @@ import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dar
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_card_list.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_details_side_sheet.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_filter_panel.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/renew_subscription_dialog.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
@@ -224,7 +226,17 @@ class _CustomersPageState extends State<CustomersPage> {
                       ),
                     )
                   else if (state is CustomersLoaded)
-                    Column(
+                    Builder(builder: (context) {
+                      // Re-resolve the open side sheet against the freshly
+                      // loaded list. Holding the captured instance would leave
+                      // it showing the pre-renewal due date after a renewal
+                      // reloads the page behind it.
+                      final selected = _selectedCustomerForDetail == null
+                          ? null
+                          : state.customers
+                              .where((c) => c.id == _selectedCustomerForDetail!.id)
+                              .firstOrNull;
+                      return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         state.customers.isEmpty
@@ -245,6 +257,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                   currentUser: authState.user,
                                   getPackageName: _getPackageName,
                                   onDelete: _confirmDelete,
+                                  onRenew: _renew,
                                 ),
                                 desktop: Card(
                                   child: Padding(
@@ -259,15 +272,15 @@ class _CustomersPageState extends State<CustomersPage> {
                                             authState.user,
                                           ),
                                         ),
-                                        if (_selectedCustomerForDetail !=
-                                            null) ...[
+                                        if (selected != null) ...[
                                           const SizedBox(width: 16),
                                           CustomerDetailsSideSheet(
-                                            customer: _selectedCustomerForDetail!,
+                                            customer: selected,
                                             isAdmin: authState.user.isAdmin,
                                             getPackageName: _getPackageName,
                                             onClose: () => setState(() => _selectedCustomerForDetail = null),
                                             onDelete: _confirmDelete,
+                                            onRenew: _renew,
                                           ),
                                         ],
                                       ],
@@ -294,7 +307,8 @@ class _CustomersPageState extends State<CustomersPage> {
                           ),
                         ],
                       ],
-                    ),
+                    );
+                    }),
                 ],
               ),
             );
@@ -333,24 +347,19 @@ class _CustomersPageState extends State<CustomersPage> {
     );
   }
 
-  /// Returns nextDueDate if set, otherwise falls back to createdAt + 1 month.
-  /// This is display-only — never written back to Firestore.
-  DateTime? _getEffectiveDueDate(CustomerModel customer) {
-    if (customer.nextDueDate != null) return customer.nextDueDate;
-    if (customer.createdAt != null) {
-      return DateTime(
-        customer.createdAt!.year,
-        customer.createdAt!.month + 1,
-        customer.createdAt!.day,
-      );
-    }
-    return null;
+  void _renew(CustomerModel customer) {
+    showRenewSubscriptionDialog(
+      context,
+      customer: customer,
+      packageName: _getPackageName(customer.packageId),
+    );
   }
 
   Widget _buildCustomersTable(
     List<CustomerModel> customers,
     UserModel currentUser,
   ) {
+    final now = DateTime.now();
     return DataTableWrapper(
       columns: const [
         DataColumn(label: Text('Name / Account ID')),
@@ -362,7 +371,9 @@ class _CustomersPageState extends State<CustomersPage> {
       ],
       rows: customers.map((customer) {
         final isSelected = _selectedCustomerForDetail?.id == customer.id;
-        final dueDate = _getEffectiveDueDate(customer);
+        final dueDate = customer.effectiveDueDate;
+        final isDueForRenewal = customer.isDueForRenewalAt(now);
+        final isExpired = customer.isExpiredAt(now);
 
         return DataRow(
           selected: isSelected,
@@ -446,12 +457,12 @@ class _CustomersPageState extends State<CustomersPage> {
                   style: TextStyle(color: AppTheme.mediumGray),
                 );
               }
-              final diff = dueDate.difference(DateTime.now()).inDays;
+              final diff = BillingCycle.daysUntilDue(dueDate, now);
               Color color;
               String label;
               if (diff < 0) {
                 color = AppTheme.errorColor;
-                label = 'Overdue';
+                label = 'Overdue by ${-diff}d';
               } else if (diff == 0) {
                 color = AppTheme.errorColor;
                 label = 'Due Today';
@@ -513,6 +524,31 @@ class _CustomersPageState extends State<CustomersPage> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Renewal is the primary action on an expiring or lapsed
+                  // account, so it leads the row and is filled rather than
+                  // ghosted. It is the only control that moves the expiry.
+                  if (isDueForRenewal)
+                    Tooltip(
+                      message: isExpired
+                          ? 'Expired — collect payment and renew'
+                          : 'Renew early',
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.autorenew, size: 15),
+                        label: const Text(
+                          'Renew',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: isExpired
+                              ? AppTheme.errorColor
+                              : Colors.orange.shade700,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => _renew(customer),
+                      ),
+                    ),
                   IconButton(
                     icon: const Icon(Icons.visibility_outlined, size: 17),
                     color: AppColors.primaryBlue,

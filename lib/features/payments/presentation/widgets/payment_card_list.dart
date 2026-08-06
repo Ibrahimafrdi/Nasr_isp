@@ -12,7 +12,7 @@ class PaymentCardList extends StatelessWidget {
   final List<PaymentModel> payments;
   final bool isAdmin;
 
-  /// Called when the user taps "Record Payment" on an unpaid card.
+  /// Called when the user taps "Settle" on a card with a balance still owed.
   final void Function(PaymentModel payment) onRecordPayment;
 
   const PaymentCardList({
@@ -110,10 +110,12 @@ class _PaymentCard extends StatelessWidget {
                       : AppTheme.successColor,
                 ),
               ],
-              if (payment.dueDate != null)
+              if (payment.billingMonth != null)
+                InfoChip(Icons.calendar_today, payment.billingMonth!),
+              if (payment.periodEnd != null)
                 InfoChip(
-                  Icons.calendar_today,
-                  DateTimeUtils.formatDate(payment.dueDate!),
+                  Icons.event_available,
+                  'Covers to ${DateTimeUtils.formatDate(payment.periodEnd!)}',
                 ),
               InfoChip(Icons.credit_card, payment.method ?? 'N/A'),
             ],
@@ -126,10 +128,11 @@ class _PaymentCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                icon: const Icon(Icons.payment, size: 16),
-                label: const Text(
-                  'Record Payment',
-                  style: TextStyle(fontSize: 12),
+                icon: const Icon(Icons.price_check, size: 16),
+                label: const Text('Settle', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: AppTheme.primaryColor,
                 ),
                 onPressed: () => onRecordPayment(payment),
               ),

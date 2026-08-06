@@ -9,21 +9,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
 
   PaymentRepositoryImpl({required this.remoteDataSource});
 
-  PaymentModel _toModel(PaymentEntity e) => PaymentModel(
-        id: e.id,
-        customerId: e.customerId,
-        customerName: e.customerName,
-        amount: e.amount,
-        paidAmount: e.paidAmount,
-        status: e.status,
-        dueDate: e.dueDate,
-        completedDate: e.completedDate,
-        method: e.method,
-        notes: e.notes,
-        billingMonth: e.billingMonth,
-        createdAt: e.createdAt,
-        paymentDate: e.paymentDate,
-      );
+  PaymentModel _toModel(PaymentEntity e) => PaymentModel.from(e);
 
   @override
   Future<void> addPayment(PaymentEntity payment) async {

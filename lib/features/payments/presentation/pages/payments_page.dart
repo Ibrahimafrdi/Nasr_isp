@@ -8,7 +8,6 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/widgets/payment_card_list.dart';
 import 'package:nasr_isp/features/payments/presentation/widgets/payment_filter_panel.dart';
@@ -16,6 +15,62 @@ import 'package:nasr_isp/features/payments/presentation/widgets/payment_stats_ca
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+
+/// Explains where charges come from, now that this page no longer creates
+/// them.
+///
+/// The old "Add Payment" button let an operator invent a charge here, which
+/// duplicated first-month billing from Add Customer and competed with the
+/// renewal flow for ownership of the expiry date. This ledger is now read-only
+/// apart from settling arrears.
+class _LedgerOriginNotice extends StatelessWidget {
+  const _LedgerOriginNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 18, color: AppColors.primaryBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.45,
+                  color: AppTheme.darkGray,
+                ),
+                children: const [
+                  TextSpan(
+                    text: 'Charges are raised where the work happens. ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text:
+                        'The first month is billed when the account is created, '
+                        'and every month after that by Renew on the Customers '
+                        'page — which is also the only place the expiry date '
+                        'moves. Use Settle here to collect an outstanding '
+                        'balance on a charge that was only part paid.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class PaymentsPage extends StatefulWidget {
   const PaymentsPage({super.key});
@@ -128,27 +183,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           ],
                         ),
                       ),
-                      if (authState.user.role == 'admin')
-                        ElevatedButton.icon(
-                          onPressed: () => _showAddPaymentDialog(context),
-                          icon: const Icon(
-                            Icons.add,
-                            size: 18,
-                            color: Colors.white,
-                          ),
-                          label: const Text('Add Payment'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -156,6 +190,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   if (state is PaymentsLoaded) ...[
                     // Stats cards — admin only
                     if (authState.user.role == 'admin') ...[
+                      const _LedgerOriginNotice(),
+                      const SizedBox(height: 16),
                       PaymentStatsCards(
                         totalAmount: state.totalAmount,
                         collectedAmount: state.collectedAmount,
@@ -276,7 +312,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
           const DataColumn(label: Text('Amount Collected')),
           const DataColumn(label: Text('Remaining Dues')),
         ],
-        const DataColumn(label: Text('Due Date')),
+        const DataColumn(label: Text('Covers To')),
         const DataColumn(label: Text('Status')),
         const DataColumn(label: Text('Method')),
         if (isAdmin) const DataColumn(label: Text('Action')),
@@ -310,25 +346,45 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 ),
               ),
             ],
+            // The expiry this charge bought. Rows written before renewals
+            // recorded a period fall back to the legacy dueDate field, which
+            // held the same value under a misleading name.
             DataCell(
               Text(
-                payment.dueDate != null
-                    ? DateTimeUtils.formatDate(payment.dueDate!)
-                    : 'N/A',
+                (payment.periodEnd ?? payment.dueDate) != null
+                    ? DateTimeUtils.formatDate(
+                        payment.periodEnd ?? payment.dueDate!)
+                    : '—',
               ),
             ),
             DataCell(PaymentStatusBadge(status: payment.status)),
             DataCell(Text(payment.method ?? 'N/A')),
             if (isAdmin)
               DataCell(
-                IconButton(
-                  icon: const Icon(Icons.payment),
-                  tooltip: isPaid ? 'Dues Settled' : 'Record Receipt',
-                  color: isPaid ? AppTheme.mediumGray : AppTheme.primaryColor,
-                  onPressed: isPaid
-                      ? null
-                      : () => _showRecordPaymentDialog(context, payment),
-                ),
+                isPaid
+                    ? const Tooltip(
+                        message: 'Fully settled',
+                        child: Icon(
+                          Icons.check_circle,
+                          size: 20,
+                          color: AppTheme.successColor,
+                        ),
+                      )
+                    : TextButton.icon(
+                        icon: const Icon(Icons.price_check, size: 15),
+                        label: const Text(
+                          'Settle',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: AppTheme.primaryColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () =>
+                            _showRecordPaymentDialog(context, payment),
+                      ),
               ),
           ],
         );
@@ -336,431 +392,22 @@ class _PaymentsPageState extends State<PaymentsPage> {
     );
   }
 
-  // ── Add payment dialog ────────────────────────────────────────────────────
-  void _showAddPaymentDialog(BuildContext context) {
-    context.read<CustomersBloc>().add(const LoadCustomersEvent());
-    final formKey = GlobalKey<FormState>();
-    final amountController = TextEditingController();
-    String selectedMethod = 'cash';
-    String notes = '';
-    DateTime paymentDate = DateTime.now();
-    bool isSubmitting = false;
-    List<CustomerModel> customers = [];
-
-    // Get customers who have partial payments
-    final paymentsState = context.read<PaymentsBloc>().state;
-    final partialCustomerIds = paymentsState is PaymentsLoaded
-        ? paymentsState.payments
-              .where((p) => p.status == 'partial')
-              .map((p) => p.customerId)
-              .toSet()
-        : <String>{};
-
-    CustomerModel? selectedCustomer;
-    final isMobileDialog = Responsive.isMobile(context);
-
-    showDialog(
-      context: context,
-      useSafeArea: !isMobileDialog,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return BlocListener<CustomersBloc, CustomersState>(
-              listener: (context, state) {
-                if (state is CustomersLoaded) {
-                  final allCustomers = state.customers;
-
-                  final now = DateTime.now();
-                  customers = allCustomers.where((c) {
-                    // Include if they have an outstanding partial payment
-                    if (partialCustomerIds.contains(c.id)) return true;
-
-                    // Include if their nextDueDate is today or past
-                    if (c.nextDueDate == null) return true;
-                    return c.nextDueDate!.isBefore(now) ||
-                        c.nextDueDate!.difference(now).inDays <= 3;
-                  }).toList();
-                  setDialogState(() {});
-                }
-              },
-              child: Builder(builder: (context) {
-                final formContent = Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          DropdownButtonFormField<CustomerModel>(
-                            isExpanded: true,
-                            value: selectedCustomer == null
-                                ? null
-                                : customers
-                                      .where(
-                                        (c) => c.id == selectedCustomer!.id,
-                                      )
-                                      .firstOrNull,
-                            decoration: const InputDecoration(
-                              labelText: 'Select Customer',
-                            ),
-                            items: customers.map((c) {
-                              final isPartial = partialCustomerIds.contains(
-                                c.id,
-                              );
-                              return DropdownMenuItem(
-                                value: c,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '${c.name} — ${c.id.toUpperCase()}',
-                                      ),
-                                    ),
-                                    if (isPartial)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.withValues(
-                                            alpha: 0.15,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Partial',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.orange,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (c) {
-                              if (c != null) {
-                                setDialogState(() {
-                                  selectedCustomer = c;
-
-                                  // Check if they have a partial payment — prefill remaining amount
-                                  final partialPayment =
-                                      paymentsState is PaymentsLoaded
-                                      ? paymentsState.payments
-                                            .where(
-                                              (p) =>
-                                                  p.customerId == c.id &&
-                                                  p.status == 'partial',
-                                            )
-                                            .firstOrNull
-                                      : null;
-
-                                  if (partialPayment != null) {
-                                    amountController.text = partialPayment
-                                        .remainingAmount
-                                        .toString();
-                                  } else {
-                                    amountController.text = c.monthlyBill
-                                        .toString();
-                                  }
-                                });
-                              }
-                            },
-                            validator: (v) =>
-                                v == null ? 'Please select a customer' : null,
-                          ),
-                          if (customers.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 8),
-                              child: Text(
-                                'No customers are currently due for payment.',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: amountController,
-                            decoration: InputDecoration(
-                              labelText: 'Amount Received (PKR)',
-                              hintText:
-                                  'Full bill: PKR ${selectedCustomer?.monthlyBill ?? ''}',
-                              prefixText: 'PKR ',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: AppInputFormatters.decimal,
-                            validator: (v) {
-                              if (v == null || v.isEmpty) {
-                                return 'Please enter amount';
-                              }
-                              final val = double.tryParse(v);
-                              if (val == null) return 'Enter a valid number';
-                              if (val <= 0) {
-                                return 'Amount must be greater than zero';
-                              }
-                              // Bug Fix #4: Guard against overpayment.
-                              // If the customer has a partial payment, cap at
-                              // remaining balance; otherwise cap at monthly bill.
-                              if (selectedCustomer != null) {
-                                final partialPayment =
-                                    paymentsState is PaymentsLoaded
-                                    ? paymentsState.payments
-                                          .where(
-                                            (p) =>
-                                                p.customerId ==
-                                                    selectedCustomer!.id &&
-                                                p.status == 'partial',
-                                          )
-                                          .firstOrNull
-                                    : null;
-                                final maxAmount =
-                                    partialPayment?.remainingAmount ??
-                                    selectedCustomer!.monthlyBill.toDouble();
-                                if (val > maxAmount) {
-                                  return 'Cannot exceed '
-                                      '${partialPayment != null ? 'remaining balance' : 'billing amount'} '
-                                      '(PKR ${maxAmount.toStringAsFixed(0)})';
-                                }
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
-                            value: selectedMethod,
-                            decoration: const InputDecoration(
-                              labelText: 'Payment Method',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'cash',
-                                child: Text('Cash'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'bankTransfer',
-                                child: Text('Bank Transfer'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'easypaisa',
-                                child: Text('EasyPaisa'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'jazzcash',
-                                child: Text('JazzCash'),
-                              ),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setDialogState(() => selectedMethod = val);
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(
-                              Icons.calendar_today,
-                              color: AppColors.primaryBlue,
-                            ),
-                            title: const Text(
-                              'Payment Date',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                            subtitle: Text(
-                              DateTimeUtils.formatDate(paymentDate),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            onTap: () async {
-                              final picked = await showDatePicker(
-                                context: context,
-                                initialDate: paymentDate,
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime.now(),
-                              );
-                              if (picked != null) {
-                                setDialogState(() => paymentDate = picked);
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            decoration: const InputDecoration(
-                              labelText: 'Notes (Optional)',
-                            ),
-                            onChanged: (val) => notes = val,
-                          ),
-                        ],
-                      );
-
-                Future<void> submit() async {
-                  if (formKey.currentState!.validate()) {
-                    setDialogState(() => isSubmitting = true);
-
-                    final customer = selectedCustomer!;
-
-                    // Bug Fix #3: When the customer has an existing partial
-                    // payment, use that record's billingMonth so the BLoC
-                    // can find and merge it. Without this, a top-up entered
-                    // in a different calendar month would create a duplicate
-                    // new record instead of updating the partial.
-                    final existingPartial = paymentsState is PaymentsLoaded
-                        ? paymentsState.payments
-                              .where(
-                                (p) =>
-                                    p.customerId == customer.id &&
-                                    p.status == 'partial',
-                              )
-                              .firstOrNull
-                        : null;
-                    final billingMonth = existingPartial?.billingMonth ??
-                        '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}';
-
-                    // Use the stored amount from the existing partial record
-                    // so the BLoC's isPaidInFull check is consistent.
-                    final fullAmount =
-                        existingPartial?.amount ?? customer.monthlyBill.toDouble();
-                    final enteredAmount = double.parse(
-                      amountController.text.trim(),
-                    );
-                    final isPaidInFull = enteredAmount >= fullAmount;
-                    final nextDueDate = DateTime(
-                      paymentDate.year,
-                      paymentDate.month + 1,
-                      paymentDate.day,
-                    );
-
-                    final payment = PaymentModel(
-                      id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
-                      customerId: customer.id,
-                      customerName: customer.name,
-                      amount: fullAmount,
-                      paidAmount: enteredAmount,
-                      status: isPaidInFull ? 'paid' : 'partial',
-                      dueDate: nextDueDate,
-                      completedDate: isPaidInFull ? paymentDate : null,
-                      method: selectedMethod,
-                      notes: notes.isEmpty ? null : notes,
-                      billingMonth: billingMonth,
-                      createdAt: DateTime.now(),
-                      paymentDate: paymentDate,
-                    );
-
-                    // Bug Fix #2: Customer nextDueDate update is handled
-                    // entirely inside _onCreatePayment in the BLoC to avoid
-                    // a race-condition double-write to Firestore. Do NOT
-                    // also dispatch UpdateCustomerEvent from the UI here.
-                    context.read<PaymentsBloc>().add(
-                      CreatePaymentEvent(payment),
-                    );
-
-                    await Future.delayed(const Duration(milliseconds: 800));
-                    if (!ctx.mounted) return;
-
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Payment recorded successfully!'),
-                        backgroundColor: AppTheme.successColor,
-                      ),
-                    );
-                  }
-                }
-
-                final saveIcon = isSubmitting
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.check, size: 16);
-                final saveLabel = Text(
-                  isSubmitting ? 'Saving...' : 'Record Payment',
-                );
-
-                if (isMobileDialog) {
-                  return Dialog.fullscreen(
-                    child: Scaffold(
-                      appBar: AppBar(
-                        title: const Text('Add Payment'),
-                        leading: IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: isSubmitting
-                              ? null
-                              : () => Navigator.pop(ctx),
-                        ),
-                      ),
-                      body: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Form(key: formKey, child: formContent),
-                      ),
-                      bottomNavigationBar: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: ElevatedButton.icon(
-                            onPressed: isSubmitting ? null : submit,
-                            icon: saveIcon,
-                            label: saveLabel,
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                return AlertDialog(
-                  title: const Text('Add Payment'),
-                  content: Form(
-                    key: formKey,
-                    child: SizedBox(
-                      width: 450,
-                      child: SingleChildScrollView(child: formContent),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: isSubmitting ? null : submit,
-                      icon: saveIcon,
-                      label: saveLabel,
-                    ),
-                  ],
-                );
-              }),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ── Record payment dialog ─────────────────────────────────────────────────
+  // ── Settle outstanding balance ────────────────────────────────────────────
+  /// Collects arrears against a charge that was renewed on a part payment.
+  ///
+  /// Money only: the customer has already been granted the period this charge
+  /// covers, so settling it must not move their expiry. The expiry is moved
+  /// exclusively by the Renew action on the Customers page.
   void _showRecordPaymentDialog(BuildContext context, PaymentModel payment) {
     final formKey = GlobalKey<FormState>();
     final amountController = TextEditingController(
-      text: payment.remainingAmount.toString(),
+      text: payment.remainingAmount.toStringAsFixed(0),
     );
-    String selectedMethod = 'cash';
+    String selectedMethod = payment.method ?? 'cash';
     String notes = '';
     bool isSubmitting = false;
     final isMobileDialog = Responsive.isMobile(context);
-    final dialogTitle = 'Record Payment: ${payment.customerName}';
+    final dialogTitle = 'Settle Balance: ${payment.customerName}';
 
     showDialog(
       context: context,
@@ -769,37 +416,48 @@ class _PaymentsPageState extends State<PaymentsPage> {
         return StatefulBuilder(
           builder: (context, setState) {
             Future<void> submit() async {
-              if (formKey.currentState!.validate()) {
-                setState(() => isSubmitting = true);
-                await Future.delayed(const Duration(milliseconds: 800));
-                if (!ctx.mounted) return;
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Payment of PKR ${amountController.text} logged via $selectedMethod!',
-                    ),
-                    backgroundColor: AppTheme.successColor,
+              if (!formKey.currentState!.validate()) return;
+              setState(() => isSubmitting = true);
+
+              final received = double.parse(amountController.text.trim());
+              final newPaid = payment.paidAmount + received;
+              final isPaidInFull = newPaid >= payment.amount;
+              final stillOwed =
+                  (payment.amount - newPaid).clamp(0.0, double.infinity);
+
+              // Dispatch first, then report — the previous order announced
+              // success before the write was even queued.
+              context.read<PaymentsBloc>().add(
+                UpdatePaymentEvent(
+                  payment.copyWith(
+                    paidAmount: newPaid,
+                    status: isPaidInFull ? 'paid' : 'partial',
+                    // Only stamp a completion date once the charge is fully
+                    // settled; a part payment leaves the charge open.
+                    completedDate: isPaidInFull ? DateTime.now() : null,
+                    method: selectedMethod,
+                    notes: notes.isNotEmpty ? notes : null,
                   ),
-                );
-                final newPaid =
-                    payment.paidAmount + double.parse(amountController.text);
-                final isPaidInFull = newPaid >= payment.amount;
-                final updatedPayment = payment.copyWith(
-                  paidAmount: newPaid,
-                  status: isPaidInFull ? 'paid' : 'partial',
-                  // Bug Fix #1: Only set completedDate when the bill is fully
-                  // settled. Previously this was always DateTime.now(), which
-                  // caused _onUpdatePayment in the BLoC to push a new
-                  // nextDueDate to the customer even on partial payments.
-                  completedDate: isPaidInFull ? DateTime.now() : null,
-                  method: selectedMethod,
-                  notes: notes.isNotEmpty ? notes : null,
-                );
-                context.read<PaymentsBloc>().add(
-                  UpdatePaymentEvent(updatedPayment),
-                );
-              }
+                ),
+              );
+
+              await Future.delayed(const Duration(milliseconds: 800));
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    isPaidInFull
+                        ? '${DateTimeUtils.formatCurrency(received)} collected — '
+                            '${payment.billingMonth ?? 'this charge'} is now fully settled.'
+                        : '${DateTimeUtils.formatCurrency(received)} collected — '
+                            '${DateTimeUtils.formatCurrency(stillOwed)} still outstanding.',
+                  ),
+                  backgroundColor: isPaidInFull
+                      ? AppTheme.successColor
+                      : Colors.orange.shade800,
+                ),
+              );
             }
 
             final formContent = Column(
@@ -807,8 +465,15 @@ class _PaymentsPageState extends State<PaymentsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Total Billing Dues: ${DateTimeUtils.formatCurrency(payment.amount)}',
+                  'Billed for ${payment.billingMonth ?? 'this period'}: '
+                  '${DateTimeUtils.formatCurrency(payment.amount)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Already collected: '
+                  '${DateTimeUtils.formatCurrency(payment.paidAmount)}',
+                  style: const TextStyle(fontSize: 13),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -818,6 +483,13 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Arrears only — this does not change the subscription '
+                  'expiry, which was already extended when the customer was '
+                  'renewed.',
+                  style: TextStyle(fontSize: 11, color: AppTheme.mediumGray),
                 ),
                 const Divider(height: 24),
                 TextFormField(

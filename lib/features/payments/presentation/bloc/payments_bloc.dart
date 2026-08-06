@@ -1,10 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
-import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
-import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
@@ -135,16 +132,12 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
   final GetPayments getPayments;
   final AddPayment addPayment;
   final UpdatePayment updatePayment;
-  final GetCustomers getCustomers;
-  final UpdateCustomer updateCustomer;
   final GetPaymentByCustomerAndMonth getPaymentByCustomerAndMonth;
 
   PaymentsBloc({
     required this.getPayments,
     required this.addPayment,
     required this.updatePayment,
-    required this.getCustomers,
-    required this.updateCustomer,
     required this.getPaymentByCustomerAndMonth,
   }) : super(const PaymentsInitial()) {
     on<LoadPaymentsEvent>(_onLoadPayments);
@@ -152,6 +145,17 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
     on<UpdatePaymentEvent>(_onUpdatePayment);
   }
 
+  /// Records a charge against `(customerId, billingMonth)`, merging into an
+  /// existing row for that month rather than duplicating it.
+  ///
+  /// This handler used to also advance the customer's `nextDueDate` in two
+  /// separate branches. It no longer touches the customer at all: the
+  /// subscription cycle is owned end-to-end by RenewSubscription, which is
+  /// reached from the Renew action on the Customers page. Keeping a second
+  /// writer here meant that settling an old partial balance — or recording a
+  /// first-month bill during account creation — could silently shunt a
+  /// customer's expiry forward, which is precisely what made renewals
+  /// impossible to reconcile.
   Future<void> _onCreatePayment(
     CreatePaymentEvent event,
     Emitter<PaymentsState> emit,
@@ -169,25 +173,7 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
               existingPayment.paidAmount + event.payment.paidAmount;
           final isPaidInFull = updatedPaidAmount >= existingPayment.amount;
 
-          final paymentModel = existingPayment is PaymentModel
-              ? existingPayment
-              : PaymentModel(
-                  id: existingPayment.id,
-                  customerId: existingPayment.customerId,
-                  customerName: existingPayment.customerName,
-                  amount: existingPayment.amount,
-                  paidAmount: existingPayment.paidAmount,
-                  status: existingPayment.status,
-                  dueDate: existingPayment.dueDate,
-                  completedDate: existingPayment.completedDate,
-                  method: existingPayment.method,
-                  notes: existingPayment.notes,
-                  billingMonth: existingPayment.billingMonth,
-                  createdAt: existingPayment.createdAt,
-                  paymentDate: existingPayment.paymentDate,
-                );
-
-          final updatedPayment = paymentModel.copyWith(
+          final updatedPayment = PaymentModel.from(existingPayment).copyWith(
             paidAmount: updatedPaidAmount,
             status: isPaidInFull ? 'paid' : 'partial',
             completedDate: isPaidInFull
@@ -196,30 +182,11 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
             method: event.payment.method,
             notes: event.payment.notes,
             paymentDate: event.payment.paymentDate ?? DateTime.now(),
+            packageCostAtBilling: existingPayment.packageCostAtBilling ??
+                event.payment.packageCostAtBilling,
           );
 
           await updatePayment(updatedPayment);
-
-          if (isPaidInFull) {
-            final paymentDate = event.payment.paymentDate ?? DateTime.now();
-            final newNextDueDate = DateTime(
-              paymentDate.year,
-              paymentDate.month + 1,
-              paymentDate.day,
-            );
-            try {
-              final customers = await getCustomers();
-              final customer = customers.firstWhere(
-                (c) => c.id == event.payment.customerId,
-              );
-              final updatedCustomer = (customer as CustomerModel).copyWith(
-                nextDueDate: newNextDueDate,
-              );
-              await updateCustomer(updatedCustomer);
-            } catch (e) {
-              debugPrint('Warning: Could not update customer nextDueDate: $e');
-            }
-          }
 
           await Future.delayed(const Duration(milliseconds: 300));
           await _onLoadPayments(const LoadPaymentsEvent(), emit);
@@ -229,32 +196,6 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
 
       await addPayment(event.payment);
 
-      // Bug Fix #2 (counterpart): For brand-new full payments, update the
-      // customer's nextDueDate here in the BLoC, matching the logic already
-      // present in the existing-partial path above. The UI's submit() no
-      // longer dispatches UpdateCustomerEvent, so this is the single source
-      // of truth — eliminating the double-write race condition.
-      if (event.payment.status == 'paid') {
-        final paymentDate = event.payment.paymentDate ?? DateTime.now();
-        final newNextDueDate = DateTime(
-          paymentDate.year,
-          paymentDate.month + 1,
-          paymentDate.day,
-        );
-        try {
-          final customers = await getCustomers();
-          final customer = customers.firstWhere(
-            (c) => c.id == event.payment.customerId,
-          );
-          final updatedCustomer = (customer as CustomerModel).copyWith(
-            nextDueDate: newNextDueDate,
-          );
-          await updateCustomer(updatedCustomer);
-        } catch (e) {
-          debugPrint('Warning: Could not update customer nextDueDate: $e');
-        }
-      }
-
       await Future.delayed(const Duration(milliseconds: 300));
       await _onLoadPayments(const LoadPaymentsEvent(), emit);
     } catch (e) {
@@ -262,33 +203,16 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
     }
   }
 
+  /// Settles money against an existing charge. Deliberately has no effect on
+  /// the customer's expiry — see [_onCreatePayment]. Collecting an arrears
+  /// balance pays for a period the customer has already been granted; it does
+  /// not buy them another month.
   Future<void> _onUpdatePayment(
     UpdatePaymentEvent event,
     Emitter<PaymentsState> emit,
   ) async {
     try {
       await updatePayment(event.payment);
-
-      if (event.payment.status == 'paid' &&
-          event.payment.completedDate != null) {
-        final newNextDueDate = DateTime(
-          event.payment.completedDate!.year,
-          event.payment.completedDate!.month + 1,
-          event.payment.completedDate!.day,
-        );
-        try {
-          final customers = await getCustomers();
-          final customer = customers.firstWhere(
-            (c) => c.id == event.payment.customerId,
-          );
-          final updatedCustomer = (customer as CustomerModel).copyWith(
-            nextDueDate: newNextDueDate,
-          );
-          await updateCustomer(updatedCustomer);
-        } catch (e) {
-          debugPrint('Warning: Could not update customer nextDueDate: $e');
-        }
-      }
 
       await Future.delayed(const Duration(milliseconds: 300));
       await _onLoadPayments(const LoadPaymentsEvent(), emit);
@@ -319,24 +243,7 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
       final pageEntities =
           hasMore ? entities.sublist(0, pageSize) : entities;
 
-      var payments = pageEntities.map((e) {
-        if (e is PaymentModel) return e;
-        return PaymentModel(
-          id: e.id,
-          customerId: e.customerId,
-          customerName: e.customerName,
-          amount: e.amount,
-          paidAmount: e.paidAmount,
-          status: e.status,
-          dueDate: e.dueDate,
-          completedDate: e.completedDate,
-          method: e.method,
-          notes: e.notes,
-          billingMonth: e.billingMonth,
-          createdAt: e.createdAt,
-          paymentDate: e.paymentDate,
-        );
-      }).toList();
+      var payments = pageEntities.map(PaymentModel.from).toList();
 
       final query = event.searchQuery?.trim().toLowerCase();
       if (query != null && query.isNotEmpty) {

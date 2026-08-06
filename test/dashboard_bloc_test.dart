@@ -177,6 +177,7 @@ CustomerModel _customer({
   String? packageId,
   double monthlyBill = 3000,
   String status = 'active',
+  DateTime? nextDueDate,
 }) =>
     CustomerModel(
       id: id,
@@ -190,7 +191,9 @@ CustomerModel _customer({
       status: status,
       notes: '',
       createdAt: DateTime(2026, 1, 1),
-      nextDueDate: DateTime(2026, 8, 1),
+      // Comfortably after _fixedNow, so a customer is neither expired nor
+      // expiring unless a test says otherwise.
+      nextDueDate: nextDueDate ?? DateTime(2026, 8, 1),
     );
 
 PackageEntity _package({String id = 'pkg1', double costPrice = 1000}) =>
@@ -208,21 +211,51 @@ PackageEntity _package({String id = 'pkg1', double costPrice = 1000}) =>
 
 PaymentModel _payment({
   String id = 'p1',
+  String customerId = 'c1',
   double amount = 3000,
   double paidAmount = 3000,
   String status = 'paid',
   DateTime? completedDate,
+  String? billingMonth,
+  double? packageCostAtBilling,
 }) =>
     PaymentModel(
       id: id,
-      customerId: 'c1',
-      customerName: 'Customer c1',
+      customerId: customerId,
+      customerName: 'Customer $customerId',
       amount: amount,
       paidAmount: paidAmount,
       status: status,
       completedDate: completedDate ?? DateTime(2026, 7, 5),
       createdAt: DateTime(2026, 7, 5),
+      billingMonth: billingMonth,
+      packageCostAtBilling: packageCostAtBilling,
     );
+
+/// A charge in the shape RenewSubscription produces for the fixed clock's
+/// month, so the reconciliation assertions exercise the real code path.
+PaymentModel _renewal({
+  String id = 'r1',
+  String customerId = 'c1',
+  double amount = 3000,
+  double? paidAmount,
+  double? packageCostAtBilling = 1000,
+}) {
+  final paid = paidAmount ?? amount;
+  return PaymentModel(
+    id: id,
+    customerId: customerId,
+    customerName: 'Customer $customerId',
+    amount: amount,
+    paidAmount: paid,
+    status: paid >= amount ? 'paid' : 'partial',
+    billingMonth: '2026-07', // matches _fixedNow
+    periodEnd: DateTime(2026, 8, 5),
+    completedDate: paid >= amount ? DateTime(2026, 7, 5) : null,
+    createdAt: DateTime(2026, 7, 5),
+    packageCostAtBilling: packageCostAtBilling,
+  );
+}
 
 ExpenseModel _expense({double amount = 1000, DateTime? date}) => ExpenseModel(
       id: 'e1',
@@ -341,6 +374,167 @@ void main() {
 
       expect(stats.cashCollectedThisMonth, 0.0);
       expect(stats.pendingPayments, 1000.0);
+    });
+  });
+
+  group('current-month collection reconciles against the run rate', () {
+    // The property the whole renewal redesign turns on: once every active
+    // subscriber has been renewed and paid in full, the margin realized in
+    // cash equals the accrual run rate exactly.
+    test('collected margin equals the run rate when everyone has paid',
+        () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [
+          _customer(id: 'c1', packageId: 'pkg1'),
+          _customer(id: 'c2', packageId: 'pkg1'),
+          _customer(id: 'c3', packageId: 'pkg1'),
+        ],
+        packages: [_package(costPrice: 1000)],
+        payments: [
+          _renewal(id: 'r1', customerId: 'c1'),
+          _renewal(id: 'r2', customerId: 'c2'),
+          _renewal(id: 'r3', customerId: 'c3'),
+        ],
+      ));
+
+      expect(stats.subscriberRunRateMargin, 6000.0); // 3 * (3000 - 1000)
+      expect(stats.currentMonthMarginCollected, 6000.0);
+      expect(stats.currentMonthMarginCollected, stats.subscriberRunRateMargin);
+      expect(stats.marginNotYetCollected, 0.0);
+      expect(stats.marginCollectionRate, 1.0);
+      expect(stats.pendingThisMonth, 0.0);
+    });
+
+    test('the shortfall is exactly the margin of who has not renewed',
+        () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [
+          _customer(id: 'c1', packageId: 'pkg1'),
+          _customer(id: 'c2', packageId: 'pkg1'),
+        ],
+        packages: [_package(costPrice: 1000)],
+        payments: [_renewal(id: 'r1', customerId: 'c1')],
+      ));
+
+      expect(stats.subscriberRunRateMargin, 4000.0);
+      expect(stats.currentMonthMarginCollected, 2000.0);
+      expect(stats.marginNotYetCollected, 2000.0);
+      expect(stats.marginCollectionRate, 0.5);
+    });
+
+    test('a part-paid renewal absorbs the full upstream cost', () async {
+      // Collected 1200 of a 3000 bill on a 1000-cost package: realized margin
+      // is 200, not 1200 * (2000/3000).
+      final stats = await _statsFrom(_bloc(
+        customers: [_customer(packageId: 'pkg1')],
+        packages: [_package(costPrice: 1000)],
+        payments: [_renewal(paidAmount: 1200)],
+      ));
+
+      expect(stats.currentMonthCollected, 1200.0);
+      expect(stats.currentMonthMarginCollected, 200.0);
+      expect(stats.currentMonthOutstanding, 1800.0);
+      expect(stats.pendingThisMonth, 1800.0);
+    });
+
+    test('an under-collected month can read as a loss', () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [_customer(packageId: 'pkg1')],
+        packages: [_package(costPrice: 1000)],
+        payments: [_renewal(paidAmount: 400)],
+      ));
+
+      expect(stats.currentMonthMarginCollected, -600.0);
+    });
+
+    test('a legacy charge falls back to the live package cost', () async {
+      // Without the fallback this would report 3000 of margin on a 1000-cost
+      // package and break the reconciliation for every pre-existing row.
+      final stats = await _statsFrom(_bloc(
+        customers: [_customer(packageId: 'pkg1')],
+        packages: [_package(costPrice: 1000)],
+        payments: [_renewal(packageCostAtBilling: null)],
+      ));
+
+      expect(stats.currentMonthMarginCollected, 2000.0);
+      expect(stats.currentMonthMarginCollected, stats.subscriberRunRateMargin);
+    });
+
+    test('a charge for another month does not count toward this one', () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [_customer(packageId: 'pkg1')],
+        packages: [_package(costPrice: 1000)],
+        payments: [_payment(billingMonth: '2026-06')],
+      ));
+
+      expect(stats.currentMonthCollected, 0.0);
+      expect(stats.currentMonthMarginCollected, 0.0);
+      // Cash basis still sees it — that is the difference between the two.
+      expect(stats.cashCollectedThisMonth, 3000.0);
+    });
+  });
+
+  group('pending this month', () {
+    test('counts lapsed customers who have no charge for the month', () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [
+          _customer(id: 'c1', packageId: 'pkg1', nextDueDate: DateTime(2026, 7, 1)),
+          _customer(id: 'c2', packageId: 'pkg1', nextDueDate: DateTime(2026, 7, 3)),
+        ],
+        packages: [_package()],
+      ));
+
+      expect(stats.expiredCustomers, 2);
+      expect(stats.expiredCustomersDueCount, 2);
+      expect(stats.expiredCustomersDue, 6000.0);
+      expect(stats.pendingThisMonth, 6000.0);
+    });
+
+    test('a lapsed customer already renewed this month is not double counted',
+        () async {
+      // c1 lapsed on Jul 1 and was renewed on Jul 5 — their money is tracked
+      // by the charge, so counting their bill again would inflate pending.
+      final stats = await _statsFrom(_bloc(
+        customers: [
+          _customer(id: 'c1', packageId: 'pkg1', nextDueDate: DateTime(2026, 7, 1)),
+        ],
+        packages: [_package()],
+        payments: [_renewal(customerId: 'c1', paidAmount: 1000)],
+      ));
+
+      expect(stats.expiredCustomersDueCount, 0);
+      expect(stats.expiredCustomersDue, 0.0);
+      expect(stats.currentMonthOutstanding, 2000.0);
+      expect(stats.pendingThisMonth, 2000.0);
+    });
+
+    test('a cancelled customer is never chased for a renewal', () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [
+          _customer(
+            id: 'c1',
+            packageId: 'pkg1',
+            status: 'cancelled',
+            nextDueDate: DateTime(2026, 1, 1),
+          ),
+        ],
+        packages: [_package()],
+      ));
+
+      expect(stats.expiredCustomers, 0);
+      expect(stats.expiredCustomersDue, 0.0);
+    });
+
+    test('the due date itself is not yet expired', () async {
+      final stats = await _statsFrom(_bloc(
+        customers: [
+          _customer(id: 'c1', packageId: 'pkg1', nextDueDate: _fixedNow),
+        ],
+        packages: [_package()],
+      ));
+
+      expect(stats.expiredCustomers, 0);
+      expect(stats.expiringsoon, 1);
     });
   });
 

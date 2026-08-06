@@ -23,6 +23,9 @@ class CustomerDetailsSideSheet extends StatelessWidget {
   /// Called when the user taps the "Delete" action button.
   final void Function(CustomerModel customer) onDelete;
 
+  /// Called when the user taps "Renew Subscription".
+  final void Function(CustomerModel customer) onRenew;
+
   const CustomerDetailsSideSheet({
     super.key,
     required this.customer,
@@ -30,10 +33,16 @@ class CustomerDetailsSideSheet extends StatelessWidget {
     required this.getPackageName,
     required this.onClose,
     required this.onDelete,
+    required this.onRenew,
   });
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final due = customer.effectiveDueDate;
+    final isDueForRenewal = customer.isDueForRenewalAt(now);
+    final isExpired = customer.isExpiredAt(now);
+
     return Container(
       width: 460,
       decoration: const BoxDecoration(
@@ -146,38 +155,45 @@ class CustomerDetailsSideSheet extends StatelessWidget {
                 ),
                 _detailRow(
                   'Next Due Date',
-                  () {
-                    final due =
-                        customer.nextDueDate ??
-                        (customer.createdAt != null
-                            ? DateTime(
-                                customer.createdAt!.year,
-                                customer.createdAt!.month + 1,
-                                customer.createdAt!.day,
-                              )
-                            : null);
-                    return due != null ? DateTimeUtils.formatDate(due) : 'N/A';
-                  }(),
+                  due != null
+                      ? '${DateTimeUtils.formatDate(due)}'
+                          '${isExpired ? ' · expired' : (isDueForRenewal ? ' · due soon' : '')}'
+                      : 'N/A',
                   Icons.event,
-                  valueColor: () {
-                    final due =
-                        customer.nextDueDate ??
-                        (customer.createdAt != null
-                            ? DateTime(
-                                customer.createdAt!.year,
-                                customer.createdAt!.month + 1,
-                                customer.createdAt!.day,
-                              )
-                            : null);
-                    if (due == null) return null;
-                    final diff = due.difference(DateTime.now()).inDays;
-                    if (diff < 0) return AppTheme.errorColor;
-                    if (diff <= 7) return Colors.orange;
-                    return null;
-                  }(),
+                  valueColor: isExpired
+                      ? AppTheme.errorColor
+                      : (isDueForRenewal ? Colors.orange : null),
+                  isEstimated: customer.nextDueDate == null && due != null,
                 ),
 
                 const SizedBox(height: 16),
+
+                // Renewal is the reason this panel is open on a lapsed
+                // account, so it gets its own full-width primary button above
+                // the edit/delete pair rather than competing with them.
+                if (isDueForRenewal) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.autorenew, size: 16),
+                      label: Text(
+                        isExpired
+                            ? 'Collect & Renew Subscription'
+                            : 'Renew Subscription Early',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onPressed: () => onRenew(customer),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: isExpired
+                            ? AppTheme.errorColor
+                            : Colors.orange.shade700,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
 
                 // Quick Actions
                 Row(

@@ -32,6 +32,35 @@ class CustomerEntity {
     this.nextDueDate,
   });
 
+  /// The expiry to act on: [nextDueDate], or one month after [createdAt] for
+  /// legacy records that never had one written.
+  ///
+  /// Every surface that shows or tests a due date reads it from here. The
+  /// four hand-rolled copies this replaced used the rolling-over
+  /// `DateTime(y, m + 1, d)` form, so a month-end customer's row and the
+  /// dashboard's expired count could disagree by a couple of days.
+  DateTime? get effectiveDueDate => BillingCycle.effectiveDueDate(
+        nextDueDate: nextDueDate,
+        createdAt: createdAt,
+      );
+
+  /// Whether service has lapsed as of [now]. Cancelled customers are never
+  /// reported as expired — a stale due date on a closed account is not a
+  /// renewal to chase.
+  bool isExpiredAt(DateTime now) {
+    if (status != 'active') return false;
+    final due = effectiveDueDate;
+    return due != null && BillingCycle.isExpired(due, now);
+  }
+
+  /// Whether the Renew action should be offered: expired, due today, or
+  /// inside the [BillingCycle.renewalWindowDays] warning window.
+  bool isDueForRenewalAt(DateTime now) {
+    if (status != 'active') return false;
+    final due = effectiveDueDate;
+    return due != null && BillingCycle.isDueForRenewal(due, now);
+  }
+
   /// This customer's monthly subscription position, plus a verdict on whether
   /// the cost side can be trusted.
   ///
@@ -70,4 +99,34 @@ class CustomerEntity {
   /// matters — this getter cannot tell you the package was missing.
   double calculateProfit(PackageEntity? package) =>
       monthlyMargin(package).money.profit;
+
+  CustomerEntity copyWith({
+    String? id,
+    String? name,
+    String? phone,
+    String? cnic,
+    String? address,
+    String? connectionType,
+    String? packageId,
+    double? monthlyBill,
+    String? status,
+    String? notes,
+    DateTime? createdAt,
+    DateTime? joinDate,
+    DateTime? nextDueDate,
+  }) => CustomerEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        phone: phone ?? this.phone,
+        cnic: cnic ?? this.cnic,
+        address: address ?? this.address,
+        connectionType: connectionType ?? this.connectionType,
+        packageId: packageId ?? this.packageId,
+        monthlyBill: monthlyBill ?? this.monthlyBill,
+        status: status ?? this.status,
+        notes: notes ?? this.notes,
+        createdAt: createdAt ?? this.createdAt,
+        joinDate: joinDate ?? this.joinDate,
+        nextDueDate: nextDueDate ?? this.nextDueDate,
+      );
 }

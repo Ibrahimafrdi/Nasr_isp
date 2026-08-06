@@ -156,18 +156,28 @@ class _DashboardPageState extends State<DashboardPage> {
                             setState(() => _showExpiringAlert = false),
                       ),
                     if (_showOverdueAlert &&
-                        state.pendingPayments.isNotEmpty) ...[
+                        state.stats.pendingThisMonth > 0) ...[
                       if (_showExpiringAlert &&
                           state.expiringCustomers.isNotEmpty)
                         const SizedBox(height: 16),
+                      // Routes to wherever the fix actually is: an unrenewed
+                      // customer is renewed from the Customers page, while a
+                      // part-paid charge is settled on the Payments ledger.
                       AlertPanel(
                         type: AlertType.error,
-                        title: 'Payments Overdue',
-                        message:
-                            '${state.stats.pendingPaymentsCount} customers have unpaid invoices totaling ${_formatCurrency(state.stats.pendingPayments)}.',
+                        title: state.stats.expiredCustomersDueCount > 0
+                            ? 'Renewals Outstanding'
+                            : 'Balances Outstanding',
+                        message: _pendingAlertMessage(state.stats),
                         icon: Icons.error_outline,
-                        actionLabel: 'Collect Now',
-                        onActionTap: () => context.go(RoutePaths.payments),
+                        actionLabel: state.stats.expiredCustomersDueCount > 0
+                            ? 'Renew Now'
+                            : 'Collect Now',
+                        onActionTap: () => context.go(
+                          state.stats.expiredCustomersDueCount > 0
+                              ? RoutePaths.customers
+                              : RoutePaths.payments,
+                        ),
                         onDismiss: () =>
                             setState(() => _showOverdueAlert = false),
                       ),
@@ -391,6 +401,62 @@ class _DashboardPageState extends State<DashboardPage> {
   /// "142K + 39K − 61K" visibly fail to add up to the headline figure.
   String _formatCurrencyFull(double amount) => 'Rs ${amount.toStringAsFixed(0)}';
 
+  /// States the collection against the accrual yardstick, because the headline
+  /// cash figure on its own says nothing about whether the month is on track.
+  ///
+  /// The two converge to equality once every active subscriber has been
+  /// renewed and paid in full, which is the whole point of scoping this card
+  /// to the current billing month.
+  String _collectionSubtitle(DashboardStatsModel stats) {
+    if (stats.subscriberRunRateMargin <= 0) {
+      return 'Renewals billed to the current month';
+    }
+    final pct = ((stats.marginCollectionRate ?? 0) * 100).round();
+    final realized = _formatCurrencyFull(stats.currentMonthMarginCollected);
+    final target = _formatCurrencyFull(stats.subscriberRunRateMargin);
+    if (stats.marginNotYetCollected <= 0) {
+      return 'Margin realized $realized — full run rate collected';
+    }
+    return 'Margin realized $realized of $target run rate · $pct%';
+  }
+
+  String _pendingAlertMessage(DashboardStatsModel stats) {
+    final clauses = <String>[];
+    if (stats.expiredCustomersDueCount > 0) {
+      clauses.add(
+        '${stats.expiredCustomersDueCount} expired '
+        '${stats.expiredCustomersDueCount == 1 ? 'customer has' : 'customers have'} '
+        'not been renewed this month '
+        '(${_formatCurrency(stats.expiredCustomersDue)})',
+      );
+    }
+    if (stats.currentMonthOutstanding > 0) {
+      clauses.add(
+        '${_formatCurrency(stats.currentMonthOutstanding)} is outstanding on '
+        'part-paid renewals',
+      );
+    }
+    return '${clauses.join(', and ')}.';
+  }
+
+  /// Splits the pending figure into its two disjoint causes, since they need
+  /// different actions: settle a balance vs. go and renew someone.
+  String _pendingSubtitle(DashboardStatsModel stats) {
+    final parts = <String>[];
+    if (stats.expiredCustomersDueCount > 0) {
+      parts.add(
+        '${stats.expiredCustomersDueCount} expired awaiting renewal '
+        '(${_formatCurrencyFull(stats.expiredCustomersDue)})',
+      );
+    }
+    if (stats.currentMonthOutstanding > 0) {
+      parts.add(
+        '${_formatCurrencyFull(stats.currentMonthOutstanding)} part-paid',
+      );
+    }
+    return parts.isEmpty ? 'Fully collected for this month' : parts.join(' · ');
+  }
+
   // ===== KPI CARDS (real data-driven) =====
   Widget _buildKPICards(bool isAdmin, DashboardStatsModel stats) {
     return ResponsiveBuilder(
@@ -497,25 +563,28 @@ class _DashboardPageState extends State<DashboardPage> {
                 gradient: AppColors.purpleGradient,
                 sparklineData: const [2, 3, 2, 4, 5, 6, 7, 6, 8, 10],
               ),
+            // Collected and Pending are both scoped to the CURRENT BILLING
+            // MONTH, so they answer "how is this month going" rather than
+            // "what has ever landed". Together with Recurring Margin they
+            // close the loop: collected margin climbs toward the run rate as
+            // renewals come in, and the shortfall is exactly what Pending
+            // still has to collect.
             if (isAdmin)
               KPICard(
-                title: 'Cash Collected',
-                value: _formatCurrency(stats.cashCollectedThisMonth),
-                // Explicitly fenced off from the accrual chain above: different
-                // basis, and installation billing never reaches the payments
-                // ledger, so this is subscription cash only.
-                subtitle: 'Subscription payments received · excludes installations',
+                title: 'Collected This Month',
+                value: _formatCurrency(stats.currentMonthCollected),
+                subtitle: _collectionSubtitle(stats),
                 trend: null,
                 isTrendPositive: true,
                 icon: Icons.account_balance_wallet,
-                gradient: AppColors.blueGradient,
+                gradient: AppColors.greenGradient,
                 sparklineData: const [5, 4, 6, 7, 6, 8, 7, 9, 10, 11],
               ),
             if (isAdmin)
               KPICard(
-                title: 'Pending Payments',
-                value: _formatCurrency(stats.pendingPayments),
-                subtitle: '${stats.pendingPaymentsCount} unpaid or partial invoices',
+                title: 'Pending This Month',
+                value: _formatCurrency(stats.pendingThisMonth),
+                subtitle: _pendingSubtitle(stats),
                 trend: null,
                 isTrendPositive: false,
                 icon: Icons.schedule,
@@ -526,23 +595,14 @@ class _DashboardPageState extends State<DashboardPage> {
               KPICard(
                 title: 'Expired Customers',
                 value: stats.expiredCustomers.toString(),
-                subtitle: 'Awaiting renewal',
+                subtitle: stats.expiredCustomersDueCount > 0
+                    ? '${stats.expiredCustomersDueCount} not yet renewed this month'
+                    : 'All lapsed accounts have been renewed',
                 trend: null,
                 isTrendPositive: false,
                 icon: Icons.person_off,
                 gradient: AppColors.redGradient,
                 sparklineData: const [4, 5, 4, 6, 5, 4, 3, 4, 3, 2],
-              ),
-            if (isAdmin)
-              KPICard(
-                title: 'Installation Profit',
-                value: _formatCurrency(stats.monthlyInstallationProfit),
-                subtitle: '${_formatCurrency(stats.monthlyInstallationRevenue)} billed this month',
-                trend: null,
-                isTrendPositive: stats.monthlyInstallationProfit >= 0,
-                icon: Icons.engineering,
-                gradient: AppColors.orangeGradient,
-                sparklineData: const [3, 4, 3, 5, 6, 5, 7, 6, 8, 9],
               ),
             if (!isAdmin) ...[
               KPICard(

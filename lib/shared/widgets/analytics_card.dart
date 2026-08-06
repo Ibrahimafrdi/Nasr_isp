@@ -50,25 +50,25 @@ class AnalyticsSection extends StatelessWidget {
         if (isWide) {
           return Column(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: RevenueChartCard(
-                      monthlyRevenue6: monthlyRevenue6,
-                      height: chartHeight,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Expanded(
-                    child: CustomerGrowthChartCard(
-                      customerGrowth6: customerGrowth6,
-                      height: chartHeight,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
+              // Row(
+              //   crossAxisAlignment: CrossAxisAlignment.start,
+              //   children: [
+              //     Expanded(
+              //       child: RevenueChartCard(
+              //         monthlyRevenue6: monthlyRevenue6,
+              //         height: chartHeight,
+              //       ),
+              //     ),
+              //     const SizedBox(width: AppSpacing.lg),
+              //     Expanded(
+              //       child: CustomerGrowthChartCard(
+              //         customerGrowth6: customerGrowth6,
+              //         height: chartHeight,
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              // const SizedBox(height: AppSpacing.lg),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -92,16 +92,16 @@ class AnalyticsSection extends StatelessWidget {
         } else {
           return Column(
             children: [
-              RevenueChartCard(
-                monthlyRevenue6: monthlyRevenue6,
-                height: chartHeight,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              CustomerGrowthChartCard(
-                customerGrowth6: customerGrowth6,
-                height: chartHeight,
-              ),
-              const SizedBox(height: AppSpacing.lg),
+              // RevenueChartCard(
+              //   monthlyRevenue6: monthlyRevenue6,
+              //   height: chartHeight,
+              // ),
+              // const SizedBox(height: AppSpacing.lg),
+              // CustomerGrowthChartCard(
+              //   customerGrowth6: customerGrowth6,
+              //   height: chartHeight,
+              // ),
+              // const SizedBox(height: AppSpacing.lg),
               PackageDistributionChartCard(
                 connectionTypeDist: connectionTypeDist,
                 height: chartHeight,
@@ -204,275 +204,275 @@ class BaseChartCard extends StatelessWidget {
   }
 }
 
-class RevenueChartCard extends StatelessWidget {
-  final List<double> monthlyRevenue6;
-  final double height;
+// class RevenueChartCard extends StatelessWidget {
+//   final List<double> monthlyRevenue6;
+//   final double height;
 
-  const RevenueChartCard({
-    Key? key,
-    required this.monthlyRevenue6,
-    this.height = 330,
-  }) : super(key: key);
+//   const RevenueChartCard({
+//     Key? key,
+//     required this.monthlyRevenue6,
+//     this.height = 330,
+//   }) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    // Build month labels for last 6 months
-    final now = DateTime.now();
-    final monthLabels = List.generate(6, (i) {
-      final d = DateTime(now.year, now.month - (5 - i));
-      const names = [
-        'Jan','Feb','Mar','Apr','May','Jun',
-        'Jul','Aug','Sep','Oct','Nov','Dec'
-      ];
-      return names[d.month - 1];
-    });
+//   @override
+//   Widget build(BuildContext context) {
+//     // Build month labels for last 6 months
+//     final now = DateTime.now();
+//     final monthLabels = List.generate(6, (i) {
+//       final d = DateTime(now.year, now.month - (5 - i));
+//       const names = [
+//         'Jan','Feb','Mar','Apr','May','Jun',
+//         'Jul','Aug','Sep','Oct','Nov','Dec'
+//       ];
+//       return names[d.month - 1];
+//     });
 
-    final spots = List.generate(
-      monthlyRevenue6.length,
-      (i) => FlSpot(i.toDouble(), monthlyRevenue6[i]),
-    );
+//     final spots = List.generate(
+//       monthlyRevenue6.length,
+//       (i) => FlSpot(i.toDouble(), monthlyRevenue6[i]),
+//     );
 
-    final maxY = monthlyRevenue6.isEmpty
-        ? 500000.0
-        : (monthlyRevenue6.reduce((a, b) => a > b ? a : b) * 1.3)
-            .clamp(10000.0, double.infinity);
+//     final maxY = monthlyRevenue6.isEmpty
+//         ? 500000.0
+//         : (monthlyRevenue6.reduce((a, b) => a > b ? a : b) * 1.3)
+//             .clamp(10000.0, double.infinity);
 
-    return BaseChartCard(
-      title: 'Revenue Analytics',
-      subtitle: 'Monthly collected payments (PKR) — last 6 months',
-      height: height,
-      chart: LineChart(
-        LineChartData(
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: maxY / 5,
-            getDrawingHorizontalLine: (value) => FlLine(
-              color: Colors.grey.withOpacity(0.1),
-              strokeWidth: 1,
-            ),
-          ),
-          titlesData: FlTitlesData(
-            show: true,
-            rightTitles:
-                AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles:
-                AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  final idx = value.toInt();
-                  if (idx >= 0 && idx < monthLabels.length) {
-                    return Text(
-                      monthLabels[idx],
-                      style: GoogleFonts.inter(
-                          fontSize: 10, color: AppColors.darkGray),
-                    );
-                  }
-                  return const Text('');
-                },
-                reservedSize: 22,
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                interval: maxY / 5,
-                getTitlesWidget: (value, meta) => Text(
-                  '${(value / 1000).toStringAsFixed(0)}K',
-                  style: GoogleFonts.inter(
-                      fontSize: 9.5, color: AppColors.darkGray),
-                ),
-                reservedSize: 40,
-              ),
-            ),
-          ),
-          borderData: FlBorderData(
-            show: true,
-            border: Border(
-              bottom: BorderSide(
-                  color: Colors.grey.withOpacity(0.2), width: 1),
-              left: BorderSide(
-                  color: Colors.grey.withOpacity(0.2), width: 1),
-            ),
-          ),
-          minX: 0,
-          maxX: 5,
-          minY: 0,
-          maxY: maxY,
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: AppColors.primaryBlue,
-              barWidth: 3.5,
-              isStrokeCapRound: true,
-              dotData: FlDotData(
-                show: true,
-                getDotPainter: (spot, percent, barData, index) =>
-                    FlDotCirclePainter(
-                  radius: 4,
-                  color: AppColors.primaryBlue,
-                  strokeColor: Colors.white,
-                  strokeWidth: 2,
-                ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.primaryBlue.withOpacity(0.12),
-                    AppColors.primaryBlue.withOpacity(0.0),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//     return BaseChartCard(
+//       title: 'Revenue Analytics',
+//       subtitle: 'Monthly collected payments (PKR) — last 6 months',
+//       height: height,
+//       chart: LineChart(
+//         LineChartData(
+//           gridData: FlGridData(
+//             show: true,
+//             drawVerticalLine: false,
+//             horizontalInterval: maxY / 5,
+//             getDrawingHorizontalLine: (value) => FlLine(
+//               color: Colors.grey.withOpacity(0.1),
+//               strokeWidth: 1,
+//             ),
+//           ),
+//           titlesData: FlTitlesData(
+//             show: true,
+//             rightTitles:
+//                 AxisTitles(sideTitles: SideTitles(showTitles: false)),
+//             topTitles:
+//                 AxisTitles(sideTitles: SideTitles(showTitles: false)),
+//             bottomTitles: AxisTitles(
+//               sideTitles: SideTitles(
+//                 showTitles: true,
+//                 getTitlesWidget: (value, meta) {
+//                   final idx = value.toInt();
+//                   if (idx >= 0 && idx < monthLabels.length) {
+//                     return Text(
+//                       monthLabels[idx],
+//                       style: GoogleFonts.inter(
+//                           fontSize: 10, color: AppColors.darkGray),
+//                     );
+//                   }
+//                   return const Text('');
+//                 },
+//                 reservedSize: 22,
+//               ),
+//             ),
+//             leftTitles: AxisTitles(
+//               sideTitles: SideTitles(
+//                 showTitles: true,
+//                 interval: maxY / 5,
+//                 getTitlesWidget: (value, meta) => Text(
+//                   '${(value / 1000).toStringAsFixed(0)}K',
+//                   style: GoogleFonts.inter(
+//                       fontSize: 9.5, color: AppColors.darkGray),
+//                 ),
+//                 reservedSize: 40,
+//               ),
+//             ),
+//           ),
+//           borderData: FlBorderData(
+//             show: true,
+//             border: Border(
+//               bottom: BorderSide(
+//                   color: Colors.grey.withOpacity(0.2), width: 1),
+//               left: BorderSide(
+//                   color: Colors.grey.withOpacity(0.2), width: 1),
+//             ),
+//           ),
+//           minX: 0,
+//           maxX: 5,
+//           minY: 0,
+//           maxY: maxY,
+//           lineBarsData: [
+//             LineChartBarData(
+//               spots: spots,
+//               isCurved: true,
+//               color: AppColors.primaryBlue,
+//               barWidth: 3.5,
+//               isStrokeCapRound: true,
+//               dotData: FlDotData(
+//                 show: true,
+//                 getDotPainter: (spot, percent, barData, index) =>
+//                     FlDotCirclePainter(
+//                   radius: 4,
+//                   color: AppColors.primaryBlue,
+//                   strokeColor: Colors.white,
+//                   strokeWidth: 2,
+//                 ),
+//               ),
+//               belowBarData: BarAreaData(
+//                 show: true,
+//                 gradient: LinearGradient(
+//                   colors: [
+//                     AppColors.primaryBlue.withOpacity(0.12),
+//                     AppColors.primaryBlue.withOpacity(0.0),
+//                   ],
+//                   begin: Alignment.topCenter,
+//                   end: Alignment.bottomCenter,
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
-class CustomerGrowthChartCard extends StatelessWidget {
-  final List<double> customerGrowth6;
-  final double height;
+// class CustomerGrowthChartCard extends StatelessWidget {
+//   final List<double> customerGrowth6;
+//   final double height;
 
-  const CustomerGrowthChartCard({
-    Key? key,
-    required this.customerGrowth6,
-    this.height = 330,
-  }) : super(key: key);
+//   const CustomerGrowthChartCard({
+//     Key? key,
+//     required this.customerGrowth6,
+//     this.height = 330,
+//   }) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final monthLabels = List.generate(6, (i) {
-      final d = DateTime(now.year, now.month - (5 - i));
-      const names = [
-        'Jan','Feb','Mar','Apr','May','Jun',
-        'Jul','Aug','Sep','Oct','Nov','Dec'
-      ];
-      return names[d.month - 1];
-    });
+//   @override
+//   Widget build(BuildContext context) {
+//     final now = DateTime.now();
+//     final monthLabels = List.generate(6, (i) {
+//       final d = DateTime(now.year, now.month - (5 - i));
+//       const names = [
+//         'Jan','Feb','Mar','Apr','May','Jun',
+//         'Jul','Aug','Sep','Oct','Nov','Dec'
+//       ];
+//       return names[d.month - 1];
+//     });
 
-    final spots = List.generate(
-      customerGrowth6.length,
-      (i) => FlSpot(i.toDouble(), customerGrowth6[i]),
-    );
+//     final spots = List.generate(
+//       customerGrowth6.length,
+//       (i) => FlSpot(i.toDouble(), customerGrowth6[i]),
+//     );
 
-    final maxY = customerGrowth6.isEmpty
-        ? 100.0
-        : (customerGrowth6.reduce((a, b) => a > b ? a : b) * 1.3)
-            .clamp(10.0, double.infinity);
+//     final maxY = customerGrowth6.isEmpty
+//         ? 100.0
+//         : (customerGrowth6.reduce((a, b) => a > b ? a : b) * 1.3)
+//             .clamp(10.0, double.infinity);
 
-    final minY = customerGrowth6.isEmpty
-        ? 0.0
-        : (customerGrowth6.reduce((a, b) => a < b ? a : b) * 0.8)
-            .clamp(0.0, double.infinity);
+//     final minY = customerGrowth6.isEmpty
+//         ? 0.0
+//         : (customerGrowth6.reduce((a, b) => a < b ? a : b) * 0.8)
+//             .clamp(0.0, double.infinity);
 
-    return BaseChartCard(
-      title: 'Customer Growth',
-      subtitle: 'Cumulative active subscribers by month',
-      height: height,
-      chart: LineChart(
-        LineChartData(
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: (maxY - minY) / 5,
-            getDrawingHorizontalLine: (value) => FlLine(
-              color: Colors.grey.withOpacity(0.1),
-              strokeWidth: 1,
-            ),
-          ),
-          titlesData: FlTitlesData(
-            show: true,
-            rightTitles:
-                AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles:
-                AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  final idx = value.toInt();
-                  if (idx >= 0 && idx < monthLabels.length) {
-                    return Text(
-                      monthLabels[idx],
-                      style: GoogleFonts.inter(
-                          fontSize: 10, color: AppColors.darkGray),
-                    );
-                  }
-                  return const Text('');
-                },
-                reservedSize: 22,
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                interval: (maxY - minY) / 5,
-                getTitlesWidget: (value, meta) => Text(
-                  value.toInt().toString(),
-                  style: GoogleFonts.inter(
-                      fontSize: 9.5, color: AppColors.darkGray),
-                ),
-                reservedSize: 32,
-              ),
-            ),
-          ),
-          borderData: FlBorderData(
-            show: true,
-            border: Border(
-              bottom: BorderSide(
-                  color: Colors.grey.withOpacity(0.2), width: 1),
-              left: BorderSide(
-                  color: Colors.grey.withOpacity(0.2), width: 1),
-            ),
-          ),
-          minX: 0,
-          maxX: 5,
-          minY: minY,
-          maxY: maxY,
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: AppColors.successGreen,
-              barWidth: 3.5,
-              isStrokeCapRound: true,
-              dotData: FlDotData(
-                show: true,
-                getDotPainter: (spot, percent, barData, index) =>
-                    FlDotCirclePainter(
-                  radius: 4,
-                  color: AppColors.successGreen,
-                  strokeColor: Colors.white,
-                  strokeWidth: 2,
-                ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.successGreen.withOpacity(0.12),
-                    AppColors.successGreen.withOpacity(0.0),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//     return BaseChartCard(
+//       title: 'Customer Growth',
+//       subtitle: 'Cumulative active subscribers by month',
+//       height: height,
+//       chart: LineChart(
+//         LineChartData(
+//           gridData: FlGridData(
+//             show: true,
+//             drawVerticalLine: false,
+//             horizontalInterval: (maxY - minY) / 5,
+//             getDrawingHorizontalLine: (value) => FlLine(
+//               color: Colors.grey.withOpacity(0.1),
+//               strokeWidth: 1,
+//             ),
+//           ),
+//           titlesData: FlTitlesData(
+//             show: true,
+//             rightTitles:
+//                 AxisTitles(sideTitles: SideTitles(showTitles: false)),
+//             topTitles:
+//                 AxisTitles(sideTitles: SideTitles(showTitles: false)),
+//             bottomTitles: AxisTitles(
+//               sideTitles: SideTitles(
+//                 showTitles: true,
+//                 getTitlesWidget: (value, meta) {
+//                   final idx = value.toInt();
+//                   if (idx >= 0 && idx < monthLabels.length) {
+//                     return Text(
+//                       monthLabels[idx],
+//                       style: GoogleFonts.inter(
+//                           fontSize: 10, color: AppColors.darkGray),
+//                     );
+//                   }
+//                   return const Text('');
+//                 },
+//                 reservedSize: 22,
+//               ),
+//             ),
+//             leftTitles: AxisTitles(
+//               sideTitles: SideTitles(
+//                 showTitles: true,
+//                 interval: (maxY - minY) / 5,
+//                 getTitlesWidget: (value, meta) => Text(
+//                   value.toInt().toString(),
+//                   style: GoogleFonts.inter(
+//                       fontSize: 9.5, color: AppColors.darkGray),
+//                 ),
+//                 reservedSize: 32,
+//               ),
+//             ),
+//           ),
+//           borderData: FlBorderData(
+//             show: true,
+//             border: Border(
+//               bottom: BorderSide(
+//                   color: Colors.grey.withOpacity(0.2), width: 1),
+//               left: BorderSide(
+//                   color: Colors.grey.withOpacity(0.2), width: 1),
+//             ),
+//           ),
+//           minX: 0,
+//           maxX: 5,
+//           minY: minY,
+//           maxY: maxY,
+//           lineBarsData: [
+//             LineChartBarData(
+//               spots: spots,
+//               isCurved: true,
+//               color: AppColors.successGreen,
+//               barWidth: 3.5,
+//               isStrokeCapRound: true,
+//               dotData: FlDotData(
+//                 show: true,
+//                 getDotPainter: (spot, percent, barData, index) =>
+//                     FlDotCirclePainter(
+//                   radius: 4,
+//                   color: AppColors.successGreen,
+//                   strokeColor: Colors.white,
+//                   strokeWidth: 2,
+//                 ),
+//               ),
+//               belowBarData: BarAreaData(
+//                 show: true,
+//                 gradient: LinearGradient(
+//                   colors: [
+//                     AppColors.successGreen.withOpacity(0.12),
+//                     AppColors.successGreen.withOpacity(0.0),
+//                   ],
+//                   begin: Alignment.topCenter,
+//                   end: Alignment.bottomCenter,
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class PackageDistributionChartCard extends StatelessWidget {
   final Map<String, int> connectionTypeDist;

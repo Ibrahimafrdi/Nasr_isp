@@ -8,6 +8,7 @@ import 'package:nasr_isp/features/customers/domain/repositories/customer_reposit
 import 'package:nasr_isp/features/customers/domain/usecases/add_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/renew_subscription.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -288,6 +289,11 @@ Future<void> registerFakeDependencies() async {
       addCustomer: addCustomer,
       updateCustomer: updateCustomer,
       deleteCustomer: deleteCustomer,
+      renewSubscription: RenewSubscription(
+        paymentRepository: paymentRepo,
+        customerRepository: customerRepo,
+        getPackages: getPackages,
+      ),
     ),
   );
   getIt.registerSingleton<PackagesBloc>(
@@ -303,8 +309,6 @@ Future<void> registerFakeDependencies() async {
       getPayments: getPayments,
       addPayment: addPayment,
       updatePayment: updatePayment,
-      getCustomers: getCustomers,
-      updateCustomer: updateCustomer,
       getPaymentByCustomerAndMonth: getPaymentByCustomerAndMonth,
     ),
   );

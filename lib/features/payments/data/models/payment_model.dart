@@ -16,7 +16,34 @@ class PaymentModel extends PaymentEntity {
     super.billingMonth,
     super.createdAt,
     super.paymentDate,
+    super.type,
+    super.packageCostAtBilling,
+    super.periodEnd,
   });
+
+  /// Rebuilds a model from any entity, preserving every field. Use this rather
+  /// than a hand-written constructor call at mapping boundaries — the previous
+  /// open-coded copies silently dropped whichever field was added last.
+  factory PaymentModel.from(PaymentEntity e) => e is PaymentModel
+      ? e
+      : PaymentModel(
+          id: e.id,
+          customerId: e.customerId,
+          customerName: e.customerName,
+          amount: e.amount,
+          paidAmount: e.paidAmount,
+          status: e.status,
+          dueDate: e.dueDate,
+          completedDate: e.completedDate,
+          method: e.method,
+          notes: e.notes,
+          billingMonth: e.billingMonth,
+          createdAt: e.createdAt,
+          paymentDate: e.paymentDate,
+          type: e.type,
+          packageCostAtBilling: e.packageCostAtBilling,
+          periodEnd: e.periodEnd,
+        );
 
   factory PaymentModel.fromMap(Map<String, dynamic> map) {
     return PaymentModel(
@@ -26,30 +53,25 @@ class PaymentModel extends PaymentEntity {
       amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       paidAmount: (map['paidAmount'] as num?)?.toDouble() ?? 0.0,
       status: map['status'] as String? ?? '',
-      dueDate: map['dueDate'] is Timestamp
-          ? (map['dueDate'] as Timestamp).toDate()
-          : (map['dueDate'] != null
-                ? DateTime.tryParse(map['dueDate'].toString())
-                : null),
-      completedDate: map['completedDate'] is Timestamp
-          ? (map['completedDate'] as Timestamp).toDate()
-          : (map['completedDate'] != null
-                ? DateTime.tryParse(map['completedDate'].toString())
-                : null),
+      dueDate: _parseDate(map['dueDate']),
+      completedDate: _parseDate(map['completedDate']),
       method: (map['method'] ?? map['paymentMethod']) as String?,
       notes: map['notes'] as String?,
       billingMonth: map['billingMonth'] as String?,
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : (map['createdAt'] != null
-                ? DateTime.tryParse(map['createdAt'].toString())
-                : null),
-      paymentDate: map['paymentDate'] is Timestamp
-          ? (map['paymentDate'] as Timestamp).toDate()
-          : (map['paymentDate'] != null
-                ? DateTime.tryParse(map['paymentDate'].toString())
-                : null),
+      createdAt: _parseDate(map['createdAt']),
+      paymentDate: _parseDate(map['paymentDate']),
+      type: PaymentType.fromName(map['type'] as String?),
+      // Left null when absent so callers can tell "cost never snapshotted"
+      // apart from "cost is genuinely zero".
+      packageCostAtBilling: (map['packageCostAtBilling'] as num?)?.toDouble(),
+      periodEnd: _parseDate(map['periodEnd']),
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
   }
 
   Map<String, dynamic> toMap() {
@@ -70,6 +92,9 @@ class PaymentModel extends PaymentEntity {
       'billingMonth': billingMonth,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'paymentDate': paymentDate != null ? Timestamp.fromDate(paymentDate!) : null,
+      'type': type.name,
+      'packageCostAtBilling': packageCostAtBilling,
+      'periodEnd': periodEnd != null ? Timestamp.fromDate(periodEnd!) : null,
     };
   }
 
@@ -93,6 +118,9 @@ class PaymentModel extends PaymentEntity {
     String? billingMonth,
     DateTime? createdAt,
     DateTime? paymentDate,
+    PaymentType? type,
+    double? packageCostAtBilling,
+    DateTime? periodEnd,
   }) {
     return PaymentModel(
       id: id ?? this.id,
@@ -108,6 +136,9 @@ class PaymentModel extends PaymentEntity {
       billingMonth: billingMonth ?? this.billingMonth,
       createdAt: createdAt ?? this.createdAt,
       paymentDate: paymentDate ?? this.paymentDate,
+      type: type ?? this.type,
+      packageCostAtBilling: packageCostAtBilling ?? this.packageCostAtBilling,
+      periodEnd: periodEnd ?? this.periodEnd,
     );
   }
 }

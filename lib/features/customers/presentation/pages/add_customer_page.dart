@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
+import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
@@ -15,6 +16,7 @@ import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dar
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
+import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:uuid/uuid.dart';
@@ -162,6 +164,24 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     super.dispose();
   }
 
+  /// The upstream cost of the selected package, to snapshot onto the first
+  /// month's charge.
+  ///
+  /// Null when no package is selected or the package carries no cost price:
+  /// recording zero would report the customer's whole bill as margin, which is
+  /// the overstatement the dashboard's `unpricedCustomerCount` exists to warn
+  /// about.
+  double? _selectedPackageCost() {
+    final id = _selectedPackageId;
+    if (id == null || id.isEmpty) return null;
+    final state = context.read<PackagesBloc>().state;
+    if (state is! PackagesLoaded) return null;
+    for (final pkg in state.packages) {
+      if (pkg.id == id) return pkg.costPrice > 0 ? pkg.costPrice : null;
+    }
+    return null;
+  }
+
   void _onPackageChanged(String? packageId) {
     if (packageId != null) {
       final packagesState = context.read<PackagesBloc>().state;
@@ -192,13 +212,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       if (!mounted) return;
 
       // Only derive nextDueDate for brand-new customers. On an edit the
-      // stored value is authoritative — PaymentsBloc advances it on every
-      // paid payment, so recomputing from joinDate would rewind the billing
-      // cycle just because someone corrected a phone number.
+      // stored value is authoritative — the Renew action advances it on every
+      // renewal, so recomputing from joinDate would rewind the billing cycle
+      // just because someone corrected a phone number.
       final nextDueDate = widget.customerId == null
-          ? DateTime(_joinDate.year, _joinDate.month + 1, _joinDate.day)
-          : (_existingNextDueDate ??
-              DateTime(_joinDate.year, _joinDate.month + 1, _joinDate.day));
+          ? BillingCycle.addMonths(_joinDate)
+          : (_existingNextDueDate ?? BillingCycle.addMonths(_joinDate));
 
       final customerId = widget.customerId ?? const Uuid().v4();
 
@@ -224,19 +243,26 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         // CREATE new customer
         context.read<CustomersBloc>().add(CreateCustomerEvent(newCustomer));
 
-        final billingMonth =
-            '${_joinDate.year}-${_joinDate.month.toString().padLeft(2, '0')}';
+        // The first month is billed here, in exactly the shape a renewal
+        // produces — same (customerId, billingMonth) key, same cost snapshot,
+        // same covered period — so month one reconciles against the accrual
+        // run rate alongside every month that follows it.
         final firstPayment = PaymentModel(
           id: const Uuid().v4(),
           customerId: customerId,
           customerName: newCustomer.name,
           amount: newCustomer.monthlyBill,
           paidAmount: newCustomer.monthlyBill,
-          billingMonth: billingMonth,
-          dueDate: nextDueDate,
+          billingMonth: BillingCycle.monthKey(_joinDate),
+          // The day the connection was sold, not the next expiry.
+          dueDate: _joinDate,
+          periodEnd: nextDueDate,
           completedDate: _joinDate,
+          paymentDate: _joinDate,
           method: 'cash',
-          status: 'completed',
+          status: 'paid',
+          type: PaymentType.subscription,
+          packageCostAtBilling: _selectedPackageCost(),
           notes: 'First month bill collected at connection setup',
           createdAt: DateTime.now(),
         );
