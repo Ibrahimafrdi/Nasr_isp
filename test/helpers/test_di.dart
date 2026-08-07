@@ -9,6 +9,7 @@ import 'package:nasr_isp/features/customers/domain/usecases/add_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/renew_subscription.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/set_customer_status.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -292,6 +293,11 @@ Future<void> registerFakeDependencies() async {
       renewSubscription: RenewSubscription(
         paymentRepository: paymentRepo,
         customerRepository: customerRepo,
+        getPackages: getPackages,
+      ),
+      setCustomerStatus: SetCustomerStatus(
+        customerRepository: customerRepo,
+        paymentRepository: paymentRepo,
         getPackages: getPackages,
       ),
     ),

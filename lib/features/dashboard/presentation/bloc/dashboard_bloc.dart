@@ -158,7 +158,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // Customer stats
       final totalCustomers = allCustomers.length;
       final activeList =
-          allCustomers.where((c) => c.status == 'active').toList();
+          allCustomers.where((c) => c.isActive).toList();
       final activeCustomers = activeList.length;
       // Expired/expiring-soon only make sense for customers still on an
       // active subscription — a cancelled customer with a stale due date

@@ -10,6 +10,7 @@ import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/features/customers/domain/entities/customer_entity.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
@@ -192,7 +193,7 @@ class _NewCustomerInstallationPageState
           : 'wireless',
       packageId: _selectedPackageId,
       monthlyBill: _previewMonthlyPackageRate,
-      status: 'active',
+      status: CustomerEntity.statusActive,
       notes: _notesController.text.trim(),
       createdAt: DateTime.now(),
       joinDate: _joinDate,

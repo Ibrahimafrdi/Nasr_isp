@@ -8,6 +8,7 @@ import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/renew_subscription.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/set_customer_status.dart';
 
 // Customers Events
 abstract class CustomersEvent extends Equatable {
@@ -93,6 +94,25 @@ class RenewCustomerEvent extends CustomersEvent {
   ];
 }
 
+/// Moves [customer] on or off service.
+///
+/// [cycle] only applies when [active] is true — it decides whether a returning
+/// customer resumes their old expiry or starts a fresh month.
+class SetCustomerStatusEvent extends CustomersEvent {
+  final CustomerModel customer;
+  final bool active;
+  final ReactivationCycle cycle;
+
+  const SetCustomerStatusEvent({
+    required this.customer,
+    required this.active,
+    this.cycle = ReactivationCycle.resumeExisting,
+  });
+
+  @override
+  List<Object?> get props => [customer, active, cycle];
+}
+
 // Customers States
 abstract class CustomersState extends Equatable {
   const CustomersState();
@@ -153,6 +173,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
   final UpdateCustomer updateCustomer;
   final DeleteCustomer deleteCustomer;
   final RenewSubscription renewSubscription;
+  final SetCustomerStatus setCustomerStatus;
 
   /// Injectable clock so renewal-date defaults and expiry filtering are
   /// testable across month boundaries.
@@ -164,6 +185,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     required this.updateCustomer,
     required this.deleteCustomer,
     required this.renewSubscription,
+    required this.setCustomerStatus,
     this.clock = DateTime.now,
   }) : super(const CustomersInitial()) {
     on<LoadCustomersEvent>(_onLoadCustomers);
@@ -171,6 +193,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     on<UpdateCustomerEvent>(_onUpdateCustomer);
     on<DeleteCustomerEvent>(_onDeleteCustomer);
     on<RenewCustomerEvent>(_onRenewCustomer);
+    on<SetCustomerStatusEvent>(_onSetCustomerStatus);
   }
 
   /// The last renewal this bloc completed, for the dialog to report on. Held
@@ -196,6 +219,32 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
       await _onLoadCustomers(const LoadCustomersEvent(), emit);
     } catch (e) {
       emit(CustomersError(message: 'Failed to renew subscription: $e'));
+    }
+  }
+
+  /// The last status change this bloc completed, for the calling page to
+  /// report on. Held outside the state for the same reason as [lastRenewal]:
+  /// a transient state would render as a blank customers page.
+  CustomerStatusOutcome? lastStatusChange;
+
+  Future<void> _onSetCustomerStatus(
+    SetCustomerStatusEvent event,
+    Emitter<CustomersState> emit,
+  ) async {
+    lastStatusChange = null;
+    try {
+      lastStatusChange = await setCustomerStatus(
+        customer: event.customer,
+        active: event.active,
+        cycle: event.cycle,
+        asOf: clock(),
+      );
+      // Re-read rather than patching the cached row: a fresh-cycle
+      // reactivation also moved the expiry and wrote a charge, and the Next
+      // Due Date column has to agree with what was persisted.
+      await _onLoadCustomers(const LoadCustomersEvent(), emit);
+    } catch (e) {
+      emit(CustomersError(message: 'Failed to update customer status: $e'));
     }
   }
 
@@ -321,16 +370,19 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
         final due = c.effectiveDueDate;
         switch (status) {
           case CustomerStatus.active:
-            return c.status == 'active' &&
+            return c.isActive &&
                 (due == null || !BillingCycle.isDueForRenewal(due, now));
           case CustomerStatus.expiringSoon:
-            if (c.status != 'active' || due == null) return false;
+            if (!c.isActive || due == null) return false;
             final days = BillingCycle.daysUntilDue(due, now);
             return days >= 0 && days <= BillingCycle.renewalWindowDays;
           case CustomerStatus.expired:
             return c.isExpiredAt(now);
           case CustomerStatus.inactive:
-            return c.status == 'inactive';
+            // Anything off service, not only the exact literal — a record
+            // carrying a malformed status would otherwise match no bucket at
+            // all and vanish from the page whenever a filter is applied.
+            return !c.isActive;
         }
       }).toList();
     }

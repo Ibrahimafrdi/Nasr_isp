@@ -151,6 +151,7 @@ void main() {
           getPackageName: (_) => 'Fibre Unlimited 50 Mbps Residential',
           onDelete: (_) {},
           onRenew: (_) {},
+          onToggleStatus: (_) {},
         ),
         width,
       );

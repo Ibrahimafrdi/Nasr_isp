@@ -26,6 +26,9 @@ class CustomerDetailsSideSheet extends StatelessWidget {
   /// Called when the user taps "Renew Subscription".
   final void Function(CustomerModel customer) onRenew;
 
+  /// Called when the user taps "Deactivate" / "Reactivate".
+  final void Function(CustomerModel customer) onToggleStatus;
+
   const CustomerDetailsSideSheet({
     super.key,
     required this.customer,
@@ -34,12 +37,15 @@ class CustomerDetailsSideSheet extends StatelessWidget {
     required this.onClose,
     required this.onDelete,
     required this.onRenew,
+    required this.onToggleStatus,
   });
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final due = customer.effectiveDueDate;
+    // Null while off service, so the Next Due Date row reports that the
+    // account isn't billing instead of a debt it isn't accruing.
+    final due = customer.billingDueDate;
     final isDueForRenewal = customer.isDueForRenewalAt(now);
     final isExpired = customer.isExpiredAt(now);
 
@@ -158,7 +164,7 @@ class CustomerDetailsSideSheet extends StatelessWidget {
                   due != null
                       ? '${DateTimeUtils.formatDate(due)}'
                           '${isExpired ? ' · expired' : (isDueForRenewal ? ' · due soon' : '')}'
-                      : 'N/A',
+                      : (customer.isActive ? 'N/A' : 'Not billing — inactive'),
                   Icons.event,
                   valueColor: isExpired
                       ? AppTheme.errorColor
@@ -188,6 +194,29 @@ class CustomerDetailsSideSheet extends StatelessWidget {
                         backgroundColor: isExpired
                             ? AppTheme.errorColor
                             : Colors.orange.shade700,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Reactivating is the whole point of opening an inactive
+                // account, so off service it leads with the same prominence
+                // Renew gets on a lapsed one.
+                if (!customer.isActive) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.play_circle_outline, size: 16),
+                      label: const Text(
+                        'Reactivate Customer',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      onPressed: () => onToggleStatus(customer),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: AppTheme.successColor,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -229,6 +258,29 @@ class CustomerDetailsSideSheet extends StatelessWidget {
                     ),
                   ],
                 ),
+
+                // Deactivating is reversible and keeps the record, so it sits
+                // below Delete rather than beside it — the two are easy to
+                // confuse and only one of them is recoverable.
+                if (customer.isActive) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.pause_circle_outline, size: 15),
+                      label: const Text(
+                        'Deactivate',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      onPressed: () => onToggleStatus(customer),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.mediumGray,
+                        side: const BorderSide(color: AppTheme.mediumGray),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

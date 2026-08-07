@@ -7,6 +7,7 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/customers/domain/entities/customer_entity.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/adaptive_form_actions.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
@@ -232,7 +233,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
             : 'wireless',
         packageId: _selectedPackageId,
         monthlyBill: double.tryParse(_monthlyBillController.text.trim()) ?? 0.0,
-        status: _existingStatus ?? 'active',
+        // Preserved, not reset: editing an inactive customer must not quietly
+        // put them back on service. That is the status dialog's job.
+        status: _existingStatus ?? CustomerEntity.statusActive,
         notes: _notesController.text.trim(),
         createdAt: _existingCreatedAt ?? DateTime.now(),
         joinDate: _joinDate,

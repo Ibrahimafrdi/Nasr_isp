@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
+import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
@@ -175,7 +176,10 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
 
           final updatedPayment = PaymentModel.from(existingPayment).copyWith(
             paidAmount: updatedPaidAmount,
-            status: isPaidInFull ? 'paid' : 'partial',
+            status: PaymentEntity.statusFor(
+              amount: existingPayment.amount,
+              paidAmount: updatedPaidAmount,
+            ),
             completedDate: isPaidInFull
                 ? (event.payment.paymentDate ?? DateTime.now())
                 : null,

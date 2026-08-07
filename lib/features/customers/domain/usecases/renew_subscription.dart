@@ -2,6 +2,7 @@ import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/features/customers/domain/entities/customer_entity.dart';
 import 'package:nasr_isp/features/customers/domain/repositories/customer_repository.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
+import 'package:nasr_isp/features/packages/domain/usecases/resolve_package_cost.dart';
 import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/domain/repositories/payment_repository.dart';
 
@@ -28,11 +29,11 @@ class RenewalOutcome {
 
 /// Renews a customer's subscription for one month.
 ///
-/// This is the ONLY place that advances [CustomerEntity.nextDueDate]. It used
-/// to happen as a side effect in three separate branches of PaymentsBloc,
-/// keyed off whichever payment happened to land — which meant settling an old
-/// partial balance could shunt a customer's expiry forward a month for free.
-/// Money and time are now decided together, once:
+/// This is the only place that advances [CustomerEntity.nextDueDate] *against
+/// a payment*. It used to happen as a side effect in three separate branches
+/// of PaymentsBloc, keyed off whichever payment happened to land — which meant
+/// settling an old partial balance could shunt a customer's expiry forward a
+/// month for free. Money and time are now decided together, once:
 ///
 ///   * the expiry moves to one month after the renewal date,
 ///   * a `(customerId, billingMonth)` charge records what was billed and
@@ -43,6 +44,10 @@ class RenewalOutcome {
 /// The expiry advances even on a part payment: the operator has granted the
 /// month, and the shortfall stays visible as an outstanding balance on the
 /// charge rather than as a silently un-renewed customer.
+///
+/// The one other writer of `nextDueDate` is [SetCustomerStatus], reactivating
+/// a customer onto a fresh cycle. That path bills nothing because no service
+/// was delivered while the account was off — see its doc comment.
 class RenewSubscription {
   final PaymentRepository paymentRepository;
   final CustomerRepository customerRepository;
@@ -101,7 +106,10 @@ class RenewSubscription {
       final isPaidInFull = paid >= existing.amount;
       charge = existing.copyWith(
         paidAmount: paid,
-        status: isPaidInFull ? 'paid' : 'partial',
+        status: PaymentEntity.statusFor(
+          amount: existing.amount,
+          paidAmount: paid,
+        ),
         completedDate: isPaidInFull ? renewalDate : null,
         method: method,
         notes: notes,
@@ -120,7 +128,10 @@ class RenewSubscription {
         customerName: customer.name,
         amount: customer.monthlyBill,
         paidAmount: amountReceived,
-        status: isPaidInFull ? 'paid' : 'partial',
+        status: PaymentEntity.statusFor(
+          amount: customer.monthlyBill,
+          paidAmount: amountReceived,
+        ),
         // The date this charge fell due — the expiry it cures — not the next
         // one. The next expiry is [periodEnd].
         dueDate: customer.effectiveDueDate ?? renewalDate,
@@ -143,25 +154,8 @@ class RenewSubscription {
     return RenewalOutcome(customer: renewed, payment: charge);
   }
 
-  /// The upstream cost for the renewed month, or null when it cannot be
-  /// established.
-  ///
-  /// Null rather than zero on purpose: zero would report the customer's whole
-  /// bill as margin, which is exactly the overstatement the dashboard already
-  /// warns about via `unpricedCustomerCount`. A package lookup failure must
-  /// not block the operator from taking money, so it degrades to null.
-  Future<double?> _resolvePackageCost(String? packageId) async {
-    if (packageId == null || packageId.isEmpty) return null;
-    try {
-      final packages = await getPackages();
-      for (final package in packages) {
-        if (package.id == packageId) {
-          return package.costPrice > 0 ? package.costPrice : null;
-        }
-      }
-    } catch (_) {
-      // Fall through — an unresolvable cost is recorded as unknown.
-    }
-    return null;
-  }
+  /// The upstream cost for the renewed month. See [resolvePackageCost] for why
+  /// an unresolvable cost is null rather than zero.
+  Future<double?> _resolvePackageCost(String? packageId) =>
+      resolvePackageCost(getPackages, packageId);
 }

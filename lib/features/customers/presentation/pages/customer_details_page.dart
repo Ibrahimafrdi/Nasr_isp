@@ -8,6 +8,7 @@ import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/customer_status_dialogs.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
@@ -42,6 +43,46 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     // Load installations for this subscriber
     context.read<InstallationBloc>().add(
       LoadCustomerInstallationsEvent(widget.customerId),
+    );
+  }
+
+  /// Opens the on/off-service dialog and re-reads the customer once the bloc
+  /// has finished persisting.
+  ///
+  /// This page holds its own [_customer] snapshot rather than rendering from
+  /// bloc state, so it has to wait for the reload the event triggers before
+  /// re-reading — otherwise the header would still show the old status.
+  Future<void> _toggleStatus() async {
+    final customer = _customer;
+    if (customer == null) return;
+
+    final bloc = context.read<CustomersBloc>();
+    final changed = await showCustomerStatusDialog(
+      context,
+      customer: customer,
+    );
+    if (!changed || !mounted) return;
+
+    await bloc.stream.firstWhere(
+      (s) => s is CustomersLoaded || s is CustomersError,
+    );
+    if (!mounted) return;
+    await _loadCustomer();
+    if (!mounted) return;
+
+    // A fresh-cycle reactivation raises a charge the operator now has to
+    // collect, and can fail to raise one at all — either way they need telling.
+    final outcome = bloc.lastStatusChange;
+    if (outcome == null) return;
+    final report = describeStatusChange(outcome);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(report.message),
+        backgroundColor: report.isWarning
+            ? AppTheme.warningColor
+            : AppTheme.successColor,
+        duration: const Duration(seconds: 5),
+      ),
     );
   }
 
@@ -210,12 +251,19 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                         ),
                         if (authState.user.isAdmin) ...[
                           const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: () => context.go(
-                              '${RoutePaths.customers}/${_customer!.id}/edit',
-                            ),
-                            icon: const Icon(Icons.edit, size: 16),
-                            label: const Text('Edit Account'),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () => context.go(
+                                  '${RoutePaths.customers}/${_customer!.id}/edit',
+                                ),
+                                icon: const Icon(Icons.edit, size: 16),
+                                label: const Text('Edit Account'),
+                              ),
+                              _statusActionButton(),
+                            ],
                           ),
                         ],
                       ],
@@ -230,7 +278,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
-                        if (authState.user.isAdmin)
+                        if (authState.user.isAdmin) ...[
                           OutlinedButton.icon(
                             onPressed: () => context.go(
                               '${RoutePaths.customers}/${_customer!.id}/edit',
@@ -238,6 +286,9 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                             icon: const Icon(Icons.edit, size: 16),
                             label: const Text('Edit Account'),
                           ),
+                          const SizedBox(width: 8),
+                          _statusActionButton(),
+                        ],
                       ],
                     ),
 
@@ -492,42 +543,52 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                   : 'N/A',
               Icons.calendar_today,
             ),
-            _buildInfoRow(
-              'Next Due Date',
-              () {
-                final due =
-                    _customer!.nextDueDate ??
-                    (_customer!.createdAt != null
-                        ? DateTime(
-                            _customer!.createdAt!.year,
-                            _customer!.createdAt!.month + 1,
-                            _customer!.createdAt!.day,
-                          )
-                        : null);
-                return due != null ? DateTimeUtils.formatDate(due) : 'N/A';
-              }(),
-              Icons.event,
-              isEstimated:
-                  _customer!.nextDueDate == null &&
-                  _customer!.createdAt != null,
-              valueColor: () {
-                final due =
-                    _customer!.nextDueDate ??
-                    (_customer!.createdAt != null
-                        ? DateTime(
-                            _customer!.createdAt!.year,
-                            _customer!.createdAt!.month + 1,
-                            _customer!.createdAt!.day,
-                          )
-                        : null);
-                if (due == null) return null;
-                final diff = due.difference(DateTime.now()).inDays;
-                if (diff < 0) return AppTheme.errorColor;
-                if (diff <= 7) return Colors.orange;
-                return null;
-              }(),
-            ),
+            // Reads billingDueDate rather than rolling its own date maths:
+            // this row used the `DateTime(y, m + 1, d)` form, which overflows
+            // a month-end anniversary into the following month and made this
+            // page disagree with the customers list about the same customer.
+            () {
+              final due = _customer!.billingDueDate;
+              final diff = due == null
+                  ? null
+                  : BillingCycle.daysUntilDue(due, DateTime.now());
+              return _buildInfoRow(
+                'Next Due Date',
+                due != null
+                    ? DateTimeUtils.formatDate(due)
+                    : (_customer!.isActive ? 'N/A' : 'Not billing — inactive'),
+                Icons.event,
+                isEstimated: due != null && _customer!.nextDueDate == null,
+                valueColor: diff == null
+                    ? null
+                    : (diff < 0
+                          ? AppTheme.errorColor
+                          : (diff <= BillingCycle.renewalWindowDays
+                                ? Colors.orange
+                                : null)),
+              );
+            }(),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// The Deactivate / Reactivate control, shared by the mobile and desktop
+  /// headers so the two can't drift apart in wording.
+  Widget _statusActionButton() {
+    final isActive = _customer!.isActive;
+    return OutlinedButton.icon(
+      onPressed: _toggleStatus,
+      icon: Icon(
+        isActive ? Icons.pause_circle_outline : Icons.play_circle_outline,
+        size: 16,
+      ),
+      label: Text(isActive ? 'Deactivate' : 'Reactivate'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isActive ? AppTheme.mediumGray : AppTheme.successColor,
+        side: BorderSide(
+          color: isActive ? AppTheme.mediumGray : AppTheme.successColor,
         ),
       ),
     );

@@ -12,6 +12,7 @@ import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dar
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_card_list.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_details_side_sheet.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_filter_panel.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/customer_status_dialogs.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/renew_subscription_dialog.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
@@ -258,6 +259,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                   getPackageName: _getPackageName,
                                   onDelete: _confirmDelete,
                                   onRenew: _renew,
+                                  onToggleStatus: _toggleStatus,
                                 ),
                                 desktop: Card(
                                   child: Padding(
@@ -281,6 +283,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                             onClose: () => setState(() => _selectedCustomerForDetail = null),
                                             onDelete: _confirmDelete,
                                             onRenew: _renew,
+                                            onToggleStatus: _toggleStatus,
                                           ),
                                         ],
                                       ],
@@ -355,6 +358,41 @@ class _CustomersPageState extends State<CustomersPage> {
     );
   }
 
+  Future<void> _toggleStatus(CustomerModel customer) async {
+    final bloc = context.read<CustomersBloc>();
+    final changed = await showCustomerStatusDialog(
+      context,
+      customer: customer,
+    );
+    if (!changed || !mounted) return;
+    // The side sheet holds a snapshot the reload is about to make stale, and
+    // it is the surface the toggle was most likely pressed from. Closing it
+    // is simpler than re-resolving the row out of the incoming page.
+    if (_selectedCustomerForDetail?.id == customer.id) {
+      setState(() => _selectedCustomerForDetail = null);
+    }
+
+    await bloc.stream.firstWhere(
+      (s) => s is CustomersLoaded || s is CustomersError,
+    );
+    if (!mounted) return;
+
+    // A fresh-cycle reactivation raises a charge the operator now has to
+    // collect, and can fail to raise one at all — either way they need telling.
+    final outcome = bloc.lastStatusChange;
+    if (outcome == null) return;
+    final report = describeStatusChange(outcome);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(report.message),
+        backgroundColor: report.isWarning
+            ? AppTheme.warningColor
+            : AppTheme.successColor,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
   Widget _buildCustomersTable(
     List<CustomerModel> customers,
     UserModel currentUser,
@@ -371,7 +409,9 @@ class _CustomersPageState extends State<CustomersPage> {
       ],
       rows: customers.map((customer) {
         final isSelected = _selectedCustomerForDetail?.id == customer.id;
-        final dueDate = customer.effectiveDueDate;
+        // Null while off service — an inactive account is not accruing a bill,
+        // so the cell reads "Not billing" rather than an arrears figure.
+        final dueDate = customer.billingDueDate;
         final isDueForRenewal = customer.isDueForRenewalAt(now);
         final isExpired = customer.isExpiredAt(now);
 
@@ -452,9 +492,13 @@ class _CustomersPageState extends State<CustomersPage> {
             // Next Due Date
             DataCell(() {
               if (dueDate == null) {
-                return const Text(
-                  '—',
-                  style: TextStyle(color: AppTheme.mediumGray),
+                return Text(
+                  customer.isActive ? '—' : 'Not billing',
+                  style: const TextStyle(
+                    color: AppTheme.mediumGray,
+                    fontStyle: FontStyle.italic,
+                    fontSize: 12,
+                  ),
                 );
               }
               final diff = BillingCycle.daysUntilDue(dueDate, now);
@@ -564,6 +608,21 @@ class _CustomersPageState extends State<CustomersPage> {
                     onPressed: () {
                       context.go('${RoutePaths.customers}/${customer.id}/edit');
                     },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      customer.isActive
+                          ? Icons.pause_circle_outline
+                          : Icons.play_circle_outline,
+                      size: 17,
+                    ),
+                    color: customer.isActive
+                        ? AppTheme.mediumGray
+                        : AppTheme.successColor,
+                    tooltip: customer.isActive
+                        ? 'Deactivate — stop tracking renewals'
+                        : 'Reactivate — put back on service',
+                    onPressed: () => _toggleStatus(customer),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 17),

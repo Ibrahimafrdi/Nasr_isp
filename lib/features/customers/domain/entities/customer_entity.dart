@@ -32,6 +32,26 @@ class CustomerEntity {
     this.nextDueDate,
   });
 
+  /// The only two values [status] is ever persisted as.
+  ///
+  /// [status] is a raw string because that is what Firestore holds, but these
+  /// are the sole legal contents. A document carrying anything else — an empty
+  /// string from [CustomerModel.fromMap]'s fallback, or a stray value from a
+  /// seed script — is matched by no status filter at all and so becomes
+  /// invisible on the Customers page. Write through [statusActive] and
+  /// [statusInactive] rather than repeating the literals.
+  static const String statusActive = 'active';
+  static const String statusInactive = 'inactive';
+
+  /// Whether this account is still on service.
+  ///
+  /// Everything billing-related keys off this: an inactive customer has no
+  /// expiry to chase, no Renew action, and no due date worth showing. Anything
+  /// not exactly [statusActive] counts as off service, so a malformed status
+  /// fails closed — silently dropping a customer out of renewal reports is
+  /// safer than inventing a renewal that was never owed.
+  bool get isActive => status == statusActive;
+
   /// The expiry to act on: [nextDueDate], or one month after [createdAt] for
   /// legacy records that never had one written.
   ///
@@ -39,16 +59,29 @@ class CustomerEntity {
   /// four hand-rolled copies this replaced used the rolling-over
   /// `DateTime(y, m + 1, d)` form, so a month-end customer's row and the
   /// dashboard's expired count could disagree by a couple of days.
+  ///
+  /// Note this stays non-null for an inactive customer — the stored expiry is
+  /// preserved so reactivation can resume the old cycle. Use
+  /// [billingDueDate] on any surface that renders it.
   DateTime? get effectiveDueDate => BillingCycle.effectiveDueDate(
         nextDueDate: nextDueDate,
         createdAt: createdAt,
       );
 
+  /// The due date to *display*: [effectiveDueDate], or null while the customer
+  /// is off service.
+  ///
+  /// An inactive account is not accruing a bill, so showing "Overdue by 400d"
+  /// next to it would be reporting a debt that isn't owed. The underlying
+  /// [nextDueDate] is deliberately left intact in Firestore so reactivation
+  /// can offer to resume that cycle.
+  DateTime? get billingDueDate => isActive ? effectiveDueDate : null;
+
   /// Whether service has lapsed as of [now]. Cancelled customers are never
   /// reported as expired — a stale due date on a closed account is not a
   /// renewal to chase.
   bool isExpiredAt(DateTime now) {
-    if (status != 'active') return false;
+    if (!isActive) return false;
     final due = effectiveDueDate;
     return due != null && BillingCycle.isExpired(due, now);
   }
@@ -56,7 +89,7 @@ class CustomerEntity {
   /// Whether the Renew action should be offered: expired, due today, or
   /// inside the [BillingCycle.renewalWindowDays] warning window.
   bool isDueForRenewalAt(DateTime now) {
-    if (status != 'active') return false;
+    if (!isActive) return false;
     final due = effectiveDueDate;
     return due != null && BillingCycle.isDueForRenewal(due, now);
   }

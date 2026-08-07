@@ -26,6 +26,9 @@ class CustomerCardList extends StatelessWidget {
   /// expired or inside the renewal window.
   final void Function(CustomerModel customer) onRenew;
 
+  /// Called when the user taps "Deactivate" / "Reactivate".
+  final void Function(CustomerModel customer) onToggleStatus;
+
   const CustomerCardList({
     super.key,
     required this.customers,
@@ -33,6 +36,7 @@ class CustomerCardList extends StatelessWidget {
     required this.getPackageName,
     required this.onDelete,
     required this.onRenew,
+    required this.onToggleStatus,
   });
 
   @override
@@ -46,6 +50,7 @@ class CustomerCardList extends StatelessWidget {
         getPackageName: getPackageName,
         onDelete: onDelete,
         onRenew: onRenew,
+        onToggleStatus: onToggleStatus,
         now: now,
       )).toList(),
     );
@@ -58,6 +63,7 @@ class _CustomerCard extends StatelessWidget {
   final String Function(String? packageId) getPackageName;
   final void Function(CustomerModel customer) onDelete;
   final void Function(CustomerModel customer) onRenew;
+  final void Function(CustomerModel customer) onToggleStatus;
   final DateTime now;
 
   const _CustomerCard({
@@ -66,6 +72,7 @@ class _CustomerCard extends StatelessWidget {
     required this.getPackageName,
     required this.onDelete,
     required this.onRenew,
+    required this.onToggleStatus,
     required this.now,
   });
 
@@ -83,7 +90,8 @@ class _CustomerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDueForRenewal = customer.isDueForRenewalAt(now);
     final isExpired = customer.isExpiredAt(now);
-    final due = customer.effectiveDueDate;
+    // Null while off service, so the due chip drops off an inactive card.
+    final due = customer.billingDueDate;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -199,6 +207,24 @@ class _CustomerCard extends StatelessWidget {
                 onPressed: () {
                   context.go('${RoutePaths.customers}/${customer.id}/edit');
                 },
+              ),
+              TextButton.icon(
+                icon: Icon(
+                  customer.isActive
+                      ? Icons.pause_circle_outline
+                      : Icons.play_circle_outline,
+                  size: 16,
+                ),
+                label: Text(
+                  customer.isActive ? 'Deactivate' : 'Reactivate',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: customer.isActive
+                      ? AppTheme.mediumGray
+                      : AppTheme.successColor,
+                ),
+                onPressed: () => onToggleStatus(customer),
               ),
               TextButton.icon(
                 icon: const Icon(Icons.delete, size: 16),

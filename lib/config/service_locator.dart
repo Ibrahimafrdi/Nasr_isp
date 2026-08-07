@@ -14,6 +14,7 @@ import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/update_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/delete_customer.dart';
 import 'package:nasr_isp/features/customers/domain/usecases/renew_subscription.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/set_customer_status.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 import 'package:nasr_isp/features/inventory/data/datasources/inventory_remote_data_source.dart';
 import 'package:nasr_isp/features/inventory/data/repositories/inventory_repository_impl.dart';
@@ -130,6 +131,15 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(() => AddCustomer(getIt()));
   getIt.registerLazySingleton(() => UpdateCustomer(getIt()));
   getIt.registerLazySingleton(() => DeleteCustomer(getIt()));
+  // Spans customers + payments + packages: a fresh-cycle reactivation moves
+  // the expiry and raises the unpaid charge for the month it grants.
+  getIt.registerLazySingleton(
+    () => SetCustomerStatus(
+      customerRepository: getIt(),
+      paymentRepository: getIt(),
+      getPackages: getIt(),
+    ),
+  );
   // Spans customers + payments + packages: renewing writes the charge, snapshots
   // the upstream cost onto it, and advances the expiry as one operation.
   getIt.registerLazySingleton(
@@ -178,6 +188,7 @@ void setupServiceLocator() {
       updateCustomer: getIt(),
       deleteCustomer: getIt(),
       renewSubscription: getIt(),
+      setCustomerStatus: getIt(),
     ),
   );
 

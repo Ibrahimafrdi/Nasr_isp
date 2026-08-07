@@ -92,6 +92,27 @@ class PaymentEntity extends Equatable {
 
   bool get isSettled => status == 'paid';
 
+  /// The status a charge carries for [paidAmount] collected against [amount].
+  ///
+  /// Every path that writes or tops up a charge derives its status from here.
+  /// The hand-rolled `isPaidInFull ? 'paid' : 'partial'` copies this replaced
+  /// all shared one blind spot: nothing collected is `'unpaid'`, not
+  /// `'partial'` — partial means some cash arrived. A charge raised with zero
+  /// against it used to be labelled as though it had been part-collected,
+  /// which is invisible to the KPIs (both count as pending) but wrong in the
+  /// payments filter and wrong to anyone reading the row.
+  ///
+  /// A zero-amount charge is settled by definition, so the full-payment test
+  /// is applied first.
+  static String statusFor({
+    required double amount,
+    required double paidAmount,
+  }) {
+    if (paidAmount >= amount) return 'paid';
+    if (paidAmount <= 0) return 'unpaid';
+    return 'partial';
+  }
+
   bool get isSubscription => type == PaymentType.subscription;
 
   /// Margin realized on the cash actually in hand.

@@ -8,6 +8,7 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/core/utils/input_formatters.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/widgets/payment_card_list.dart';
 import 'package:nasr_isp/features/payments/presentation/widgets/payment_filter_panel.dart';
@@ -431,7 +432,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 UpdatePaymentEvent(
                   payment.copyWith(
                     paidAmount: newPaid,
-                    status: isPaidInFull ? 'paid' : 'partial',
+                    status: PaymentEntity.statusFor(
+                      amount: payment.amount,
+                      paidAmount: newPaid,
+                    ),
                     // Only stamp a completion date once the charge is fully
                     // settled; a part payment leaves the charge open.
                     completedDate: isPaidInFull ? DateTime.now() : null,
