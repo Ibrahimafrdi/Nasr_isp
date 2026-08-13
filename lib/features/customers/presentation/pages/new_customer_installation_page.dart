@@ -52,6 +52,7 @@ class _NewCustomerInstallationPageState
   final _addressController = TextEditingController();
   final _monthlyBillController = TextEditingController();
   final _notesController = TextEditingController();
+  final _userIdController = TextEditingController();
 
   // Installation fields
   final _installationChargesController = TextEditingController();
@@ -115,6 +116,7 @@ class _NewCustomerInstallationPageState
     _monthlyBillController.removeListener(_recomputePreview);
     _monthlyBillController.dispose();
     _notesController.dispose();
+    _userIdController.dispose();
     _installationChargesController.removeListener(_recomputePreview);
     _installationChargesController.dispose();
     _laborCostController.removeListener(_recomputePreview);
@@ -195,6 +197,9 @@ class _NewCustomerInstallationPageState
       monthlyBill: _previewMonthlyPackageRate,
       status: CustomerEntity.statusActive,
       notes: _notesController.text.trim(),
+      userId: _userIdController.text.trim().isEmpty
+          ? null
+          : _userIdController.text.trim(),
       createdAt: DateTime.now(),
       joinDate: _joinDate,
       nextDueDate: nextDueDate,
@@ -456,6 +461,12 @@ class _NewCustomerInstallationPageState
                                         label: 'Notes / Remarks',
                                         controller: _notesController,
                                         maxLines: 2,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      AppFormField(
+                                        label: 'User ID',
+                                        hintText: 'Optional external / portal user ID',
+                                        controller: _userIdController,
                                       ),
                                       const SizedBox(height: 16),
                                       _datePickerTile(

@@ -12,6 +12,7 @@ class CustomerEntity {
   final double monthlyBill;
   final String status;
   final String notes;
+  final String? userId;
   final DateTime? createdAt;
   final DateTime? joinDate;
   final DateTime? nextDueDate;
@@ -27,6 +28,7 @@ class CustomerEntity {
     required this.monthlyBill,
     required this.status,
     required this.notes,
+    this.userId,
     this.createdAt,
     this.joinDate,
     this.nextDueDate,
@@ -144,6 +146,7 @@ class CustomerEntity {
     double? monthlyBill,
     String? status,
     String? notes,
+    String? userId,
     DateTime? createdAt,
     DateTime? joinDate,
     DateTime? nextDueDate,
@@ -158,6 +161,7 @@ class CustomerEntity {
         monthlyBill: monthlyBill ?? this.monthlyBill,
         status: status ?? this.status,
         notes: notes ?? this.notes,
+        userId: userId ?? this.userId,
         createdAt: createdAt ?? this.createdAt,
         joinDate: joinDate ?? this.joinDate,
         nextDueDate: nextDueDate ?? this.nextDueDate,

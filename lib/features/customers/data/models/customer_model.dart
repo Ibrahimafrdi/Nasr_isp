@@ -13,6 +13,7 @@ class CustomerModel extends CustomerEntity {
     required super.monthlyBill,
     required super.status,
     required super.notes,
+    super.userId,
     super.createdAt,
     super.joinDate,
     super.nextDueDate,
@@ -30,6 +31,7 @@ class CustomerModel extends CustomerEntity {
       monthlyBill: (map['monthlyBill'] as num?)?.toDouble() ?? 0.0,
       status: map['status'] as String? ?? '',
       notes: map['notes'] as String? ?? '',
+      userId: map['userId'] as String?,
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
           : (map['createdAt'] != null
@@ -58,6 +60,7 @@ class CustomerModel extends CustomerEntity {
       'monthlyBill': monthlyBill,
       'status': status,
       'notes': notes,
+      'userId': userId,
       'createdAt': createdAt,
       'joinDate': joinDate != null ? Timestamp.fromDate(joinDate!) : null,
       'nextDueDate': nextDueDate != null
@@ -83,6 +86,7 @@ class CustomerModel extends CustomerEntity {
     double? monthlyBill,
     String? status,
     String? notes,
+    String? userId,
     DateTime? createdAt,
     DateTime? joinDate,
     DateTime? nextDueDate,
@@ -98,6 +102,7 @@ class CustomerModel extends CustomerEntity {
       monthlyBill: monthlyBill ?? this.monthlyBill,
       status: status ?? this.status,
       notes: notes ?? this.notes,
+      userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       joinDate: joinDate ?? this.joinDate,
       nextDueDate: nextDueDate ?? this.nextDueDate,

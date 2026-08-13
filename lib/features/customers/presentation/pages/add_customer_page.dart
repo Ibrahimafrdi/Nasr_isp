@@ -40,6 +40,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   late TextEditingController _monthlyBillController;
   // late TextEditingController _installationCostController;
   late TextEditingController _notesController;
+  late TextEditingController _userIdController;
 
   ConnectionType _selectedConnectionType = ConnectionType.wireless;
   String? _selectedPackageId;
@@ -65,6 +66,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     _monthlyBillController = TextEditingController();
     // _installationCostController = TextEditingController();
     _notesController = TextEditingController();
+    _userIdController = TextEditingController();
     _isLoadingExisting = widget.customerId != null;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -132,6 +134,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       // _installationCostController.text = customer.installationCost.toString();
       _selectedPackageId = customer.packageId;
       _notesController.text = customer.notes;
+      _userIdController.text = customer.userId ?? '';
       _existingStatus = customer.status;
       _existingCreatedAt = customer.createdAt;
       _existingNextDueDate = customer.nextDueDate;
@@ -162,6 +165,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     _monthlyBillController.dispose();
     // _installationCostController.dispose();
     _notesController.dispose();
+    _userIdController.dispose();
     super.dispose();
   }
 
@@ -237,6 +241,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         // put them back on service. That is the status dialog's job.
         status: _existingStatus ?? CustomerEntity.statusActive,
         notes: _notesController.text.trim(),
+        userId: _userIdController.text.trim().isEmpty
+            ? null
+            : _userIdController.text.trim(),
         createdAt: _existingCreatedAt ?? DateTime.now(),
         joinDate: _joinDate,
         nextDueDate: nextDueDate,
@@ -489,6 +496,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                     label: 'Notes / Remarks',
                                     controller: _notesController,
                                     maxLines: 2,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AppFormField(
+                                    label: 'User ID',
+                                    hintText: 'Optional external / portal user ID',
+                                    controller: _userIdController,
                                   ),
                                   const SizedBox(height: 16),
                                   // Join Date picker

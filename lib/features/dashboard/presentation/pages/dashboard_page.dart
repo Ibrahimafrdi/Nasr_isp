@@ -100,145 +100,100 @@ class _DashboardPageState extends State<DashboardPage> {
             return RefreshIndicator(
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ===== HEADER =====
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Good ${_getGreeting()}, ${user.name} 👋',
-                              style: GoogleFonts.inter(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.black,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ===== HEADER =====
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Good ${_getGreeting()}, ${user.name} 👋',
+                                style: GoogleFonts.inter(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.black,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              isAdmin
-                                  ? 'Admin Dashboard Overview'
-                                  : 'Employee Performance Metrics',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.darkGray,
+                              const SizedBox(height: 4),
+                              Text(
+                                isAdmin
+                                    ? 'Admin Dashboard Overview'
+                                    : 'Employee Performance Metrics',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.darkGray,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-                  // ===== ALERTS (Admin Only) =====
-                  if (isAdmin && state is DashboardLoaded) ...[
-                    if (_showExpiringAlert &&
-                        state.expiringCustomers.isNotEmpty)
-                      AlertPanel(
-                        type: AlertType.warning,
-                        title:
-                            '${state.stats.expiringsoon} Customers Expiring Soon',
-                        message:
-                            'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
-                        icon: Icons.warning_amber,
-                        actionLabel: 'Review',
-                        onActionTap: () => context.go(RoutePaths.customers),
-                        onDismiss: () =>
-                            setState(() => _showExpiringAlert = false),
-                      ),
-                    if (_showOverdueAlert &&
-                        state.stats.pendingThisMonth > 0) ...[
+                    // ===== ALERTS (Admin Only) =====
+                    if (isAdmin && state is DashboardLoaded) ...[
                       if (_showExpiringAlert &&
                           state.expiringCustomers.isNotEmpty)
-                        const SizedBox(height: 16),
-                      // Routes to wherever the fix actually is: an unrenewed
-                      // customer is renewed from the Customers page, while a
-                      // part-paid charge is settled on the Payments ledger.
-                      AlertPanel(
-                        type: AlertType.error,
-                        title: state.stats.expiredCustomersDueCount > 0
-                            ? 'Renewals Outstanding'
-                            : 'Balances Outstanding',
-                        message: _pendingAlertMessage(state.stats),
-                        icon: Icons.error_outline,
-                        actionLabel: state.stats.expiredCustomersDueCount > 0
-                            ? 'Renew Now'
-                            : 'Collect Now',
-                        onActionTap: () => context.go(
-                          state.stats.expiredCustomersDueCount > 0
-                              ? RoutePaths.customers
-                              : RoutePaths.payments,
+                        AlertPanel(
+                          type: AlertType.warning,
+                          title:
+                              '${state.stats.expiringsoon} Customers Expiring Soon',
+                          message:
+                              'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
+                          icon: Icons.warning_amber,
+                          actionLabel: 'Review',
+                          onActionTap: () => context.go(RoutePaths.customers),
+                          onDismiss: () =>
+                              setState(() => _showExpiringAlert = false),
                         ),
-                        onDismiss: () =>
-                            setState(() => _showOverdueAlert = false),
-                      ),
-                    ],
-                    if ((state.expiringCustomers.isNotEmpty ||
-                            state.pendingPayments.isNotEmpty) &&
-                        (_showExpiringAlert || _showOverdueAlert))
-                      const SizedBox(height: 32),
-                  ],
-
-                  // ===== KPI CARDS =====
-                  Text(
-                    isAdmin ? 'Financial & Service Overview' : 'Key Metrics',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildKPICards(
-                    isAdmin,
-                    state is DashboardLoaded
-                        ? state.stats
-                        : const DashboardStatsModel(
-                            totalCustomers: 0,
-                            activeCustomers: 0,
-                            expiredCustomers: 0,
-                            expiringsoon: 0,
-                            subscriberRunRateMargin: 0,
-                            cashCollectedThisMonth: 0,
-                            monthlyExpenses: 0,
-                            netProfit: 0,
-                            pendingPayments: 0,
-                            pendingPaymentsCount: 0,
-                            pendingInstallations: 0,
-                            completedInstallations: 0,
-                            monthlyInstallationRevenue: 0,
-                            monthlyInstallationCost: 0,
-                            monthlyInstallationProfit: 0,
+                      if (_showOverdueAlert &&
+                          state.stats.pendingThisMonth > 0) ...[
+                        if (_showExpiringAlert &&
+                            state.expiringCustomers.isNotEmpty)
+                          const SizedBox(height: 16),
+                        // Routes to wherever the fix actually is: an unrenewed
+                        // customer is renewed from the Customers page, while a
+                        // part-paid charge is settled on the Payments ledger.
+                        AlertPanel(
+                          type: AlertType.error,
+                          title: state.stats.expiredCustomersDueCount > 0
+                              ? 'Renewals Outstanding'
+                              : 'Balances Outstanding',
+                          message: _pendingAlertMessage(state.stats),
+                          icon: Icons.error_outline,
+                          actionLabel: state.stats.expiredCustomersDueCount > 0
+                              ? 'Renew Now'
+                              : 'Collect Now',
+                          onActionTap: () => context.go(
+                            state.stats.expiredCustomersDueCount > 0
+                                ? RoutePaths.customers
+                                : RoutePaths.payments,
                           ),
-                  ),
-                  const SizedBox(height: 32),
+                          onDismiss: () =>
+                              setState(() => _showOverdueAlert = false),
+                        ),
+                      ],
+                      if ((state.expiringCustomers.isNotEmpty ||
+                              state.pendingPayments.isNotEmpty) &&
+                          (_showExpiringAlert || _showOverdueAlert))
+                        const SizedBox(height: 32),
+                    ],
 
-                  // ===== QUICK ACTIONS =====
-                  Text(
-                    'Quick Actions',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildQuickActions(context, isAdmin),
-                  const SizedBox(height: 32),
-
-                  // ===== ANALYTICS (Admin Only) =====
-                  if (isAdmin && state is DashboardLoaded) ...[
+                    // ===== KPI CARDS =====
                     Text(
-                      'Analytics & Performance Statistics',
+                      isAdmin ? 'Financial & Service Overview' : 'Key Metrics',
                       style: GoogleFonts.inter(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -246,48 +201,33 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    AnalyticsSection(
-                      monthlyRevenue6: state.monthlyRevenue6,
-                      customerGrowth6: state.customerGrowth6,
-                      connectionTypeDist: state.connectionTypeDist,
-                      paymentByMethod: state.paymentByMethod,
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-
-                  // ===== RECENT ACTIVITY =====
-                  Text(
-                    'Recent Activity',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildActivityTimeline(
-                    state is DashboardLoaded ? state.recentPayments : [],
-                  ),
-                  const SizedBox(height: 32),
-
-                  // ===== DATA TABLES (Admin Only) =====
-                  if (isAdmin) ...[
-                    Text(
-                      'Expiring Contracts (Next 7 Days)',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildExpiringTable(
-                      state is DashboardLoaded ? state.expiringCustomers : [],
+                    _buildKPICards(
+                      isAdmin,
+                      state is DashboardLoaded
+                          ? state.stats
+                          : const DashboardStatsModel(
+                              totalCustomers: 0,
+                              activeCustomers: 0,
+                              expiredCustomers: 0,
+                              expiringsoon: 0,
+                              subscriberRunRateMargin: 0,
+                              cashCollectedThisMonth: 0,
+                              monthlyExpenses: 0,
+                              netProfit: 0,
+                              pendingPayments: 0,
+                              pendingPaymentsCount: 0,
+                              pendingInstallations: 0,
+                              completedInstallations: 0,
+                              monthlyInstallationRevenue: 0,
+                              monthlyInstallationCost: 0,
+                              monthlyInstallationProfit: 0,
+                            ),
                     ),
                     const SizedBox(height: 32),
 
+                    // ===== QUICK ACTIONS =====
                     Text(
-                      'Recent Payments',
+                      'Quick Actions',
                       style: GoogleFonts.inter(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -295,33 +235,96 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildRecentPaymentsTable(
+                    _buildQuickActions(context, isAdmin),
+                    const SizedBox(height: 32),
+
+                    // ===== ANALYTICS (Admin Only) =====
+                    if (isAdmin && state is DashboardLoaded) ...[
+                      Text(
+                        'Analytics & Performance Statistics',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      AnalyticsSection(
+                        monthlyRevenue6: state.monthlyRevenue6,
+                        customerGrowth6: state.customerGrowth6,
+                        connectionTypeDist: state.connectionTypeDist,
+                        paymentByMethod: state.paymentByMethod,
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+
+                    // ===== RECENT ACTIVITY =====
+                    Text(
+                      'Recent Activity',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildActivityTimeline(
                       state is DashboardLoaded ? state.recentPayments : [],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
-                    // ===== INSTALLATION COUNTS (Admin Only) =====
-                    Text(
-                      'Installation Overview',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.black,
+                    // ===== DATA TABLES (Admin Only) =====
+                    if (isAdmin) ...[
+                      Text(
+                        'Expiring Contracts (Next 7 Days)',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.black,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInstallationOverview(
-                      state is DashboardLoaded
-                          ? state.stats.pendingInstallations
-                          : 0,
-                      state is DashboardLoaded
-                          ? state.stats.completedInstallations
-                          : 0,
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 16),
+                      _buildExpiringTable(
+                        state is DashboardLoaded ? state.expiringCustomers : [],
+                      ),
+                      const SizedBox(height: 32),
+
+                      Text(
+                        'Recent Payments',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildRecentPaymentsTable(
+                        state is DashboardLoaded ? state.recentPayments : [],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ===== INSTALLATION COUNTS (Admin Only) =====
+                      Text(
+                        'Installation Overview',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildInstallationOverview(
+                        state is DashboardLoaded
+                            ? state.stats.pendingInstallations
+                            : 0,
+                        state is DashboardLoaded
+                            ? state.stats.completedInstallations
+                            : 0,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ],
-                ],
-              ),
+                ),
               ),
             );
           },
@@ -361,7 +364,11 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               SizedBox(width: double.infinity, height: 150, child: pendingCard),
               const SizedBox(height: 16),
-              SizedBox(width: double.infinity, height: 150, child: completedCard),
+              SizedBox(
+                width: double.infinity,
+                height: 150,
+                child: completedCard,
+              ),
             ],
           );
         }
@@ -399,7 +406,8 @@ class _DashboardPageState extends State<DashboardPage> {
   /// Unabbreviated, for the Net Profit reconciliation subtitle. The
   /// abbreviated form above rounds to the nearest thousand, which would make
   /// "142K + 39K − 61K" visibly fail to add up to the headline figure.
-  String _formatCurrencyFull(double amount) => 'Rs ${amount.toStringAsFixed(0)}';
+  String _formatCurrencyFull(double amount) =>
+      'Rs ${amount.toStringAsFixed(0)}';
 
   /// States the collection against the accrual yardstick, because the headline
   /// cash figure on its own says nothing about whether the month is on track.
@@ -554,7 +562,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 // Spells out the arithmetic so the three cards above visibly
                 // reconcile to this one even when the grid wraps them onto
                 // separate rows.
-                subtitle: '${_formatCurrencyFull(stats.subscriberRunRateMargin)}'
+                subtitle:
+                    '${_formatCurrencyFull(stats.subscriberRunRateMargin)}'
                     ' + ${_formatCurrencyFull(stats.monthlyInstallationProfit)}'
                     ' − ${_formatCurrencyFull(stats.monthlyExpenses)}',
                 trend: null,
@@ -672,11 +681,11 @@ class _DashboardPageState extends State<DashboardPage> {
               onTap: () => context.go(RoutePaths.payments),
             ),
             QuickActionCard(
-              icon: Icons.engineering,
-              label: 'Register Installation',
-              description: 'Fiber connection line',
+              icon: Icons.add,
+              label: 'Add Expense',
+              description: 'Record operational expenses',
               gradient: AppColors.orangeGradient,
-              onTap: () => context.go(RoutePaths.installations),
+              onTap: () => context.go(RoutePaths.expenses),
             ),
             QuickActionCard(
               icon: Icons.inventory_2,
