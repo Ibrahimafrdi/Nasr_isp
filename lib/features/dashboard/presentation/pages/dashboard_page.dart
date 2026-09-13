@@ -17,6 +17,7 @@ import 'package:nasr_isp/shared/widgets/responsive_table.dart';
 import 'package:nasr_isp/shared/widgets/mobile_dashboard_card.dart';
 import 'package:nasr_isp/shared/widgets/analytics_card.dart';
 import 'package:nasr_isp/shared/widgets/activity_timeline_widget.dart';
+import 'package:nasr_isp/features/dashboard/presentation/widgets/monthly_history_section.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -321,6 +322,10 @@ class _DashboardPageState extends State<DashboardPage> {
                             ? state.stats.completedInstallations
                             : 0,
                       ),
+                      const SizedBox(height: 32),
+
+                      // ===== MONTHLY FINANCIAL HISTORY (Admin Only) =====
+                      const MonthlyHistorySection(),
                       const SizedBox(height: 24),
                     ],
                   ],

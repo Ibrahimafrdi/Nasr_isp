@@ -52,6 +52,7 @@ class RoutePaths {
   static const String settings = '/settings';
   static const String inventory = '/inventory';
   static const String khataa = '/khataa';
+  static const String reports = '/reports';
 }
 
 /// User roles

@@ -100,6 +100,8 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
           //   ),
           if (isAdmin)
             const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
+          if (isAdmin)
+            const SidebarSubItem(label: 'Reports', route: RoutePaths.reports),
         ],
       ),
       // Management group — admin only (employees see no items here)

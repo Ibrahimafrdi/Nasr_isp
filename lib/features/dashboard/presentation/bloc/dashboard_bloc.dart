@@ -8,9 +8,10 @@ import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart
 import 'package:nasr_isp/features/expenses/domain/usecases/get_expenses.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
-import 'package:nasr_isp/features/installations/domain/utils/installation_aggregates.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
+import 'package:nasr_isp/features/reports/domain/entities/monthly_financial_summary.dart';
+import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
 
 // Dashboard Events
 abstract class DashboardEvent extends Equatable {
@@ -98,6 +99,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetExpenses getExpenses;
   final GetInstallations getInstallations;
   final GetPackages getPackages;
+  final GetMonthlyFinancialSummary getMonthlyFinancialSummary;
 
   /// Injectable clock so month-boundary aggregation is testable. Production
   /// uses the default; tests pass a fixed instant.
@@ -109,6 +111,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     required this.getExpenses,
     required this.getInstallations,
     required this.getPackages,
+    required this.getMonthlyFinancialSummary,
     this.clock = DateTime.now,
   }) : super(const DashboardInitial()) {
     on<LoadDashboardEvent>(_onLoadDashboard);
@@ -134,6 +137,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   Future<void> _fetchAndEmit(Emitter<DashboardState> emit) async {
     try {
+      final now = clock();
+
       // Fetch all data in parallel. Payments and installations are fetched
       // unbounded (no limit) so aggregate stats never silently drop older
       // records once a collection grows past an arbitrary page size.
@@ -143,6 +148,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         getExpenses(),
         getInstallations(),
         getPackages(),
+        getMonthlyFinancialSummary(now),
       ]);
 
       final allCustomers = (results[0] as List).cast<CustomerModel>();
@@ -150,10 +156,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final allExpenses = (results[2] as List).cast<ExpenseModel>();
       final allInstallations = (results[3] as List).cast<InstallationEntity>();
       final allPackages = (results[4] as List).cast<PackageEntity>();
+      final monthlySummary = results[5] as MonthlyFinancialSummary;
 
       final packageMap = {for (final p in allPackages) p.id: p};
-
-      final now = clock();
 
       // Customer stats
       final totalCustomers = allCustomers.length;
@@ -205,10 +210,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           .where((p) => p.billingMonth == currentMonthKey)
           .toList();
 
-      final currentMonthBilled =
-          currentMonthCharges.fold(0.0, (total, p) => total + p.amount);
-      final currentMonthCollected =
-          currentMonthCharges.fold(0.0, (total, p) => total + p.paidAmount);
       final currentMonthOutstanding =
           currentMonthCharges.fold(0.0, (total, p) => total + p.remainingAmount);
 
@@ -224,11 +225,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         return packageMap[packageId]?.costPrice ?? 0.0;
       }
 
-      final currentMonthMarginCollected = MoneyLine.sum(
-        currentMonthCharges.map(
-          (p) => p.collectedMargin(fallbackCost: liveCostFor(p.customerId)),
-        ),
-      ).profit;
+      final currentMonthMarginCollected = currentMonthCharges.fold<double>(
+        0.0,
+        (sum, p) =>
+            sum +
+            p.collectedMargin(fallbackCost: liveCostFor(p.customerId)).profit,
+      );
 
       // Lapsed customers with no charge for this month at all — the renewals
       // that have not been started. Disjoint from currentMonthOutstanding,
@@ -269,21 +271,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           .toList();
 
       final subscriberRunRateMargin =
-          MoneyLine.sum(subscriberMargins.map((m) => m.money)).profit;
-      // Customers with no usable package cost — no package assigned, or a
-      // packageId that no longer resolves — fall back to a zero cost price, so
-      // their whole bill counts as margin and the run rate above is an upper
-      // bound whenever this is non-zero.
-      final unpricedCustomerCount =
-          subscriberMargins.where((m) => !m.isReliable).length;
-
-      // Expense stats — current month only
-      final currentMonthExpenses = allExpenses.where((e) {
-        return e.date.year == now.year && e.date.month == now.month;
-      }).toList();
-
-      final monthlyExpenses = currentMonthExpenses
-          .fold(0.0, (sum, e) => sum + e.amount);
+          subscriberMargins.fold<double>(0.0, (sum, m) => sum + m.money.profit);
 
       // Installation stats
       final pendingInstallations = allInstallations
@@ -295,28 +283,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           .where((i) => i.status == InstallationStatus.completed)
           .length;
 
-      // Installation financials.
-      // SCOPE: completed jobs only — cancelled and pending never contribute
-      // money — bucketed into the current calendar month by completedAt,
-      // falling back to createdAt for legacy docs.
-      final currentMonthCompletedInstallations =
-          completedInMonth(allInstallations, now);
-
-      // All three figures come off one MoneyLine, so revenue - cost == profit
-      // holds by construction rather than by coincidence. Revenue is what the
-      // customer was billed: setup fee PLUS materials at sell price.
-      final installationMoney =
-          installationsMoney(currentMonthCompletedInstallations);
-      final monthlyInstallationRevenue = installationMoney.amountBilled;
-      final monthlyInstallationCost = installationMoney.costIncurred;
-      final monthlyInstallationProfit = installationMoney.profit;
-
       // ACCRUAL BASIS — these three terms are the three adjacent KPI cards.
       // Cash collected is deliberately excluded: different basis, and it does
       // not include installation billing at all.
       final netProfit = subscriberRunRateMargin +
-          monthlyInstallationProfit -
-          monthlyExpenses;
+          monthlySummary.installationProfit -
+          monthlySummary.totalExpenses;
 
       final stats = DashboardStatsModel(
         totalCustomers: totalCustomers,
@@ -325,18 +297,18 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         expiringsoon: expiringSoon.length,
         subscriberRunRateMargin: subscriberRunRateMargin,
         cashCollectedThisMonth: cashCollectedThisMonth,
-        monthlyExpenses: monthlyExpenses,
+        monthlyExpenses: monthlySummary.totalExpenses,
         netProfit: netProfit,
         pendingPayments: pendingPaymentsAmount,
         pendingPaymentsCount: pendingPayments.length,
         pendingInstallations: pendingInstallations,
         completedInstallations: completedInstallations,
-        monthlyInstallationRevenue: monthlyInstallationRevenue,
-        monthlyInstallationCost: monthlyInstallationCost,
-        monthlyInstallationProfit: monthlyInstallationProfit,
-        unpricedCustomerCount: unpricedCustomerCount,
-        currentMonthBilled: currentMonthBilled,
-        currentMonthCollected: currentMonthCollected,
+        monthlyInstallationRevenue: monthlySummary.installationRevenue,
+        monthlyInstallationCost: monthlySummary.installationCost,
+        monthlyInstallationProfit: monthlySummary.installationProfit,
+        unpricedCustomerCount: monthlySummary.unpricedCustomerCount,
+        currentMonthBilled: monthlySummary.subscriptionBilled,
+        currentMonthCollected: monthlySummary.subscriptionCollected,
         currentMonthMarginCollected: currentMonthMarginCollected,
         currentMonthOutstanding: currentMonthOutstanding,
         expiredCustomersDue: expiredCustomersDue,

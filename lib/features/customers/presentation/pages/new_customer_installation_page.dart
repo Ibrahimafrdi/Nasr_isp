@@ -134,11 +134,10 @@ class _NewCustomerInstallationPageState
       double.tryParse(_laborCostController.text.trim()) ?? 0.0;
 
   double get _previewMaterialCost => _itemsUsedState.fold(
-        0.0,
-        (sum, row) =>
-            sum +
-            ((row['qty'] as int? ?? 0) * (row['unitCost'] as double? ?? 0.0)),
-      );
+    0.0,
+    (sum, row) =>
+        sum + ((row['qty'] as int? ?? 0) * (row['unitCost'] as double? ?? 0.0)),
+  );
 
   /// Installation Net Profit / Loss = Installation Fee Billed - Material Cost - Labour Cost
   double get _installationProfit =>
@@ -209,9 +208,9 @@ class _NewCustomerInstallationPageState
     customersBloc.add(CreateCustomerEvent(newCustomer));
 
     try {
-      final customerResult = await customersBloc.stream.firstWhere(
-        (s) => s is CustomersLoaded || s is CustomersError,
-      ).timeout(const Duration(seconds: 15));
+      final customerResult = await customersBloc.stream
+          .firstWhere((s) => s is CustomersLoaded || s is CustomersError)
+          .timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
 
@@ -219,7 +218,9 @@ class _NewCustomerInstallationPageState
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to create customer: ${customerResult.message}'),
+            content: Text(
+              'Failed to create customer: ${customerResult.message}',
+            ),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -230,7 +231,9 @@ class _NewCustomerInstallationPageState
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Customer registration timed out or failed: ${e.toString()}'),
+          content: Text(
+            'Customer registration timed out or failed: ${e.toString()}',
+          ),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -241,13 +244,16 @@ class _NewCustomerInstallationPageState
       for (final row in _itemsUsedState)
         InstallationItemUsedEntity(
           inventoryItemId: row['itemId'] as String,
-          itemName: _allInventoryItems
-              .where((i) => i.id == row['itemId'])
-              .firstOrNull
-              ?.name ?? 'Material Item',
+          itemName:
+              _allInventoryItems
+                  .where((i) => i.id == row['itemId'])
+                  .firstOrNull
+                  ?.name ??
+              'Material Item',
           quantity: row['qty'] as int,
           costPriceAtTime: row['unitCost'] as double,
-          sellPriceAtTime: row['sellPrice'] as double? ?? row['unitCost'] as double,
+          sellPriceAtTime:
+              row['sellPrice'] as double? ?? row['unitCost'] as double,
         ),
     ];
 
@@ -300,9 +306,9 @@ class _NewCustomerInstallationPageState
     installationBloc.add(CreateInstallationEvent(installation));
 
     try {
-      final installationResult = await installationBloc.stream.firstWhere(
-        (s) => s is InstallationLoaded || s is InstallationError,
-      ).timeout(const Duration(seconds: 15));
+      final installationResult = await installationBloc.stream
+          .firstWhere((s) => s is InstallationLoaded || s is InstallationError)
+          .timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -465,7 +471,8 @@ class _NewCustomerInstallationPageState
                                       const SizedBox(height: 16),
                                       AppFormField(
                                         label: 'User ID',
-                                        hintText: 'Optional external / portal user ID',
+                                        hintText:
+                                            'Optional external / portal user ID',
                                         controller: _userIdController,
                                       ),
                                       const SizedBox(height: 16),
@@ -489,14 +496,17 @@ class _NewCustomerInstallationPageState
                                           initialValue: _connectionType,
                                           isExpanded: true,
                                           decoration: const InputDecoration(
-                                            labelText:
-                                                'Connection Type',
+                                            labelText: 'Connection Type',
                                           ),
                                           items: ConnectionType.values
                                               .map(
                                                 (t) => DropdownMenuItem(
                                                   value: t,
-                                                  child: Text(t.displayName, overflow: TextOverflow.ellipsis),
+                                                  child: Text(
+                                                    t.displayName,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
                                                 ),
                                               )
                                               .toList(),
@@ -515,7 +525,8 @@ class _NewCustomerInstallationPageState
                                           initialValue: _selectedPackageId,
                                           isExpanded: true,
                                           decoration: const InputDecoration(
-                                            labelText: 'Select Internet Package',
+                                            labelText:
+                                                'Select Internet Package',
                                           ),
                                           items: availablePackages
                                               .map(
@@ -523,7 +534,8 @@ class _NewCustomerInstallationPageState
                                                   value: pkg.id,
                                                   child: Text(
                                                     '${pkg.name} (${DateTimeUtils.formatCurrency(pkg.price)}/mo)',
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                               )
@@ -582,14 +594,19 @@ class _NewCustomerInstallationPageState
                                               .map(
                                                 (e) => DropdownMenuItem(
                                                   value: e.id,
-                                                  child: Text(e.name, overflow: TextOverflow.ellipsis),
+                                                  child: Text(
+                                                    e.name,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
                                                 ),
                                               )
                                               .toList(),
                                           onChanged: (val) {
                                             setState(() {
                                               _assignedEmployeeId = val;
-                                              _assignedEmployeeName = val == null
+                                              _assignedEmployeeName =
+                                                  val == null
                                                   ? null
                                                   : employees
                                                         .firstWhere(
@@ -602,8 +619,10 @@ class _NewCustomerInstallationPageState
                                       ]),
                                       const SizedBox(height: 16),
                                       AppFormField(
-                                        label: 'Installation Fee Charged to Customer (PKR)',
-                                        hintText: 'One-time setup fee billed to customer',
+                                        label:
+                                            'Installation Fee Charged to Customer (PKR)',
+                                        hintText:
+                                            'One-time setup fee billed to customer',
                                         isRequired: true,
                                         controller:
                                             _installationChargesController,
@@ -624,7 +643,8 @@ class _NewCustomerInstallationPageState
                                       _materialsUsedSection(),
                                       const SizedBox(height: 16),
                                       AppFormField(
-                                        label: 'Labour Cost / Technician Pay (PKR)',
+                                        label:
+                                            'Labour Cost / Technician Pay (PKR)',
                                         controller: _laborCostController,
                                         keyboardType:
                                             const TextInputType.numberWithOptions(
@@ -650,7 +670,10 @@ class _NewCustomerInstallationPageState
                                         maxLines: 2,
                                       ),
                                       const SizedBox(height: 24),
-                                      _financialSummaryCard(availablePackages),
+                                      _financialSummaryCard(
+                                        availablePackages,
+                                        authState.user.isAdmin,
+                                      ),
                                       const SizedBox(height: 30),
 
                                       AdaptiveFormActions(
@@ -730,9 +753,10 @@ class _NewCustomerInstallationPageState
       children: [
         Text(
           'Materials Used (optional — auto-filled based on connection type)',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
         if (_isLoadingInventory)
@@ -746,7 +770,10 @@ class _NewCustomerInstallationPageState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
                 SizedBox(width: 12),
-                Text('Loading inventory materials...', style: TextStyle(fontSize: 12, color: AppTheme.mediumGray)),
+                Text(
+                  'Loading inventory materials...',
+                  style: TextStyle(fontSize: 12, color: AppTheme.mediumGray),
+                ),
               ],
             ),
           )
@@ -762,7 +789,10 @@ class _NewCustomerInstallationPageState
               final itemDropdown = DropdownButtonFormField<String>(
                 initialValue: itemId.isEmpty ? null : itemId,
                 isExpanded: true,
-                hint: const Text('Select Material', overflow: TextOverflow.ellipsis),
+                hint: const Text(
+                  'Select Material',
+                  overflow: TextOverflow.ellipsis,
+                ),
                 items: _allInventoryItems
                     .map(
                       (item) => DropdownMenuItem(
@@ -805,7 +835,10 @@ class _NewCustomerInstallationPageState
 
               final unitCostText = Text(
                 'Unit Cost: ${DateTimeUtils.formatCurrency((row['unitCost'] as double? ?? 0.0))}',
-                style: const TextStyle(fontSize: 12, color: AppTheme.mediumGray),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.mediumGray,
+                ),
                 overflow: TextOverflow.ellipsis,
               );
 
@@ -878,7 +911,10 @@ class _NewCustomerInstallationPageState
               ),
               Text(
                 DateTimeUtils.formatCurrency(_previewMaterialCost),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -913,11 +949,20 @@ class _NewCustomerInstallationPageState
     );
   }
 
-  Widget _financialSummaryCard(List<PackageEntity> availablePackages) {
-    final selectedPackageName = availablePackages
-        .where((p) => p.id == _selectedPackageId)
-        .firstOrNull
-        ?.name ?? 'Selected Package';
+  /// [isAdmin] gates the upstream-cost and margin figures (material cost,
+  /// labour cost, profit/loss) — same RBAC rule applied to profit fields on
+  /// customer details and installations. The customer-facing installation
+  /// fee and monthly package rate stay visible to everyone.
+  Widget _financialSummaryCard(
+    List<PackageEntity> availablePackages,
+    bool isAdmin,
+  ) {
+    final selectedPackageName =
+        availablePackages
+            .where((p) => p.id == _selectedPackageId)
+            .firstOrNull
+            ?.name ??
+        'Selected Package';
     final isProfit = _installationProfit >= 0;
 
     return Container(
@@ -932,7 +977,10 @@ class _NewCustomerInstallationPageState
         children: [
           Row(
             children: [
-              const Icon(Icons.analytics_outlined, color: AppColors.primaryBlue),
+              const Icon(
+                Icons.analytics_outlined,
+                color: AppColors.primaryBlue,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Financial Summary',
@@ -944,14 +992,16 @@ class _NewCustomerInstallationPageState
             ],
           ),
           const Divider(height: 24),
-          
+
           // Recurring Monthly Subscription Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.primaryBlue.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
+              border: Border.all(
+                color: AppColors.primaryBlue.withValues(alpha: 0.2),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1005,47 +1055,59 @@ class _NewCustomerInstallationPageState
             '+ ${DateTimeUtils.formatCurrency(_previewCharges)}',
             isPositive: true,
           ),
-          const SizedBox(height: 8),
-          _summaryRow(
-            'Material Cost',
-            '- ${DateTimeUtils.formatCurrency(_previewMaterialCost)}',
-            isNegative: true,
-          ),
-          const SizedBox(height: 8),
-          _summaryRow(
-            'Labour Cost / Technician Pay',
-            '- ${DateTimeUtils.formatCurrency(_previewLabor)}',
-            isNegative: true,
-          ),
+          // Material cost, labour cost, and profit/loss are upstream-cost and
+          // margin figures — Admin-only.
+          if (isAdmin) ...[
+            const SizedBox(height: 8),
+            _summaryRow(
+              'Material Cost',
+              '- ${DateTimeUtils.formatCurrency(_previewMaterialCost)}',
+              isNegative: true,
+            ),
+            const SizedBox(height: 8),
+            _summaryRow(
+              'Labour Cost / Technician Pay',
+              '- ${DateTimeUtils.formatCurrency(_previewLabor)}',
+              isNegative: true,
+            ),
 
-          const Divider(height: 24),
+            const Divider(height: 24),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Installation Profit / Loss',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '(Installation Fee − Material Cost − Labour Cost)',
-                    style: TextStyle(fontSize: 11, color: AppTheme.mediumGray),
-                  ),
-                ],
-              ),
-              Text(
-                DateTimeUtils.formatCurrency(_installationProfit),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isProfit ? AppTheme.successColor : AppTheme.errorColor,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Installation Profit / Loss',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '(Installation Fee − Material Cost − Labour Cost)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.mediumGray,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
+                Text(
+                  DateTimeUtils.formatCurrency(_installationProfit),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isProfit
+                        ? AppTheme.successColor
+                        : AppTheme.errorColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

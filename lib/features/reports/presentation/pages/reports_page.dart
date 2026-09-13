@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/theme/app_theme.dart';
-import 'package:nasr_isp/core/utils/utils.dart';
+import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/core/theme/app_spacing.dart';
+import 'package:nasr_isp/core/finance/billing_cycle.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
-import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:nasr_isp/features/reports/domain/entities/monthly_financial_summary.dart';
+import 'package:nasr_isp/features/reports/presentation/bloc/reports_bloc.dart';
+import 'package:nasr_isp/shared/utils/responsive.dart';
+import 'package:nasr_isp/shared/widgets/alert_panel.dart';
+
+String _formatMonthKey(String key) => BillingCycle.formatMonthKey(key);
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -17,59 +22,10 @@ class ReportsPage extends StatefulWidget {
 }
 
 class _ReportsPageState extends State<ReportsPage> {
-  String _selectedReportType = 'Collections Ledger';
-  String _selectedPeriod = 'This Month';
-  String _selectedFormat = 'PDF Document';
-  bool _isGenerating = false;
-
-  final List<Map<String, dynamic>> _downloadableReports = [
-    {
-      'name': 'Collections_Ledger_May_2026.pdf',
-      'type': 'Collections Ledger',
-      'date': '2026-05-19',
-      'size': '2.4 MB',
-      'format': 'PDF',
-    },
-    {
-      'name': 'Operational_Expenses_Audit_Q1.xlsx',
-      'type': 'Expense Audit',
-      'date': '2026-04-10',
-      'size': '840 KB',
-      'format': 'Excel',
-    },
-    {
-      'name': 'Subscriber_Contracts_Status.csv',
-      'type': 'Contracts Status',
-      'date': '2026-05-01',
-      'size': '120 KB',
-      'format': 'CSV',
-    },
-  ];
-
-  void _generateReport() async {
-    setState(() => _isGenerating = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-
-    final name = '${_selectedReportType.replaceAll(' ', '_')}_${_selectedPeriod.replaceAll(' ', '_')}.${_selectedFormat.contains('PDF') ? 'pdf' : (_selectedFormat.contains('Excel') ? 'xlsx' : 'csv')}';
-
-    setState(() {
-      _isGenerating = false;
-      _downloadableReports.insert(0, {
-        'name': name,
-        'type': _selectedReportType,
-        'date': DateTime.now().toString().split(' ')[0],
-        'size': '1.2 MB',
-        'format': _selectedFormat.contains('PDF') ? 'PDF' : (_selectedFormat.contains('Excel') ? 'Excel' : 'CSV'),
-      });
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Report "$name" compiled successfully!'),
-        backgroundColor: AppTheme.successColor,
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    context.read<ReportsBloc>().add(const LoadReportsEvent());
   }
 
   @override
@@ -77,183 +33,240 @@ class _ReportsPageState extends State<ReportsPage> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         if (authState is! AuthAuthenticated) {
-          return const Center(child: Text('Not authenticated'));
+          return const Center(child: CircularProgressIndicator());
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppConstants.paddingLarge),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Breadcrumb(
-                items: [
-                  BreadcrumbItem(label: 'Home', onTap: () => context.go(RoutePaths.dashboard)),
-                  BreadcrumbItem(label: 'Reports'),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Layout: Config form on left, visual preview on right
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isDesktop = constraints.maxWidth > 800;
-                  return isDesktop
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 3, child: _buildGeneratorPanel()),
-                            const SizedBox(width: 24),
-                            Expanded(flex: 2, child: _buildFinancialTrendsCard()),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            _buildGeneratorPanel(),
-                            const SizedBox(height: 24),
-                            _buildFinancialTrendsCard(),
-                          ],
-                        );
-                },
-              ),
-              const SizedBox(height: 32),
-
-              // Download table
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+        return BlocBuilder<ReportsBloc, ReportsState>(
+          builder: (context, state) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Header ────────────────────────────────────────────────
+                  Row(
                     children: [
-                      Text(
-                        'Archived Compiled Reports Registry',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      const Icon(
+                        Icons.bar_chart_rounded,
+                        color: AppColors.primaryBlue,
+                        size: 28,
                       ),
-                      const SizedBox(height: 16),
-                      _buildDownloadsTable(),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Monthly Financial Reports',
+                            style: GoogleFonts.inter(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.black,
+                            ),
+                          ),
+                          Text(
+                            'Subscription revenue, installation margins, and expenses by month',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AppColors.darkGray,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 28),
+
+                  if (state is ReportsLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 80),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.primaryBlue,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (state is ReportsError)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 80),
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: AppColors.errorRed,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              state.message,
+                              style: GoogleFonts.inter(
+                                color: AppColors.darkGray,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => context.read<ReportsBloc>().add(
+                                const LoadReportsEvent(),
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (state is ReportsLoaded ||
+                      state is ReportsSummaryLoading)
+                    _buildContent(state),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildGeneratorPanel() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Compile Custom Audit Report',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+  Widget _buildContent(ReportsState state) {
+    final List<String> months;
+    final String selectedKey;
+    final MonthlyFinancialSummary? summary;
+    final MonthlyFinancialSummary? previousSummary;
+    final bool summaryLoading;
+
+    if (state is ReportsLoaded) {
+      months = state.availableMonths;
+      selectedKey = state.selectedMonthKey;
+      summary = state.summary;
+      previousSummary = state.previousSummary;
+      summaryLoading = false;
+    } else if (state is ReportsSummaryLoading) {
+      months = state.availableMonths;
+      selectedKey = state.selectedMonthKey;
+      summary = null;
+      previousSummary = null;
+      summaryLoading = true;
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    // Most-recent first for the dropdown display, with "All Time" pinned
+    // at the very top as the broadest view.
+    final dropdownKeys = [kAllTimeReportKey, ...months.reversed];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Month Selector ──────────────────────────────────────────────────
+        _buildMonthSelector(dropdownKeys, selectedKey),
+        const SizedBox(height: 24),
+
+        if (summaryLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 60),
+              child: CircularProgressIndicator(strokeWidth: 3),
             ),
-            const Divider(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Audit Report Focus Area', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.mediumGray)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _selectedReportType,
-                        decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                        items: const [
-                          DropdownMenuItem(value: 'Collections Ledger', child: Text('Monthly Collections Ledger')),
-                          DropdownMenuItem(value: 'Expense Audit', child: Text('Operating Expense Audit')),
-                          DropdownMenuItem(value: 'Contracts Status', child: Text('Subscriber Contracts Status')),
-                          DropdownMenuItem(value: 'Installation Margins', child: Text('Installation Cost/Profit Margins')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _selectedReportType = val);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Date / Chronological Bounds', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.mediumGray)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _selectedPeriod,
-                        decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                        items: const [
-                          DropdownMenuItem(value: 'Today', child: Text('Today')),
-                          DropdownMenuItem(value: 'This Week', child: Text('This Week')),
-                          DropdownMenuItem(value: 'This Month', child: Text('This Month')),
-                          DropdownMenuItem(value: 'Q1 (Jan - Mar)', child: Text('Q1 (Jan - Mar)')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _selectedPeriod = val);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          )
+        else if (summary != null) ...[
+          // ── Unpriced-customer warning ─────────────────────────────────────
+          if (summary.unpricedCustomerCount > 0) ...[
+            AlertPanel(
+              type: AlertType.warning,
+              title: 'Revenue figures may be overstated',
+              message:
+                  '${summary.unpricedCustomerCount} active '
+                  '${summary.unpricedCustomerCount == 1 ? 'subscriber has' : 'subscribers have'} '
+                  'no package cost assigned. Their full bill is counted as margin, '
+                  'which inflates the subscription revenue and net profit figures below.',
+              icon: Icons.warning_amber,
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Export Document Format', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.mediumGray)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _selectedFormat,
-                        decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                        items: const [
-                          DropdownMenuItem(value: 'PDF Document', child: Text('PDF Document (Formatted print-ready)')),
-                          DropdownMenuItem(value: 'Microsoft Excel', child: Text('Microsoft Excel (.xlsx Worksheet)')),
-                          DropdownMenuItem(value: 'Comma Separated Values', child: Text('Comma Separated Values (.csv Table)')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) setState(() => _selectedFormat = val);
-                        },
-                      ),
-                    ],
+          ],
+
+          // ── Hero: Net Profit ────────────────────────────────────────────
+          _buildHeroProfitCard(summary, previousSummary, selectedKey),
+          const SizedBox(height: 16),
+
+          // ── Slim supporting stat row ─────────────────────────────────────
+          _buildStatPairRow(summary),
+          const SizedBox(height: 24),
+
+          // ── Detailed breakdown ───────────────────────────────────────────
+          _buildDetailCards(summary),
+        ],
+      ],
+    );
+  }
+
+  // ── Month Selector ──────────────────────────────────────────────────────────
+
+  Widget _buildMonthSelector(List<String> dropdownKeys, String selectedKey) {
+    return Card(
+      elevation: 0,
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.lightGray),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_month, color: AppColors.primaryBlue),
+            const SizedBox(width: 12),
+            Text(
+              'Reporting Month',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: AppColors.charcoal,
+              ),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: selectedKey,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.lightGray),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.lightGray),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _isGenerating ? null : _generateReport,
-                  icon: _isGenerating
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.print),
-                  label: Text(_isGenerating ? 'Compiling Ledger...' : 'Compile & Export Report'),
-                ),
-              ],
+                items: dropdownKeys
+                    .map(
+                      (key) => DropdownMenuItem(
+                        value: key,
+                        child: Text(
+                          key == kAllTimeReportKey
+                              ? 'All Time'
+                              : _formatMonthKey(key),
+                          style: GoogleFonts.inter(
+                            fontWeight: key == kAllTimeReportKey
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    context.read<ReportsBloc>().add(
+                      SelectReportMonthEvent(val),
+                    );
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -261,132 +274,601 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  Widget _buildFinancialTrendsCard() {
+  // ── Hero Net Profit Card ─────────────────────────────────────────────────────
+
+  Widget _buildHeroProfitCard(
+    MonthlyFinancialSummary summary,
+    MonthlyFinancialSummary? previousSummary,
+    String selectedKey,
+  ) {
+    final isProfit = summary.netProfit >= 0;
+    final gradientColors = isProfit
+        ? AppColors.greenGradient
+        : AppColors.redGradient;
+
+    final isAllTime = selectedKey == kAllTimeReportKey;
+
+    // Month-over-month delta — omitted entirely for the all-time view,
+    // if there's no prior month to compare against, or the previous
+    // month's net profit was exactly zero (a percentage change against
+    // zero is meaningless).
+    String? deltaText;
+    bool? deltaIsUp;
+    if (!isAllTime &&
+        previousSummary != null &&
+        previousSummary.netProfit != 0) {
+      final change =
+          ((summary.netProfit - previousSummary.netProfit) /
+              previousSummary.netProfit.abs()) *
+          100;
+      deltaIsUp = change >= 0;
+      final prevLabel = _formatMonthKey(previousSummary.monthKey);
+      deltaText =
+          '${deltaIsUp ? '▲' : '▼'} ${change.abs().toStringAsFixed(0)}% vs $prevLabel';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.first.withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isAllTime
+                      ? 'Net Profit — All Time (Cash Collected Basis)'
+                      : 'Net Profit — Cash Collected Basis',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _fmt(summary.netProfit),
+                  style: GoogleFonts.inter(
+                    fontSize: 38,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (deltaText != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                deltaText,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Slim supporting stat row (Revenue / Expenses) ────────────────────────────
+
+  Widget _buildStatPairRow(MonthlyFinancialSummary summary) {
+    final totalRevenue =
+        summary.subscriptionCollected + summary.installationRevenue;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.lightGray),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _StatBlock(
+              label: 'Total Revenue',
+              value: _fmt(totalRevenue),
+              subtitle: 'Collected + installation',
+              color: AppColors.primaryBlue,
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 40,
+            color: AppColors.lightGray,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+          Expanded(
+            child: _StatBlock(
+              label: 'Total Expenses',
+              value: _fmt(summary.totalExpenses),
+              subtitle: 'Operating costs this month',
+              color: AppColors.errorRed,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Detailed Breakdown Cards ────────────────────────────────────────────────
+
+  Widget _buildDetailCards(MonthlyFinancialSummary summary) {
+    return ResponsiveBuilder(
+      builder: (context, deviceType) {
+        final leftColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSubscriptionCard(summary),
+            const SizedBox(height: 16),
+            _buildInstallationCard(summary),
+          ],
+        );
+
+        final rightColumn = _buildExpensesCard(summary);
+
+        if (deviceType == DeviceType.mobile) {
+          return Column(
+            children: [leftColumn, const SizedBox(height: 16), rightColumn],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: leftColumn),
+            const SizedBox(width: 16),
+            Expanded(flex: 2, child: rightColumn),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSubscriptionCard(MonthlyFinancialSummary summary) {
+    return _SectionCard(
+      title: 'Subscription Revenue',
+      icon: Icons.autorenew,
+      iconColor: AppColors.primaryBlue,
+      children: [
+        _DetailRow(
+          label: 'Billed this month',
+          value: _fmt(summary.subscriptionBilled),
+          valueColor: AppColors.charcoal,
+          tooltip: 'Total charged on subscription renewals',
+        ),
+        const Divider(height: 20),
+        _DetailRow(
+          label: 'Collected',
+          value: _fmt(summary.subscriptionCollected),
+          valueColor: AppColors.successGreen,
+          bold: true,
+        ),
+        const SizedBox(height: 8),
+        _DetailRow(
+          label: 'Outstanding',
+          value: _fmt(
+            (summary.subscriptionBilled - summary.subscriptionCollected).clamp(
+              0,
+              double.infinity,
+            ),
+          ),
+          valueColor: AppColors.warningOrange,
+        ),
+        if (summary.subscriptionBilled > 0) ...[
+          const SizedBox(height: 12),
+          _CollectionBar(
+            collected: summary.subscriptionCollected,
+            billed: summary.subscriptionBilled,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildInstallationCard(MonthlyFinancialSummary summary) {
+    return _SectionCard(
+      title: 'Installation Revenue',
+      icon: Icons.engineering,
+      iconColor: AppColors.warningOrange,
+      children: [
+        _DetailRow(
+          label: 'Revenue billed',
+          value: _fmt(summary.installationRevenue),
+          valueColor: AppColors.charcoal,
+          tooltip: 'Setup fees + materials at sell price',
+        ),
+        const SizedBox(height: 4),
+        _DetailRow(
+          label: 'Cost incurred',
+          value: _fmt(summary.installationCost),
+          valueColor: AppColors.errorRed,
+          tooltip: 'Materials at cost + labour',
+        ),
+        const Divider(height: 20),
+        _DetailRow(
+          label: 'Installation Profit',
+          value: _fmt(summary.installationProfit),
+          valueColor: summary.installationProfit >= 0
+              ? AppColors.successGreen
+              : AppColors.errorRed,
+          bold: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExpensesCard(MonthlyFinancialSummary summary) {
+    final categoriesWithSpend =
+        ExpenseCategory.values
+            .where((cat) => (summary.expensesByCategory[cat] ?? 0) > 0)
+            .toList()
+          // Largest expense first — easiest to scan what's driving costs.
+          ..sort(
+            (a, b) => (summary.expensesByCategory[b] ?? 0).compareTo(
+              summary.expensesByCategory[a] ?? 0,
+            ),
+          );
+
+    final maxValue = categoriesWithSpend.isEmpty
+        ? 0.0
+        : summary.expensesByCategory[categoriesWithSpend.first]!;
+
+    return _SectionCard(
+      title: 'Operating Expenses',
+      icon: Icons.receipt_long,
+      iconColor: AppColors.errorRed,
+      children: [
+        if (categoriesWithSpend.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'No expenses recorded this month.',
+              style: GoogleFonts.inter(color: AppColors.mediumGray),
+            ),
+          )
+        else
+          ...categoriesWithSpend.map((cat) {
+            final value = summary.expensesByCategory[cat]!;
+            final fraction = maxValue > 0 ? value / maxValue : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _ExpenseBarRow(
+                label: cat.label,
+                value: _fmt(value),
+                fraction: fraction,
+              ),
+            );
+          }),
+        if (categoriesWithSpend.isNotEmpty) ...[
+          const Divider(height: 20),
+          _DetailRow(
+            label: 'Total Expenses',
+            value: _fmt(summary.totalExpenses),
+            valueColor: AppColors.errorRed,
+            bold: true,
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  String _fmt(double amount) {
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(2)}M PKR';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(1)}K PKR';
+    }
+    return 'Rs ${amount.toStringAsFixed(0)}';
+  }
+
+  String _formatMonthKey(String key) {
+    final parts = key.split('-');
+    if (parts.length < 2) return key;
+    final year = parts[0];
+    final month = int.tryParse(parts[1]) ?? 0;
+    const monthNames = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final name = month >= 1 && month <= 12 ? monthNames[month] : '?';
+    return '$name $year';
+  }
+}
+
+// ── Reusable sub-widgets ──────────────────────────────────────────────────────
+
+/// One half of the slim supporting stat row below the hero card.
+class _StatBlock extends StatelessWidget {
+  final String label;
+  final String value;
+  final String subtitle;
+  final Color color;
+
+  const _StatBlock({
+    required this.label,
+    required this.value,
+    required this.subtitle,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: AppColors.darkGray,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: GoogleFonts.inter(fontSize: 11, color: AppColors.mediumGray),
+        ),
+      ],
+    );
+  }
+}
+
+/// A horizontal bar for one expense category — width proportional to its
+/// share of the largest category this month, so relative cost drivers are
+/// visible at a glance without a charting package.
+class _ExpenseBarRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final double fraction;
+
+  const _ExpenseBarRow({
+    required this.label,
+    required this.value,
+    required this.fraction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.inter(fontSize: 13, color: AppColors.darkGray),
+            ),
+            Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.charcoal,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                children: [
+                  Container(
+                    height: 6,
+                    width: constraints.maxWidth,
+                    color: AppColors.lightGray,
+                  ),
+                  Container(
+                    height: 6,
+                    width: constraints.maxWidth * fraction.clamp(0.0, 1.0),
+                    color: AppColors.errorRed,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final List<Widget> children;
+
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.iconColor,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
+      elevation: 0,
+      color: AppColors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.lightGray),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Net Margin Analytics Preview',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Icon(icon, color: iconColor, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.black,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 160,
-              child: BarChart(
-                BarChartData(
-                  gridData: const FlGridData(show: false),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (v, meta) {
-                          const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May'];
-                          if (v.toInt() >= 0 && v.toInt() < labels.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(labels[v.toInt()], style: const TextStyle(fontSize: 10)),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ),
-                  ),
-                  barGroups: [
-                    BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: 80000, color: AppTheme.primaryColor, width: 14)]),
-                    BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: 100000, color: AppTheme.primaryColor, width: 14)]),
-                    BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: 115000, color: AppTheme.primaryColor, width: 14)]),
-                    BarChartGroupData(x: 3, barRods: [BarChartRodData(toY: 110000, color: AppTheme.primaryColor, width: 14)]),
-                    BarChartGroupData(x: 4, barRods: [BarChartRodData(toY: 160000, color: AppTheme.primaryColor, width: 14)]),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.trending_up, color: AppTheme.successColor, size: 14),
-                SizedBox(width: 4),
-                Text('Realized +32% margin increment Q1 vs Q2', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.successColor)),
-              ],
-            )
+            ...children,
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildDownloadsTable() {
-    return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Report Filename')),
-        DataColumn(label: Text('Type')),
-        DataColumn(label: Text('Date Compiled')),
-        DataColumn(label: Text('Document Size')),
-        DataColumn(label: Text('Status')),
-        DataColumn(label: Text('Action')),
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color valueColor;
+  final bool bold;
+  final String? tooltip;
+
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    this.bold = false,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final labelWidget = Text(
+      label,
+      style: GoogleFonts.inter(
+        fontSize: 13,
+        color: AppColors.darkGray,
+        fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+      ),
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        tooltip != null
+            ? Tooltip(message: tooltip!, child: labelWidget)
+            : labelWidget,
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            color: valueColor,
+          ),
+        ),
       ],
-      rows: _downloadableReports.map((report) {
-        final ext = report['format'] as String;
-        IconData docIcon = Icons.picture_as_pdf;
-        Color iconColor = AppTheme.errorColor;
-        if (ext == 'Excel') {
-          docIcon = Icons.table_chart;
-          iconColor = AppTheme.successColor;
-        } else if (ext == 'CSV') {
-          docIcon = Icons.article;
-          iconColor = AppTheme.primaryColor;
-        }
+    );
+  }
+}
 
-        return DataRow(
-          cells: [
-            DataCell(
-              Row(
-                children: [
-                  Icon(docIcon, color: iconColor, size: 18),
-                  const SizedBox(width: 10),
-                  Text(report['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                ],
+class _CollectionBar extends StatelessWidget {
+  final double collected;
+  final double billed;
+
+  const _CollectionBar({required this.collected, required this.billed});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = billed > 0 ? (collected / billed).clamp(0.0, 1.0) : 0.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Collection rate',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppColors.mediumGray,
               ),
             ),
-            DataCell(Text(report['type'] as String)),
-            DataCell(Text(DateTimeUtils.formatDate(DateTime.parse(report['date'] as String)))),
-            DataCell(Text(report['size'] as String)),
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppTheme.successColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text('Ready', style: TextStyle(fontSize: 10, color: AppTheme.successColor, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            DataCell(
-              IconButton(
-                icon: const Icon(Icons.file_download, color: AppTheme.primaryColor),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Downloading file "${report['name']}"...')),
-                  );
-                },
+            Text(
+              '${(pct * 100).round()}%',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: pct >= 1.0
+                    ? AppColors.successGreen
+                    : AppColors.warningOrange,
               ),
             ),
           ],
-        );
-      }).toList(),
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct,
+            minHeight: 6,
+            backgroundColor: AppColors.lightGray,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              pct >= 1.0 ? AppColors.successGreen : AppColors.primaryBlue,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

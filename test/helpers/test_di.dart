@@ -49,6 +49,8 @@ import 'package:nasr_isp/features/payments/domain/usecases/get_payment_by_custom
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
+import 'package:nasr_isp/features/reports/domain/usecases/get_available_report_months.dart';
+import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
 import 'package:nasr_isp/features/reports/presentation/bloc/reports_bloc.dart';
 import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.dart';
 import 'package:nasr_isp/features/settings/domain/repositories/settings_repository.dart';
@@ -274,6 +276,21 @@ Future<void> registerFakeDependencies() async {
   final addEmployee = AddEmployee(employeeRepo);
   final updateEmployee = UpdateEmployee(employeeRepo);
 
+  final getMonthlyFinancialSummary = GetMonthlyFinancialSummary(
+    getCustomers: getCustomers,
+    getAllPayments: getAllPayments,
+    getExpenses: getExpenses,
+    getInstallations: getInstallations,
+    getPackages: getPackages,
+  );
+  final getAvailableReportMonths = GetAvailableReportMonths(
+    getCustomers: getCustomers,
+    getAllPayments: getAllPayments,
+    getExpenses: getExpenses,
+  );
+  getIt.registerLazySingleton<GetMonthlyFinancialSummary>(() => getMonthlyFinancialSummary);
+  getIt.registerLazySingleton<GetAvailableReportMonths>(() => getAvailableReportMonths);
+
   getIt.registerSingleton<AuthBloc>(AuthBloc(authRepository: authRepo));
   getIt.registerSingleton<DashboardBloc>(
     DashboardBloc(
@@ -282,6 +299,7 @@ Future<void> registerFakeDependencies() async {
       getExpenses: getExpenses,
       getInstallations: getInstallations,
       getPackages: getPackages,
+      getMonthlyFinancialSummary: getMonthlyFinancialSummary,
     ),
   );
   getIt.registerSingleton<CustomersBloc>(
@@ -326,7 +344,12 @@ Future<void> registerFakeDependencies() async {
       deleteExpense: deleteExpense,
     ),
   );
-  getIt.registerSingleton<ReportsBloc>(ReportsBloc());
+  getIt.registerSingleton<ReportsBloc>(
+    ReportsBloc(
+      getMonthlyFinancialSummary: getMonthlyFinancialSummary,
+      getAvailableReportMonths: getAvailableReportMonths,
+    ),
+  );
   getIt.registerSingleton<EmployeeBloc>(
     EmployeeBloc(
       getEmployees: getEmployees,

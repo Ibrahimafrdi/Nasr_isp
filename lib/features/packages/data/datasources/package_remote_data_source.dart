@@ -22,7 +22,7 @@ class PackageRemoteDataSourceImpl implements PackageRemoteDataSource {
   final FirebaseFirestore _firestore;
 
   PackageRemoteDataSourceImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference get _col => _firestore.collection('packages');
 
@@ -75,6 +75,9 @@ class PackageRemoteDataSourceImpl implements PackageRemoteDataSource {
 
   @override
   Future<void> deletePackage(String id) async {
-    await _col.doc(id).delete();
+    await _col.doc(id).update({
+      'isActive': false,
+      'deletedAt': FieldValue.serverTimestamp(),
+    });
   }
 }

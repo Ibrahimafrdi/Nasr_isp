@@ -38,6 +38,23 @@ class BillingCycle {
   static String monthKey(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}';
 
+  /// Converts a `YYYY-MM` string into a readable label (e.g. `'2026-09'` -> `'September 2026'`).
+  static String formatMonthKey(String key) {
+    final parts = key.split('-');
+    if (parts.length == 2) {
+      final year = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      if (year != null && month != null && month >= 1 && month <= 12) {
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        return '${monthNames[month - 1]} $year';
+      }
+    }
+    return key;
+  }
+
   /// Midnight on [date] — the granularity every due-date comparison uses, so
   /// that "expired" never depends on the time of day a record was written.
   static DateTime dateOnly(DateTime date) =>

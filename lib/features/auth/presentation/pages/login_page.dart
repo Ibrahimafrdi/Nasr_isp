@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -443,14 +444,246 @@ class _LoginPageState extends State<LoginPage>
   Widget _buildForgotPassword() {
     return Center(
       child: TextButton(
-        onPressed: () {
-          /* TODO: navigate to forgot password */
-        },
+        onPressed: _showForgotPasswordDialog,
         style: TextButton.styleFrom(foregroundColor: _accentBlue),
         child: const Text(
           'Forgot your password?',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
         ),
+      ),
+    );
+  }
+
+  void _showForgotPasswordDialog() {
+    final resetEmailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    final formKey = GlobalKey<FormState>();
+    final emailFocusNode = FocusNode();
+    bool isLoading = false;
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      barrierDismissible: !isLoading,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: _bgCard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: _borderDefault, width: 0.5),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: _accentBlue.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.lock_reset_rounded,
+                                color: _accentBlue,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Reset Password',
+                                style: TextStyle(
+                                  color: _textPrimary,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Enter your email address and we will send you a password reset link.',
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _DarkFormField(
+                          label: 'Email address',
+                          controller: resetEmailController,
+                          focusNode: emailFocusNode,
+                          hintText: 'admin@nasr.com',
+                          keyboardType: TextInputType.emailAddress,
+                          prefixIcon: Icons.mail_outline_rounded,
+                          validator: ValidationUtils.validateEmail,
+                          textInputAction: TextInputAction.done,
+                        ),
+                        if (errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFFDC2626).withOpacity(0.3),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Color(0xFFEF4444),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    errorMessage!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: isLoading
+                                  ? null
+                                  : () => Navigator.of(dialogContext).pop(),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF94A3B8),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              height: 38,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _accentBlue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                ),
+                                onPressed: isLoading
+                                    ? null
+                                    : () async {
+                                        if (!formKey.currentState!.validate()) {
+                                          return;
+                                        }
+                                        final email =
+                                            resetEmailController.text.trim();
+                                        setDialogState(() {
+                                          isLoading = true;
+                                          errorMessage = null;
+                                        });
+
+                                        try {
+                                          await FirebaseAuth.instance
+                                              .sendPasswordResetEmail(
+                                            email: email,
+                                          );
+                                          if (dialogContext.mounted) {
+                                            Navigator.of(dialogContext).pop();
+                                          }
+                                          if (mounted) {
+                                            _showSuccessSnackbar(
+                                              'Password reset link sent to $email',
+                                            );
+                                          }
+                                        } catch (_) {
+                                          if (dialogContext.mounted) {
+                                            setDialogState(() {
+                                              isLoading = false;
+                                              errorMessage =
+                                                  "Couldn't send the reset link. Check the email and try again.";
+                                            });
+                                          }
+                                        }
+                                      },
+                                child: isLoading
+                                    ? const SizedBox(
+                                        height: 16,
+                                        width: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Send Reset Link',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }

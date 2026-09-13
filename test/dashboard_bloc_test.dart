@@ -22,6 +22,7 @@ import 'package:nasr_isp/features/payments/data/models/payment_model.dart';
 import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/domain/repositories/payment_repository.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart';
+import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
 
 // ── Fakes ────────────────────────────────────────────────────────
 // Hand-written, matching the project's convention (no mocking library).
@@ -154,12 +155,25 @@ DashboardBloc _bloc({
   List<InstallationEntity> installations = const [],
   List<PackageEntity> packages = const [],
 }) {
+  final getCustomers = GetCustomers(_FakeCustomerRepository(customers));
+  final getAllPayments = GetAllPayments(_FakePaymentRepository(payments));
+  final getExpenses = GetExpenses(_FakeExpenseRepository(expenses));
+  final getInstallations = GetInstallations(_FakeInstallationRepository(installations));
+  final getPackages = GetPackages(_FakePackageRepository(packages));
+
   return DashboardBloc(
-    getCustomers: GetCustomers(_FakeCustomerRepository(customers)),
-    getAllPayments: GetAllPayments(_FakePaymentRepository(payments)),
-    getExpenses: GetExpenses(_FakeExpenseRepository(expenses)),
-    getInstallations: GetInstallations(_FakeInstallationRepository(installations)),
-    getPackages: GetPackages(_FakePackageRepository(packages)),
+    getCustomers: getCustomers,
+    getAllPayments: getAllPayments,
+    getExpenses: getExpenses,
+    getInstallations: getInstallations,
+    getPackages: getPackages,
+    getMonthlyFinancialSummary: GetMonthlyFinancialSummary(
+      getCustomers: getCustomers,
+      getAllPayments: getAllPayments,
+      getExpenses: getExpenses,
+      getInstallations: getInstallations,
+      getPackages: getPackages,
+    ),
     // Fixed clock: month bucketing would otherwise be flaky on the first and
     // last days of a real month.
     clock: () => _fixedNow,

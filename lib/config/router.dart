@@ -19,6 +19,7 @@ import 'package:nasr_isp/features/packages/presentation/pages/packages_page.dart
 import 'package:nasr_isp/features/payments/presentation/pages/payments_page.dart';
 import 'package:nasr_isp/features/settings/presentation/pages/settings_page.dart';
 import 'package:nasr_isp/features/inventory/presentation/pages/inventory_page.dart';
+import 'package:nasr_isp/features/reports/presentation/pages/reports_page.dart';
 import 'package:nasr_isp/shared/widgets/app_shell.dart';
 
 GoRouter createAppRouter(AuthBloc authBloc) {
@@ -133,6 +134,13 @@ GoRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.settings,
             builder: (context, state) => const SettingsPage(),
+            redirect: _adminOnlyRedirect,
+          ),
+
+          // Reports (admin-only)
+          GoRoute(
+            path: RoutePaths.reports,
+            builder: (context, state) => const ReportsPage(),
             redirect: _adminOnlyRedirect,
           ),
         ],

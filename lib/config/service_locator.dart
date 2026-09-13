@@ -73,6 +73,8 @@ import 'package:nasr_isp/features/installations/domain/usecases/get_installation
 import 'package:nasr_isp/features/installations/domain/usecases/update_installation.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
+import 'package:nasr_isp/features/reports/domain/usecases/get_available_report_months.dart';
+import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
 import 'package:nasr_isp/features/reports/presentation/bloc/reports_bloc.dart';
 import 'package:nasr_isp/features/settings/data/datasources/settings_remote_data_source.dart';
 import 'package:nasr_isp/features/settings/data/datasources/user_management_remote_data_source.dart';
@@ -217,7 +219,6 @@ void setupServiceLocator() {
       deleteExpense: getIt(),
     ),
   );
-  getIt.registerSingleton<ReportsBloc>(ReportsBloc());
   
   // Employees Clean Architecture stack
   getIt.registerLazySingleton<EmployeeRemoteDataSource>(
@@ -261,7 +262,25 @@ void setupServiceLocator() {
     ),
   );
 
-  // Dashboard (depends on Payments + Installations + Packages use cases registered above)
+  // Reports usecases (registered before DashboardBloc so Dashboard can inject them)
+  getIt.registerLazySingleton(
+    () => GetMonthlyFinancialSummary(
+      getCustomers: getIt(),
+      getAllPayments: getIt(),
+      getExpenses: getIt(),
+      getInstallations: getIt(),
+      getPackages: getIt(),
+    ),
+  );
+  getIt.registerLazySingleton(
+    () => GetAvailableReportMonths(
+      getCustomers: getIt(),
+      getAllPayments: getIt(),
+      getExpenses: getIt(),
+    ),
+  );
+
+  // Dashboard (depends on Payments + Installations + Packages + Reports use cases registered above)
   getIt.registerSingleton<DashboardBloc>(
     DashboardBloc(
       getCustomers: getIt<GetCustomers>(),
@@ -269,6 +288,14 @@ void setupServiceLocator() {
       getExpenses: getIt<GetExpenses>(),
       getInstallations: getIt<GetInstallations>(),
       getPackages: getIt<GetPackages>(),
+      getMonthlyFinancialSummary: getIt<GetMonthlyFinancialSummary>(),
+    ),
+  );
+
+  getIt.registerSingleton<ReportsBloc>(
+    ReportsBloc(
+      getMonthlyFinancialSummary: getIt(),
+      getAvailableReportMonths: getIt(),
     ),
   );
 
