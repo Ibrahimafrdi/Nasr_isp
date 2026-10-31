@@ -129,6 +129,56 @@ class CustomersLoading extends CustomersState {
   const CustomersLoading();
 }
 
+/// Counts across ALL customers (not just the current page), used by the
+/// Customers page for the status chips and the attention bar.
+///
+/// Every field has a default so existing code that builds a
+/// [CustomersLoaded] without a summary keeps working.
+class CustomersSummary extends Equatable {
+  final int total;
+  final int active;
+  final int expiringSoon;
+  final int expired;
+  final int inactive;
+
+  /// Sum of the monthly bills of the expired customers.
+  final double expiredAmount;
+
+  /// How many customers match the current filters (all pages).
+  final int filteredTotal;
+
+  /// 1-based range of the current page, for "Showing 1-10 of 15".
+  final int showingFrom;
+  final int showingTo;
+
+  const CustomersSummary({
+    this.total = 0,
+    this.active = 0,
+    this.expiringSoon = 0,
+    this.expired = 0,
+    this.inactive = 0,
+    this.expiredAmount = 0,
+    this.filteredTotal = 0,
+    this.showingFrom = 0,
+    this.showingTo = 0,
+  });
+
+  static const CustomersSummary empty = CustomersSummary();
+
+  @override
+  List<Object?> get props => [
+    total,
+    active,
+    expiringSoon,
+    expired,
+    inactive,
+    expiredAmount,
+    filteredTotal,
+    showingFrom,
+    showingTo,
+  ];
+}
+
 class CustomersLoaded extends CustomersState {
   final List<CustomerModel> customers;
   final int currentPage;
@@ -136,6 +186,7 @@ class CustomersLoaded extends CustomersState {
   final String? searchQuery;
   final CustomerStatus? filterStatus;
   final String? filterConnectionType;
+  final CustomersSummary summary;
 
   const CustomersLoaded({
     required this.customers,
@@ -144,6 +195,7 @@ class CustomersLoaded extends CustomersState {
     this.searchQuery,
     this.filterStatus,
     this.filterConnectionType,
+    this.summary = CustomersSummary.empty,
   });
 
   @override
@@ -154,6 +206,7 @@ class CustomersLoaded extends CustomersState {
     searchQuery,
     filterStatus,
     filterConnectionType,
+    summary,
   ];
 }
 
@@ -337,11 +390,66 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
           searchQuery: event.searchQuery,
           filterStatus: event.filterStatus,
           filterConnectionType: event.filterConnectionType,
+          summary: _buildSummary(
+            allModels,
+            filteredTotal: filtered.length,
+            showingFrom: filtered.isEmpty ? 0 : start + 1,
+            showingTo: end,
+          ),
         ),
       );
     } catch (e) {
       emit(CustomersError(message: 'Failed to load customers: $e'));
     }
+  }
+
+  /// Counts for the status chips. The rules match [_filterCustomers] exactly,
+  /// so a chip's number is the number of rows that chip will show.
+  CustomersSummary _buildSummary(
+    List<CustomerModel> all, {
+    required int filteredTotal,
+    required int showingFrom,
+    required int showingTo,
+  }) {
+    final now = clock();
+    var active = 0;
+    var expiringSoon = 0;
+    var expired = 0;
+    var inactive = 0;
+    var expiredAmount = 0.0;
+
+    for (final c in all) {
+      if (!c.isActive) {
+        inactive++;
+        continue;
+      }
+      final due = c.effectiveDueDate;
+      if (c.isExpiredAt(now)) {
+        expired++;
+        expiredAmount += c.monthlyBill;
+      }
+      if (due != null) {
+        final days = BillingCycle.daysUntilDue(due, now);
+        if (days >= 0 && days <= BillingCycle.renewalWindowDays) {
+          expiringSoon++;
+        }
+      }
+      if (due == null || !BillingCycle.isDueForRenewal(due, now)) {
+        active++;
+      }
+    }
+
+    return CustomersSummary(
+      total: all.length,
+      active: active,
+      expiringSoon: expiringSoon,
+      expired: expired,
+      inactive: inactive,
+      expiredAmount: expiredAmount,
+      filteredTotal: filteredTotal,
+      showingFrom: showingFrom,
+      showingTo: showingTo,
+    );
   }
 
   List<CustomerModel> _filterCustomers(

@@ -148,7 +148,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         getExpenses(),
         getInstallations(),
         getPackages(),
-        getMonthlyFinancialSummary(now),
       ]);
 
       final allCustomers = (results[0] as List).cast<CustomerModel>();
@@ -156,7 +155,17 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final allExpenses = (results[2] as List).cast<ExpenseModel>();
       final allInstallations = (results[3] as List).cast<InstallationEntity>();
       final allPackages = (results[4] as List).cast<PackageEntity>();
-      final monthlySummary = results[5] as MonthlyFinancialSummary;
+
+      // Compute monthly summary reusing already-fetched collections to eliminate
+      // duplicate Firestore queries.
+      final monthlySummary = await getMonthlyFinancialSummary(
+        now,
+        customers: allCustomers,
+        payments: allPayments,
+        expenses: allExpenses,
+        installations: allInstallations,
+        packages: allPackages,
+      );
 
       final packageMap = {for (final p in allPackages) p.id: p};
 
@@ -273,6 +282,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final subscriberRunRateMargin =
           subscriberMargins.fold<double>(0.0, (sum, m) => sum + m.money.profit);
 
+      // Full-month billing for active subscribers (before vendor cost).
+      final subscriberRunRateRevenue =
+          activeList.fold<double>(0.0, (sum, c) => sum + c.monthlyBill);
+
       // Installation stats
       final pendingInstallations = allInstallations
           .where((i) =>
@@ -296,6 +309,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         expiredCustomers: expiredCustomers,
         expiringsoon: expiringSoon.length,
         subscriberRunRateMargin: subscriberRunRateMargin,
+        subscriberRunRateRevenue: subscriberRunRateRevenue,
         cashCollectedThisMonth: cashCollectedThisMonth,
         monthlyExpenses: monthlySummary.totalExpenses,
         netProfit: netProfit,

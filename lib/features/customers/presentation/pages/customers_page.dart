@@ -9,10 +9,12 @@ import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/customer_attention_bar.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_card_list.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_details_side_sheet.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_filter_panel.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_status_dialogs.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/customer_table.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/renew_subscription_dialog.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
@@ -30,11 +32,19 @@ class CustomersPage extends StatefulWidget {
   State<CustomersPage> createState() => _CustomersPageState();
 }
 
+// Colours for the redesigned screen, private to this file.
+const Color _kPageBg = Color(0xFFF6F7F9);
+const Color _kInk = Color(0xFF14213D);
+const Color _kMuted = Color(0xFF5B6472);
+const Color _kTeal = Color(0xFF0F766E);
+
 class _CustomersPageState extends State<CustomersPage> {
   late TextEditingController _searchController;
   String? _selectedStatus;
   String? _selectedConnectionType; // null = All, 'wireless', 'fiber'
-  CustomerModel? _selectedCustomerForDetail;
+  // Counts across all customers. Kept here so the chips do not flash to zero
+  // while the list is reloading.
+  CustomersSummary _summary = CustomersSummary.empty;
   Timer? _searchDebounce;
 
   @override
@@ -135,187 +145,253 @@ class _CustomersPageState extends State<CustomersPage> {
 
         return BlocBuilder<CustomersBloc, CustomersState>(
           builder: (context, state) {
-            return SingleChildScrollView(
-              padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Breadcrumb(
-                          items: [
-                            BreadcrumbItem(
-                              label: 'Home',
-                              onTap: () => context.go(RoutePaths.dashboard),
-                            ),
-                            BreadcrumbItem(label: 'Customers'),
-                          ],
+            if (state is CustomersLoaded) _summary = state.summary;
+            final hasAlerts = _summary.expiringSoon > 0 || _summary.expired > 0;
+
+            return ColoredBox(
+              color: _kPageBg,
+              child: SingleChildScrollView(
+                padding: Responsive.pagePaddingFor(
+                  Responsive.deviceTypeOf(context),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 20),
+
+                    // One bar for every renewal alert.
+                    if (hasAlerts) ...[
+                      CustomerAttentionBar(
+                        summary: _summary,
+                        onShowExpiring: () => _onStatusChanged(
+                          CustomerStatus.expiringSoon.label,
                         ),
+                        onShowExpired: () =>
+                            _onStatusChanged(CustomerStatus.expired.label),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () => context.go(RoutePaths.addCustomer),
-                        icon: const Icon(
-                          Icons.person_add,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                        label: const Text('Add Customer'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlue,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 20),
                     ],
-                  ),
-                  const SizedBox(height: 16),
 
-                  // Premium Filter Panel
-                  CustomerFilterPanel(
-                    searchController: _searchController,
-                    selectedStatus: _selectedStatus,
-                    selectedConnectionType: _selectedConnectionType,
-                    activeFilterCount:
-                        (_selectedStatus != null ? 1 : 0) +
-                        (_searchController.text.isNotEmpty ? 1 : 0) +
-                        (_selectedConnectionType != null ? 1 : 0),
-                    onSearchChanged: _onSearchChanged,
-                    onStatusChanged: _onStatusChanged,
-                    onConnectionTypeChanged: _onConnectionTypeChanged,
-                    onClearFilters: _clearFilters,
-                  ),
-                  const SizedBox(height: 24),
+                    // Search, status chips with counts, and connection type
+                    // in one row.
+                    CustomerFilterPanel(
+                      searchController: _searchController,
+                      selectedStatus: _selectedStatus,
+                      selectedConnectionType: _selectedConnectionType,
+                      activeFilterCount:
+                          (_selectedStatus != null ? 1 : 0) +
+                          (_searchController.text.isNotEmpty ? 1 : 0) +
+                          (_selectedConnectionType != null ? 1 : 0),
+                      summary: _summary,
+                      onSearchChanged: _onSearchChanged,
+                      onStatusChanged: _onStatusChanged,
+                      onConnectionTypeChanged: _onConnectionTypeChanged,
+                      onClearFilters: _clearFilters,
+                    ),
+                    const SizedBox(height: 16),
 
-                  // Main Directory Table
-                  if (state is CustomersLoading)
-                    const LoadingWidget(
-                      message: 'Retrieving subscriber databases...',
-                    )
-                  else if (state is CustomersError)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.error,
-                              color: AppTheme.errorColor,
-                              size: 40,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(state.message),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                context.read<CustomersBloc>().add(
-                                  const LoadCustomersEvent(),
-                                );
-                              },
-                              child: const Text('Retry Query'),
-                            ),
-                          ],
+                    // Main directory table
+                    if (state is CustomersLoading)
+                      const LoadingWidget(
+                        message: 'Retrieving subscriber databases...',
+                      )
+                    else if (state is CustomersError)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.error,
+                                color: AppTheme.errorColor,
+                                size: 40,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(state.message),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () {
+                                  context.read<CustomersBloc>().add(
+                                    const LoadCustomersEvent(),
+                                  );
+                                },
+                                child: const Text('Retry Query'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    )
-                  else if (state is CustomersLoaded)
-                    Builder(builder: (context) {
-                      // Re-resolve the open side sheet against the freshly
-                      // loaded list. Holding the captured instance would leave
-                      // it showing the pre-renewal due date after a renewal
-                      // reloads the page behind it.
-                      final selected = _selectedCustomerForDetail == null
-                          ? null
-                          : state.customers
-                              .where((c) => c.id == _selectedCustomerForDetail!.id)
-                              .firstOrNull;
-                      return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        state.customers.isEmpty
-                            ? Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: const EmptyStateWidget(
-                                    icon: Icons.people_outline,
-                                    title: 'No Customers Found',
-                                    subtitle:
-                                        'Adjust your filters or add a new record to begin.',
-                                  ),
-                                ),
-                              )
-                            : ResponsiveSwitcher(
-                                mobile: CustomerCardList(
-                                  customers: state.customers,
-                                  currentUser: authState.user,
-                                  getPackageName: _getPackageName,
-                                  onDelete: _confirmDelete,
-                                  onRenew: _renew,
-                                  onToggleStatus: _toggleStatus,
-                                ),
-                                desktop: Card(
+                      )
+                    else if (state is CustomersLoaded)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          state.customers.isEmpty
+                              ? Card(
                                   child: Padding(
                                     padding: const EdgeInsets.all(12),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: _buildCustomersTable(
-                                            state.customers,
-                                            authState.user,
-                                          ),
-                                        ),
-                                        if (selected != null) ...[
-                                          const SizedBox(width: 16),
-                                          CustomerDetailsSideSheet(
-                                            customer: selected,
-                                            isAdmin: authState.user.isAdmin,
-                                            getPackageName: _getPackageName,
-                                            onClose: () => setState(() => _selectedCustomerForDetail = null),
-                                            onDelete: _confirmDelete,
-                                            onRenew: _renew,
-                                            onToggleStatus: _toggleStatus,
-                                          ),
-                                        ],
-                                      ],
+                                    child: const EmptyStateWidget(
+                                      icon: Icons.people_outline,
+                                      title: 'No Customers Found',
+                                      subtitle:
+                                          'Adjust your filters or add a new record to begin.',
                                     ),
                                   ),
+                                )
+                              : ResponsiveSwitcher(
+                                  mobile: CustomerCardList(
+                                    customers: state.customers,
+                                    currentUser: authState.user,
+                                    getPackageName: _getPackageName,
+                                    onDelete: _confirmDelete,
+                                    onRenew: _renew,
+                                    onToggleStatus: _toggleStatus,
+                                  ),
+                                  desktop: CustomerTable(
+                                    customers: state.customers,
+                                    isAdmin: authState.user.isAdmin,
+                                    getPackageName: _getPackageName,
+                                    footerText:
+                                        'Showing ${state.summary.showingFrom}-${state.summary.showingTo} of ${state.summary.filteredTotal} customers',
+                                    onView: (c) => _showDetails(
+                                      c,
+                                      authState.user.isAdmin,
+                                    ),
+                                    onRenew: _renew,
+                                    onEdit: (c) => context.go(
+                                      '${RoutePaths.customers}/${c.id}/edit',
+                                    ),
+                                    onToggleStatus: _toggleStatus,
+                                    onDelete: _confirmDelete,
+                                  ),
                                 ),
-                              ),
-                        if (state.totalPages > 1) ...[
-                          const SizedBox(height: 24),
-                          PaginationBar(
-                            currentPage: state.currentPage,
-                            totalPages: state.totalPages,
-                            onPageChanged: (page) {
-                              context.read<CustomersBloc>().add(
-                                LoadCustomersEvent(
-                                  page: page,
-                                  searchQuery: state.searchQuery,
-                                  filterStatus: state.filterStatus,
-                                  filterConnectionType:
-                                      state.filterConnectionType,
-                                ),
-                              );
-                            },
-                          ),
+                          if (state.totalPages > 1) ...[
+                            const SizedBox(height: 16),
+                            PaginationBar(
+                              currentPage: state.currentPage,
+                              totalPages: state.totalPages,
+                              onPageChanged: (page) {
+                                context.read<CustomersBloc>().add(
+                                  LoadCustomersEvent(
+                                    page: page,
+                                    searchQuery: state.searchQuery,
+                                    filterStatus: state.filterStatus,
+                                    filterConnectionType:
+                                        state.filterConnectionType,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ],
-                      ],
-                    );
-                    }),
-                ],
+                      ),
+                  ],
+                ),
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Customers',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _kInk,
+                ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Who is on service, who needs to renew, and what they owe.',
+                style: TextStyle(fontSize: 14, color: _kMuted),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        ElevatedButton.icon(
+          onPressed: () => context.go(RoutePaths.addCustomer),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Add customer'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _kTeal,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Opens the details as a panel on the right, over the page, so the table
+  /// keeps the full width. Every action closes the panel first, because the
+  /// reload that follows would leave it showing old data.
+  void _showDetails(CustomerModel customer, bool isAdmin) {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close details',
+      barrierColor: Colors.black38,
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.white,
+            elevation: 8,
+            child: SizedBox(
+              height: double.infinity,
+              child: SingleChildScrollView(
+                child: CustomerDetailsSideSheet(
+                  customer: customer,
+                  isAdmin: isAdmin,
+                  getPackageName: _getPackageName,
+                  onClose: () => Navigator.of(dialogContext).pop(),
+                  onDelete: (c) {
+                    Navigator.of(dialogContext).pop();
+                    _confirmDelete(c);
+                  },
+                  onRenew: (c) {
+                    Navigator.of(dialogContext).pop();
+                    _renew(c);
+                  },
+                  onToggleStatus: (c) {
+                    Navigator.of(dialogContext).pop();
+                    _toggleStatus(c);
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
         );
       },
     );
@@ -332,11 +408,6 @@ class _CustomersPageState extends State<CustomersPage> {
         isDestructive: true,
         onConfirm: () {
           context.read<CustomersBloc>().add(DeleteCustomerEvent(customer.id));
-          if (_selectedCustomerForDetail?.id == customer.id) {
-            setState(() {
-              _selectedCustomerForDetail = null;
-            });
-          }
           Navigator.of(ctx).pop();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -360,18 +431,8 @@ class _CustomersPageState extends State<CustomersPage> {
 
   Future<void> _toggleStatus(CustomerModel customer) async {
     final bloc = context.read<CustomersBloc>();
-    final changed = await showCustomerStatusDialog(
-      context,
-      customer: customer,
-    );
+    final changed = await showCustomerStatusDialog(context, customer: customer);
     if (!changed || !mounted) return;
-    // The side sheet holds a snapshot the reload is about to make stale, and
-    // it is the surface the toggle was most likely pressed from. Closing it
-    // is simpler than re-resolving the row out of the incoming page.
-    if (_selectedCustomerForDetail?.id == customer.id) {
-      setState(() => _selectedCustomerForDetail = null);
-    }
-
     await bloc.stream.firstWhere(
       (s) => s is CustomersLoaded || s is CustomersError,
     );
@@ -392,261 +453,4 @@ class _CustomersPageState extends State<CustomersPage> {
       ),
     );
   }
-
-  Widget _buildCustomersTable(
-    List<CustomerModel> customers,
-    UserModel currentUser,
-  ) {
-    final now = DateTime.now();
-    return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Name / Account ID')),
-        DataColumn(label: Text('Phone')),
-        DataColumn(label: Text('Connection Type')),
-        DataColumn(label: Text('Next Due Date')),
-        DataColumn(label: Text('Status')),
-        DataColumn(label: Text('Actions')),
-      ],
-      rows: customers.map((customer) {
-        final isSelected = _selectedCustomerForDetail?.id == customer.id;
-        // Null while off service — an inactive account is not accruing a bill,
-        // so the cell reads "Not billing" rather than an arrears figure.
-        final dueDate = customer.billingDueDate;
-        final isDueForRenewal = customer.isDueForRenewalAt(now);
-        final isExpired = customer.isExpiredAt(now);
-
-        return DataRow(
-          selected: isSelected,
-          color: WidgetStateProperty.resolveWith<Color?>((states) {
-            if (states.contains(WidgetState.selected)) {
-              return AppColors.primaryBlue.withOpacity(0.06);
-            }
-            return null;
-          }),
-          cells: [
-            // Name / Account ID
-            DataCell(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    customer.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                  Text(
-                    customer.id.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.mediumGray,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Phone
-            DataCell(
-              Text(
-                customer.phone,
-                style: const TextStyle(fontSize: 13, color: AppTheme.darkGray),
-              ),
-            ),
-
-            // Connection Type
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: customer.connectionType == 'fiber'
-                      ? Colors.purple.withOpacity(0.08)
-                      : Colors.blue.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: customer.connectionType == 'fiber'
-                        ? Colors.purple.withOpacity(0.3)
-                        : Colors.blue.withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  customer.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: customer.connectionType == 'fiber'
-                        ? Colors.purple
-                        : Colors.blue[800],
-                  ),
-                ),
-              ),
-            ),
-
-            // Next Due Date
-            DataCell(() {
-              if (dueDate == null) {
-                return Text(
-                  customer.isActive ? '—' : 'Not billing',
-                  style: const TextStyle(
-                    color: AppTheme.mediumGray,
-                    fontStyle: FontStyle.italic,
-                    fontSize: 12,
-                  ),
-                );
-              }
-              final diff = BillingCycle.daysUntilDue(dueDate, now);
-              Color color;
-              String label;
-              if (diff < 0) {
-                color = AppTheme.errorColor;
-                label = 'Overdue by ${-diff}d';
-              } else if (diff == 0) {
-                color = AppTheme.errorColor;
-                label = 'Due Today';
-              } else if (diff <= 7) {
-                color = Colors.orange;
-                label = 'In $diff days';
-              } else {
-                color = AppTheme.darkGray;
-                label = '';
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    DateTimeUtils.formatDate(dueDate),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      color: color,
-                    ),
-                  ),
-                  if (label.isNotEmpty)
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  if (customer.nextDueDate == null)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 10,
-                          color: AppTheme.mediumGray,
-                        ),
-                        const SizedBox(width: 2),
-                        const Text(
-                          'estimated',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: AppTheme.mediumGray,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              );
-            }()),
-
-            // Status
-            DataCell(StatusBadge(status: customer.status)),
-
-            // Actions
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Renewal is the primary action on an expiring or lapsed
-                  // account, so it leads the row and is filled rather than
-                  // ghosted. It is the only control that moves the expiry.
-                  if (isDueForRenewal)
-                    Tooltip(
-                      message: isExpired
-                          ? 'Expired — collect payment and renew'
-                          : 'Renew early',
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.autorenew, size: 15),
-                        label: const Text(
-                          'Renew',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: isExpired
-                              ? AppTheme.errorColor
-                              : Colors.orange.shade700,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () => _renew(customer),
-                      ),
-                    ),
-                  IconButton(
-                    icon: const Icon(Icons.visibility_outlined, size: 17),
-                    color: AppColors.primaryBlue,
-                    tooltip: 'View Details',
-                    onPressed: () {
-                      setState(() => _selectedCustomerForDetail = customer);
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 17),
-                    color: Colors.orange,
-                    tooltip: 'Edit Customer',
-                    onPressed: () {
-                      context.go('${RoutePaths.customers}/${customer.id}/edit');
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      customer.isActive
-                          ? Icons.pause_circle_outline
-                          : Icons.play_circle_outline,
-                      size: 17,
-                    ),
-                    color: customer.isActive
-                        ? AppTheme.mediumGray
-                        : AppTheme.successColor,
-                    tooltip: customer.isActive
-                        ? 'Deactivate — stop tracking renewals'
-                        : 'Reactivate — put back on service',
-                    onPressed: () => _toggleStatus(customer),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 17),
-                    color: AppTheme.errorColor,
-                    tooltip: 'Delete Customer',
-                    onPressed: () => _confirmDelete(customer),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          onSelectChanged: (selected) {
-            setState(() {
-              _selectedCustomerForDetail = selected == true ? customer : null;
-            });
-          },
-        );
-      }).toList(),
-    );
-  }
-
-  // _buildCustomerCardList, _buildDetailsSideSheet, _mobileInfoChip,
-  // _sideSheetSectionTitle, _buildDetailRow have been extracted into:
-  //   • CustomerCardList       (features/customers/presentation/widgets/)
-  //   • CustomerDetailsSideSheet (features/customers/presentation/widgets/)
-  //   • InfoChip               (shared/widgets/info_chip.dart)
 }

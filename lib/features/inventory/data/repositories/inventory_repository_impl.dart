@@ -11,7 +11,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
   InventoryRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<void> addInventoryItem(InventoryItemEntity item) async {
+  Future<void> addInventoryItem(InventoryItemEntity item, {String? performedBy}) async {
     final model = InventoryItemModel(
       id: item.id,
       name: item.name,
@@ -27,7 +27,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
       updatedAt: item.updatedAt,
       connectionType: item.connectionType,
     );
-    await remoteDataSource.addInventoryItem(model);
+    await remoteDataSource.addInventoryItem(model, performedBy: performedBy);
   }
 
   @override

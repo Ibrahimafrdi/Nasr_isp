@@ -36,8 +36,18 @@ class PaymentRepositoryImpl implements PaymentRepository {
   }
 
   @override
-  Future<List<PaymentEntity>> getAllPayments() =>
-      remoteDataSource.getAllPayments();
+  Future<List<PaymentEntity>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      remoteDataSource.getAllPayments(
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+  @override
+  Future<DateTime?> getEarliestPaymentDate() =>
+      remoteDataSource.getEarliestPaymentDate();
 
   @override
   Future<int> getTotalPaymentsCount() =>

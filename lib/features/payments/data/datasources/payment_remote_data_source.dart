@@ -11,9 +11,21 @@ abstract class PaymentRemoteDataSource {
     DateTime? dateRangeStart,
     DateTime? dateRangeEnd,
   });
-  /// Fetches the entire payments collection, unbounded — for aggregate
-  /// stats (e.g. the dashboard) that must not silently drop older records.
-  Future<List<PaymentModel>> getAllPayments();
+  /// Fetches payments ordered by createdAt descending.
+  ///
+  /// When [startDate] and/or [endDate] are provided the query is bounded to
+  /// that date range, reducing Firestore read cost for report-scoped callers.
+  /// Leave both null to fetch the entire collection (e.g. the dashboard KPIs
+  /// that need all-time arrears data).
+  Future<List<PaymentModel>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  });
+
+  /// Returns the `createdAt` of the oldest payment document, or `null` when
+  /// the collection is empty. Uses a single ascending `limit(1)` read — O(1)
+  /// cost regardless of collection size.
+  Future<DateTime?> getEarliestPaymentDate();
   Future<void> updatePayment(PaymentModel payment);
   Future<void> deletePayment(String id);
   Future<int> getTotalPaymentsCount();
@@ -120,11 +132,42 @@ class PaymentRemoteDataSourceImpl implements PaymentRemoteDataSource {
   }
 
   @override
-  Future<List<PaymentModel>> getAllPayments() async {
-    final snapshot = await _col.orderBy('createdAt', descending: true).get();
+  Future<List<PaymentModel>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    Query query = _col.orderBy('createdAt', descending: true);
+    if (startDate != null) {
+      query = query.where(
+        'createdAt',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
+    }
+    if (endDate != null) {
+      query = query.where(
+        'createdAt',
+        isLessThanOrEqualTo: Timestamp.fromDate(
+          endDate.add(const Duration(days: 1)),
+        ),
+      );
+    }
+    final snapshot = await query.get();
     return snapshot.docs
         .map((doc) => _normalizeStatus(PaymentModel.fromFirestore(doc)))
         .toList();
+  }
+
+  @override
+  Future<DateTime?> getEarliestPaymentDate() async {
+    final snapshot = await _col
+        .orderBy('createdAt')
+        .limit(1)
+        .get();
+    if (snapshot.docs.isEmpty) return null;
+    final raw = snapshot.docs.first.data() as Map<String, dynamic>?;
+    final ts = raw?['createdAt'];
+    if (ts is Timestamp) return ts.toDate();
+    return null;
   }
 
   PaymentModel _normalizeStatus(PaymentModel p) {

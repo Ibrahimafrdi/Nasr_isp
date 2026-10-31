@@ -43,6 +43,12 @@ class _FakeCustomerRepository implements CustomerRepository {
       throw UnimplementedError();
   @override
   Future<void> deleteCustomer(String id) async => throw UnimplementedError();
+  @override
+  Future<void> updateCustomerWithPayment({
+    required CustomerEntity customer,
+    PaymentEntity? payment,
+  }) async =>
+      throw UnimplementedError();
 }
 
 class _FakePaymentRepository implements PaymentRepository {
@@ -50,7 +56,13 @@ class _FakePaymentRepository implements PaymentRepository {
   final List<PaymentModel> payments;
 
   @override
-  Future<List<PaymentEntity>> getAllPayments() async => payments;
+  Future<List<PaymentEntity>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => payments;
+
+  @override
+  Future<DateTime?> getEarliestPaymentDate() async => throw UnimplementedError();
 
   @override
   Future<void> addPayment(PaymentEntity p) async => throw UnimplementedError();

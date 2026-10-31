@@ -43,6 +43,7 @@ import 'package:nasr_isp/features/payments/domain/repositories/payment_repositor
 import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_earliest_payment_date.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payment_by_customer_and_month.dart';
 
@@ -161,6 +162,7 @@ void setupServiceLocator() {
   // Use Cases - Payments
   getIt.registerLazySingleton(() => GetPayments(getIt()));
   getIt.registerLazySingleton(() => GetAllPayments(getIt()));
+  getIt.registerLazySingleton(() => GetEarliestPaymentDate(getIt()));
   getIt.registerLazySingleton(() => AddPayment(getIt()));
   getIt.registerLazySingleton(() => UpdatePayment(getIt()));
   getIt.registerLazySingleton(() => GetPaymentByCustomerAndMonth(getIt()));
@@ -275,7 +277,7 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(
     () => GetAvailableReportMonths(
       getCustomers: getIt(),
-      getAllPayments: getIt(),
+      getEarliestPaymentDate: getIt(),
       getExpenses: getIt(),
     ),
   );

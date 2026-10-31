@@ -41,6 +41,7 @@ class _InventoryViewState extends State<_InventoryView> {
   late TextEditingController _searchController;
   InventoryCategory? _selectedCategory;
   InventoryConnectionType? _selectedConnectionType;
+  bool _lowStockOnly = false;
 
   @override
   void initState() {
@@ -59,6 +60,7 @@ class _InventoryViewState extends State<_InventoryView> {
       _searchController.clear();
       _selectedCategory = null;
       _selectedConnectionType = null;
+      _lowStockOnly = false;
     });
   }
 
@@ -387,7 +389,19 @@ class _InventoryViewState extends State<_InventoryView> {
                             connectionType: connectionType,
                           );
                           if (existing == null) {
-                            bloc.add(AddInventoryItemEvent(item));
+                            final authState =
+                                pageContext.read<AuthBloc>().state;
+                            final performer = authState is AuthAuthenticated
+                                ? (authState.user.name.isNotEmpty
+                                    ? authState.user.name
+                                    : (authState.user.email.isNotEmpty
+                                        ? authState.user.email
+                                        : authState.user.id))
+                                : null;
+                            bloc.add(AddInventoryItemEvent(
+                              item,
+                              performedBy: performer,
+                            ));
                           } else {
                             bloc.add(UpdateInventoryItemEvent(item));
                           }
@@ -811,63 +825,334 @@ class _InventoryViewState extends State<_InventoryView> {
     );
   }
 
-  Widget _buildMetricCard(
-    String label,
-    String value,
-    String subtitle,
-    IconData icon,
-    Color iconColor,
+  static const _accent = Color(0xFF0F766E);
+  static const _ink = Color(0xFF14213D);
+  static const _muted = Color(0xFF5B6472);
+  static const _border = Color(0xFFE3E6EB);
+
+  /// Rs 450,000 style.
+  String _rs(num amount) {
+    final digits = amount.round().toString();
+    final withCommas = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (m) => ',',
+    );
+    return 'Rs $withCommas';
+  }
+
+  Widget _statCard(String label, String value, {String? note, Color? color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: color ?? _ink,
+            ),
+          ),
+          if (note != null) ...[
+            const SizedBox(height: 4),
+            Text(note, style: const TextStyle(fontSize: 12, color: _muted)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _cardGrid(List<Widget> cards) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 16.0;
+        final cols = c.maxWidth >= 900 ? 4 : 2;
+        final width = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildRestockBar(
+    BuildContext context,
+    List<InventoryItemEntity> lowStockItems,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+    const brown = Color(0xFF7A3E00);
+    final worst = ([...lowStockItems]
+      ..sort((a, b) => a.quantityInStock.compareTo(b.quantityInStock)))
+        .first;
+    final more = lowStockItems.length - 1;
+    final text = worst.quantityInStock <= 0
+        ? '${worst.name} is out of stock (reorder at ${worst.reorderLevel})'
+        : '${worst.name} has ${worst.quantityInStock} left (reorder at ${worst.reorderLevel})';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF2C98A)),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text.rich(
+            TextSpan(
+              style: const TextStyle(fontSize: 14, color: brown),
+              children: [
+                const TextSpan(
+                  text: 'Restock soon: ',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(
+                  text: more > 0 ? '$text and $more more.' : '$text.',
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              backgroundColor: brown,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: iconColor, size: 28),
             ),
-            const SizedBox(width: 16),
+            onPressed: () => _showAdjustStockDialog(context, worst),
+            child: const Text('Add stock'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Desktop table ----------
+
+  static const _flex = [22, 16, 10, 10, 12, 11, 24];
+
+  Widget _tableRow(List<Widget> cells, {bool header = false, bool last = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: header ? 12 : 14),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : const Border(bottom: BorderSide(color: Color(0xFFEEF0F3))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < cells.length; i++)
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.mediumGray,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.mediumGray,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              flex: _flex[i],
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: cells[i],
               ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerCell(String t) => Text(
+        t,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: _muted,
+        ),
+      );
+
+  Widget _buildItemsTable(
+    BuildContext context,
+    List<InventoryItemEntity> items,
+  ) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = c.maxWidth < 980 ? 980.0 : c.maxWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            child: Column(
+              children: [
+                _tableRow([
+                  _headerCell('Item'),
+                  _headerCell('In stock'),
+                  _headerCell('Unit cost'),
+                  _headerCell('Sell price'),
+                  _headerCell('Profit per unit'),
+                  _headerCell('Status'),
+                  _headerCell('Actions'),
+                ], header: true),
+                for (var i = 0; i < items.length; i++)
+                  _itemRow(context, items[i], last: i == items.length - 1),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _itemRow(
+    BuildContext context,
+    InventoryItemEntity item, {
+    required bool last,
+  }) {
+    final isOut = item.quantityInStock <= 0;
+    final isLow = !isOut && item.quantityInStock <= item.reorderLevel;
+    final statusText =
+        isOut ? 'Out of stock' : (isLow ? 'Low stock' : 'Available');
+    final statusColor = isOut
+        ? AppTheme.errorColor
+        : (isLow ? AppTheme.warningColor : AppTheme.successColor);
+    final unitLabel = item.unit.trim().isEmpty ? 'pcs' : item.unit;
+    final ratio = item.reorderLevel <= 0
+        ? (isOut ? 0.0 : 1.0)
+        : (item.quantityInStock / (item.reorderLevel * 2)).clamp(0.0, 1.0);
+    final profit = item.sellPrice - item.unitCost;
+    final pct = item.sellPrice > 0 ? (profit / item.sellPrice * 100).round() : null;
+
+    ButtonStyle btn(Color fg, Color border) => OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      foregroundColor: fg,
+      side: BorderSide(color: border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+    );
+
+    return _tableRow([
+      InkWell(
+        onTap: () => _showItemDetail(context, item),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.name,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${_categoryLabel(item.category)} · ${item.connectionType.label}',
+              style: const TextStyle(fontSize: 12, color: _muted),
             ),
           ],
         ),
       ),
-    );
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${item.quantityInStock} $unitLabel',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: isOut || isLow ? statusColor : _ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 6,
+              backgroundColor: _border,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isOut || isLow ? statusColor : _accent,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Reorder at ${item.reorderLevel}',
+            style: const TextStyle(fontSize: 12, color: _muted),
+          ),
+        ],
+      ),
+      Text(_rs(item.unitCost)),
+      Text(_rs(item.sellPrice)),
+      Text(
+        pct == null ? _rs(profit) : '${_rs(profit)} ($pct%)',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: profit >= 0 ? AppTheme.successColor : AppTheme.errorColor,
+        ),
+      ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            statusText,
+            style: TextStyle(
+              color: statusColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          OutlinedButton(
+            style: btn(_accent, _accent),
+            onPressed: () => _showAdjustStockDialog(context, item),
+            child: const Text('Adjust stock'),
+          ),
+          OutlinedButton(
+            style: btn(_ink, const Color(0xFFC9CED6)),
+            onPressed: () => _showItemDialog(context, existing: item),
+            child: const Text('Edit'),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More actions',
+            icon: const Icon(Icons.more_horiz),
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            onSelected: (v) {
+              if (v == 'delete') _confirmDelete(context, item);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(
+                  'Delete item',
+                  style: TextStyle(color: AppTheme.errorColor),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ], last: last);
   }
 
   @override
@@ -911,7 +1196,12 @@ class _InventoryViewState extends State<_InventoryView> {
               final matchesConnectionType =
                   _selectedConnectionType == null ||
                   item.connectionType == _selectedConnectionType;
-              return matchesSearch && matchesCategory && matchesConnectionType;
+              final matchesLow =
+                  !_lowStockOnly || item.quantityInStock <= item.reorderLevel;
+              return matchesSearch &&
+                  matchesCategory &&
+                  matchesConnectionType &&
+                  matchesLow;
             }).toList();
 
             final totalEquipment = allItems
@@ -925,128 +1215,115 @@ class _InventoryViewState extends State<_InventoryView> {
               (sum, i) => sum + (i.unitCost * i.quantityInStock),
             );
 
+            final sellValue = allItems.fold(
+              0.0,
+              (sum, i) => sum + (i.sellPrice * i.quantityInStock),
+            );
+            final activeFilters =
+                (_selectedCategory != null ? 1 : 0) +
+                (_selectedConnectionType != null ? 1 : 0) +
+                (_searchController.text.isNotEmpty ? 1 : 0) +
+                (_lowStockOnly ? 1 : 0);
+
             return SingleChildScrollView(
               padding: Responsive.pagePaddingFor(Responsive.deviceTypeOf(context)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Breadcrumb(
-                    items: [
-                      BreadcrumbItem(
-                        label: 'Home',
-                        onTap: () => context.go(RoutePaths.dashboard),
-                      ),
-                      BreadcrumbItem(label: 'Inventory'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Inventory Management',
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              'Inventory',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
+                              ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 6),
                             Text(
-                              'Track equipment and consumable stock levels.',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              'Know what you have, what is running low, and what it is worth.',
+                              style: TextStyle(fontSize: 14, color: _muted),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          backgroundColor: _accent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                         onPressed: () => _showItemDialog(context),
                         icon: const Icon(Icons.add),
-                        label: const Text('Add Item'),
+                        label: const Text('Add item'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isDesktop = constraints.maxWidth > 800;
-                      return GridView.count(
-                        crossAxisCount: isDesktop ? 4 : 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: isDesktop ? 1.8 : 1.3,
-                        children: [
-                          _buildMetricCard(
-                            'Total Items',
-                            '${allItems.length}',
-                            'Tracked SKUs',
-                            Icons.inventory_2,
-                            AppTheme.primaryColor,
-                          ),
-                          _buildMetricCard(
-                            'Low Stock Alerts',
-                            '${lowStockItems.length} Items',
-                            'At or below reorder level',
-                            Icons.warning_amber_rounded,
-                            lowStockItems.isNotEmpty
-                                ? AppTheme.errorColor
-                                : AppTheme.successColor,
-                          ),
-                          _buildMetricCard(
-                            'Equipment Stock',
-                            '$totalEquipment',
-                            'Units available',
-                            Icons.router,
-                            Colors.purple,
-                          ),
-                          _buildMetricCard(
-                            'Stock Value',
-                            'PKR ${totalValue.toStringAsFixed(0)}',
-                            'Total inventory cost',
-                            Icons.payments,
-                            Colors.teal,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                  _cardGrid([
+                    _statCard('Items tracked', '${allItems.length}'),
+                    _statCard(
+                      'Needs restocking',
+                      '${lowStockItems.length}',
+                      note: 'Low or out of stock',
+                      color: lowStockItems.isNotEmpty
+                          ? AppTheme.errorColor
+                          : AppTheme.successColor,
+                    ),
+                    _statCard(
+                      'Stock value (what you paid)',
+                      _rs(totalValue),
+                      note: 'Worth ${_rs(sellValue)} at sell price',
+                    ),
+                    _statCard(
+                      'Equipment units',
+                      '$totalEquipment',
+                      note: 'Routers, ONUs and similar',
+                    ),
+                  ]),
+                  if (lowStockItems.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildRestockBar(context, lowStockItems),
+                  ],
                   const SizedBox(height: 24),
                   InventoryFilterPanel(
                     searchController: _searchController,
                     selectedCategory: _selectedCategory,
                     selectedConnectionType: _selectedConnectionType,
-                    activeFilterCount:
-                        (_selectedCategory != null ? 1 : 0) +
-                        (_selectedConnectionType != null ? 1 : 0) +
-                        (_searchController.text.isNotEmpty ? 1 : 0),
+                    lowStockOnly: _lowStockOnly,
+                    activeFilterCount: activeFilters,
                     categoryLabel: _categoryLabel,
                     onSearchChanged: (_) => setState(() {}),
                     onCategoryChanged: (cat) =>
                         setState(() => _selectedCategory = cat),
                     onConnectionTypeChanged: (type) =>
                         setState(() => _selectedConnectionType = type),
+                    onLowStockOnlyChanged: (v) =>
+                        setState(() => _lowStockOnly = v),
                     onClearFilters: _clearFilters,
                   ),
-                  const SizedBox(height: 24),
-                  Card(
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
+                    ),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text(
-                            'Inventory Directory',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        const Divider(),
                         ResponsiveSwitcher(
                           mobile: InventoryCardList(
                             items: filteredItems,
@@ -1059,131 +1336,7 @@ class _InventoryViewState extends State<_InventoryView> {
                                 _showItemDialog(context, existing: item),
                             onDelete: (item) => _confirmDelete(context, item),
                           ),
-                          desktop: DataTableWrapper(
-                            columns: const [
-                              DataColumn(label: Text('Name')),
-                              DataColumn(label: Text('Category')),
-                              DataColumn(label: Text('Used For')),
-                              DataColumn(label: Text('Quantity')),
-                              DataColumn(label: Text('Reorder Level')),
-                              DataColumn(label: Text('Unit Cost')),
-                              DataColumn(label: Text('Sell Price')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Actions')),
-                            ],
-                            rows: filteredItems.map((item) {
-                              final isOut = item.quantityInStock <= 0;
-                              final isLow = !isOut && item.quantityInStock <= item.reorderLevel;
-                              final statusText = isOut
-                                  ? 'Out of Stock'
-                                  : (isLow ? 'Low Stock' : 'Available');
-                              final statusColor = isOut
-                                  ? AppTheme.errorColor
-                                  : (isLow
-                                        ? AppTheme.warningColor
-                                        : AppTheme.successColor);
-                              final unitLabel = item.unit.trim().isEmpty ? 'pcs' : item.unit;
-                              final qtyDisplay = isOut ? '0 $unitLabel' : '${item.quantityInStock} $unitLabel';
-
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Text(
-                                      item.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    onTap: () => _showItemDetail(context, item),
-                                  ),
-                                  DataCell(Text(_categoryLabel(item.category))),
-                                  DataCell(Text(item.connectionType.label)),
-                                  DataCell(
-                                    Text(
-                                      qtyDisplay,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: statusColor,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text('${item.reorderLevel} ${item.unit}'),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      'PKR ${item.unitCost.toStringAsFixed(0)}',
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      'PKR ${item.sellPrice.toStringAsFixed(0)}',
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: statusColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        statusText,
-                                        style: TextStyle(
-                                          color: statusColor,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.tune,
-                                            size: 18,
-                                          ),
-                                          tooltip: 'Adjust Stock',
-                                          onPressed: () =>
-                                              _showAdjustStockDialog(
-                                                context,
-                                                item,
-                                              ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.edit,
-                                            size: 18,
-                                          ),
-                                          tooltip: 'Edit',
-                                          onPressed: () => _showItemDialog(
-                                            context,
-                                            existing: item,
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.delete,
-                                            size: 18,
-                                            color: AppTheme.errorColor,
-                                          ),
-                                          tooltip: 'Delete',
-                                          onPressed: () =>
-                                              _confirmDelete(context, item),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
+                          desktop: _buildItemsTable(context, filteredItems),
                         ),
                         if (filteredItems.isEmpty)
                           const Padding(

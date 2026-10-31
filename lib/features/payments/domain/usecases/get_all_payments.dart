@@ -6,5 +6,12 @@ class GetAllPayments {
 
   GetAllPayments(this.repository);
 
-  Future<List<PaymentEntity>> call() => repository.getAllPayments();
+  Future<List<PaymentEntity>> call({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      repository.getAllPayments(
+        startDate: startDate,
+        endDate: endDate,
+      );
 }

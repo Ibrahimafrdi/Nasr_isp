@@ -4,21 +4,18 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
-import 'package:nasr_isp/shared/widgets/alert_panel.dart';
-import 'package:nasr_isp/shared/widgets/kpi_card.dart';
 import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
-import 'package:nasr_isp/shared/widgets/quick_action_card.dart';
 import 'package:nasr_isp/shared/widgets/status_badge.dart';
 import 'package:nasr_isp/shared/widgets/responsive_table.dart';
 import 'package:nasr_isp/shared/widgets/mobile_dashboard_card.dart';
-import 'package:nasr_isp/shared/widgets/analytics_card.dart';
-import 'package:nasr_isp/shared/widgets/activity_timeline_widget.dart';
-import 'package:nasr_isp/features/dashboard/presentation/widgets/monthly_history_section.dart';
-import 'package:nasr_isp/shared/utils/responsive.dart';
+
+const _kAccent = Color(0xFF0F766E);
+const _kInk = Color(0xFF14213D);
+const _kBorder = Color(0xFFE3E6EB);
+const _kMuted = Color(0xFF5B6472);
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -28,9 +25,6 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool _showExpiringAlert = true;
-  bool _showOverdueAlert = true;
-
   @override
   void initState() {
     super.initState();
@@ -62,9 +56,7 @@ class _DashboardPageState extends State<DashboardPage> {
               return const Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.primaryBlue,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(_kAccent),
                 ),
               );
             }
@@ -86,17 +78,36 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        context.read<DashboardBloc>().add(
-                          const LoadDashboardEvent(),
-                        );
-                      },
+                      onPressed: () => context.read<DashboardBloc>().add(
+                        const LoadDashboardEvent(),
+                      ),
                       child: const Text('Retry'),
                     ),
                   ],
                 ),
               );
             }
+
+            final loaded = state is DashboardLoaded ? state : null;
+            final stats =
+                loaded?.stats ??
+                const DashboardStatsModel(
+                  totalCustomers: 0,
+                  activeCustomers: 0,
+                  expiredCustomers: 0,
+                  expiringsoon: 0,
+                  subscriberRunRateMargin: 0,
+                  cashCollectedThisMonth: 0,
+                  monthlyExpenses: 0,
+                  netProfit: 0,
+                  pendingPayments: 0,
+                  pendingPaymentsCount: 0,
+                  pendingInstallations: 0,
+                  completedInstallations: 0,
+                  monthlyInstallationRevenue: 0,
+                  monthlyInstallationCost: 0,
+                  monthlyInstallationProfit: 0,
+                );
 
             return RefreshIndicator(
               onRefresh: _onRefresh,
@@ -109,223 +120,131 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ===== HEADER =====
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Good ${_getGreeting()}, ${user.name} 👋',
-                                style: GoogleFonts.inter(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.black,
-                                ),
+                        // ===== HEADER + QUICK ACTIONS =====
+                        Column(
+                          children: [
+                            Text(
+                              'Good ${_getGreeting()}, ${user.name}',
+                              style: GoogleFonts.inter(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w700,
+                                color: _kInk,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                isAdmin
-                                    ? 'Admin Dashboard Overview'
-                                    : 'Employee Performance Metrics',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.darkGray,
-                                ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isAdmin
+                                  ? '       Here is how your internet business is doing this month.'
+                                  : '       Employee Performance Metrics',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: _kMuted,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
+                        const Spacer(),
+                        const SizedBox(width: 16),
+                        _buildQuickActions(context),
                       ],
                     ),
+
                     const SizedBox(height: 24),
 
-                    // ===== ALERTS (Admin Only) =====
-                    if (isAdmin && state is DashboardLoaded) ...[
-                      if (_showExpiringAlert &&
-                          state.expiringCustomers.isNotEmpty)
-                        AlertPanel(
-                          type: AlertType.warning,
-                          title:
-                              '${state.stats.expiringsoon} Customers Expiring Soon',
-                          message:
-                              'Customer packages will expire in the next 7 days. Review and renew before service interruption.',
-                          icon: Icons.warning_amber,
-                          actionLabel: 'Review',
-                          onActionTap: () => context.go(RoutePaths.customers),
-                          onDismiss: () =>
-                              setState(() => _showExpiringAlert = false),
+                    // ===== NEEDS ATTENTION (admin) =====
+                    if (isAdmin && loaded != null) ...[
+                      _buildAttentionBar(context, stats),
+                    ],
+
+                    // ===== MONEY (admin) =====
+                    if (isAdmin) ...[
+                      const _SectionTitle('Money this month'),
+
+                      const SizedBox(height: 16),
+                      _buildNetProfit(stats),
+                      _cardGrid([
+                        _StatCard(
+                          label: 'Monthly revenue',
+                          value: _rs(stats.subscriberRunRateRevenue),
+                          note: 'Billed to ${stats.activeCustomers} customers',
                         ),
-                      if (_showOverdueAlert &&
-                          state.stats.pendingThisMonth > 0) ...[
-                        if (_showExpiringAlert &&
-                            state.expiringCustomers.isNotEmpty)
-                          const SizedBox(height: 16),
-                        // Routes to wherever the fix actually is: an unrenewed
-                        // customer is renewed from the Customers page, while a
-                        // part-paid charge is settled on the Payments ledger.
-                        AlertPanel(
-                          type: AlertType.error,
-                          title: state.stats.expiredCustomersDueCount > 0
-                              ? 'Renewals Outstanding'
-                              : 'Balances Outstanding',
-                          message: _pendingAlertMessage(state.stats),
-                          icon: Icons.error_outline,
-                          actionLabel: state.stats.expiredCustomersDueCount > 0
-                              ? 'Renew Now'
-                              : 'Collect Now',
-                          onActionTap: () => context.go(
-                            state.stats.expiredCustomersDueCount > 0
-                                ? RoutePaths.customers
-                                : RoutePaths.payments,
-                          ),
-                          onDismiss: () =>
-                              setState(() => _showOverdueAlert = false),
+                        _StatCard(
+                          label: 'Vendor cost',
+                          value: _rs(stats.subscriberVendorCost),
+                          note: 'What you pay for the packages',
+                        ),
+                        _StatCard(
+                          label: 'Margin (revenue minus cost)',
+                          value: _rs(stats.subscriberRunRateMargin),
+                          valueColor: _kAccent,
+                          note: stats.unpricedCustomerCount > 0
+                              ? 'Overstated · ${stats.unpricedCustomerCount} of ${stats.activeCustomers} have no package cost'
+                              : _marginPercentNote(stats),
+                        ),
+                        _StatCard(
+                          label: 'Collected so far',
+                          value: _rs(stats.currentMonthCollected),
+                          progress: stats.marginCollectionRate ?? 0,
+                          note: _collectionSubtitle(stats),
+                        ),
+                      ]),
+                      const SizedBox(height: 32),
+                    ],
+
+                    // ===== CUSTOMERS =====
+                    const _SectionTitle('Customers'),
+                    _cardGrid([
+                      _StatCard(
+                        label: 'Total customers',
+                        value: stats.totalCustomers.toString(),
+                      ),
+                      _StatCard(
+                        label: 'Expiring in 7 days',
+                        value: stats.expiringsoon.toString(),
+                        valueColor: AppColors.warningOrange,
+                      ),
+                      if (isAdmin) ...[
+                        _StatCard(
+                          label: 'Expired, not renewed',
+                          value: stats.expiredCustomersDueCount.toString(),
+                          valueColor: AppColors.errorRed,
+                          note: '${stats.expiredCustomers} expired in total',
+                        ),
+                        _StatCard(
+                          label: 'Waiting to be paid',
+                          value: _rs(stats.pendingThisMonth),
+                          valueColor: AppColors.errorRed,
+                          note: _pendingSubtitle(stats),
                         ),
                       ],
-                      if ((state.expiringCustomers.isNotEmpty ||
-                              state.pendingPayments.isNotEmpty) &&
-                          (_showExpiringAlert || _showOverdueAlert))
-                        const SizedBox(height: 32),
-                    ],
-
-                    // ===== KPI CARDS =====
-                    Text(
-                      isAdmin ? 'Financial & Service Overview' : 'Key Metrics',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildKPICards(
-                      isAdmin,
-                      state is DashboardLoaded
-                          ? state.stats
-                          : const DashboardStatsModel(
-                              totalCustomers: 0,
-                              activeCustomers: 0,
-                              expiredCustomers: 0,
-                              expiringsoon: 0,
-                              subscriberRunRateMargin: 0,
-                              cashCollectedThisMonth: 0,
-                              monthlyExpenses: 0,
-                              netProfit: 0,
-                              pendingPayments: 0,
-                              pendingPaymentsCount: 0,
-                              pendingInstallations: 0,
-                              completedInstallations: 0,
-                              monthlyInstallationRevenue: 0,
-                              monthlyInstallationCost: 0,
-                              monthlyInstallationProfit: 0,
-                            ),
-                    ),
+                    ]),
                     const SizedBox(height: 32),
 
-                    // ===== QUICK ACTIONS =====
-                    Text(
-                      'Quick Actions',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildQuickActions(context, isAdmin),
-                    const SizedBox(height: 32),
-
-                    // ===== ANALYTICS (Admin Only) =====
-                    if (isAdmin && state is DashboardLoaded) ...[
-                      Text(
-                        'Analytics & Performance Statistics',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      AnalyticsSection(
-                        monthlyRevenue6: state.monthlyRevenue6,
-                        customerGrowth6: state.customerGrowth6,
-                        connectionTypeDist: state.connectionTypeDist,
-                        paymentByMethod: state.paymentByMethod,
-                      ),
-                      const SizedBox(height: 32),
-                    ],
-
-                    // ===== RECENT ACTIVITY =====
-                    Text(
-                      'Recent Activity',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildActivityTimeline(
-                      state is DashboardLoaded ? state.recentPayments : [],
-                    ),
-                    const SizedBox(height: 32),
-
-                    // ===== DATA TABLES (Admin Only) =====
+                    // ===== TABLES (admin) =====
                     if (isAdmin) ...[
-                      Text(
-                        'Expiring Contracts (Next 7 Days)',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.black,
-                        ),
+                      _SectionTitle(
+                        'Renew soon (next 7 days)',
+                        actionLabel: 'See all customers',
+                        onAction: () => context.go(RoutePaths.customers),
                       ),
-                      const SizedBox(height: 16),
                       _buildExpiringTable(
-                        state is DashboardLoaded ? state.expiringCustomers : [],
+                        (loaded?.expiringCustomers ?? <CustomerModel>[])
+                            .take(5)
+                            .toList(),
                       ),
                       const SizedBox(height: 32),
-
-                      Text(
-                        'Recent Payments',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.black,
-                        ),
+                      _SectionTitle(
+                        'Recent payments',
+                        actionLabel: 'See all payments',
+                        onAction: () => context.go(RoutePaths.payments),
                       ),
-                      const SizedBox(height: 16),
                       _buildRecentPaymentsTable(
-                        state is DashboardLoaded ? state.recentPayments : [],
+                        (loaded?.recentPayments ?? <PaymentModel>[])
+                            .take(5)
+                            .toList(),
                       ),
-                      const SizedBox(height: 24),
-
-                      // ===== INSTALLATION COUNTS (Admin Only) =====
-                      Text(
-                        'Installation Overview',
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInstallationOverview(
-                        state is DashboardLoaded
-                            ? state.stats.pendingInstallations
-                            : 0,
-                        state is DashboardLoaded
-                            ? state.stats.completedInstallations
-                            : 0,
-                      ),
-                      const SizedBox(height: 32),
-
-                      // ===== MONTHLY FINANCIAL HISTORY (Admin Only) =====
-                      const MonthlyHistorySection(),
                       const SizedBox(height: 24),
                     ],
                   ],
@@ -338,99 +257,42 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildInstallationOverview(int pending, int completed) {
-    final pendingCard = KPICard(
-      title: 'Pending Installs',
-      value: pending.toString(),
-      subtitle: 'Awaiting & in-progress jobs',
-      trend: null,
-      isTrendPositive: false,
-      icon: Icons.construction,
-      gradient: AppColors.orangeGradient,
-      sparklineData: [2, 1, 3, 2, 4, 3, 2, 3, 2, pending.toDouble() + 1],
-      onTap: () => context.go(RoutePaths.installations),
-    );
-    final completedCard = KPICard(
-      title: 'Completed Installs',
-      value: completed.toString(),
-      subtitle: 'Successfully provisioned lines',
-      trend: null,
-      isTrendPositive: true,
-      icon: Icons.check_circle_outline,
-      gradient: AppColors.greenGradient,
-      sparklineData: [5, 6, 5, 7, 8, 7, 9, 8, 10, completed.toDouble() + 1],
-      onTap: () => context.go(RoutePaths.installations),
-    );
-
-    return ResponsiveBuilder(
-      builder: (context, deviceType) {
-        if (deviceType == DeviceType.mobile) {
-          return Column(
-            children: [
-              SizedBox(width: double.infinity, height: 150, child: pendingCard),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 150,
-                child: completedCard,
-              ),
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: SizedBox(height: 150, child: pendingCard)),
-            const SizedBox(width: 16),
-            Expanded(child: SizedBox(height: 150, child: completedCard)),
-          ],
-        );
-      },
-    );
-  }
-
+  // ===== helpers =====
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Morning';
-    } else if (hour < 17) {
-      return 'Afternoon';
-    } else {
-      return 'Evening';
-    }
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
   }
 
-  String _formatCurrency(double amount) {
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(1)}M PKR';
-    } else if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(0)}K PKR';
-    }
-    return '${amount.toStringAsFixed(0)} PKR';
+  /// Rs 420,686 style, always the full number so the cards add up.
+  String _rs(double amount) {
+    final digits = amount.round().toString();
+    final withCommas = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (m) => ',',
+    );
+    return 'Rs $withCommas';
   }
 
-  /// Unabbreviated, for the Net Profit reconciliation subtitle. The
-  /// abbreviated form above rounds to the nearest thousand, which would make
-  /// "142K + 39K − 61K" visibly fail to add up to the headline figure.
-  String _formatCurrencyFull(double amount) =>
-      'Rs ${amount.toStringAsFixed(0)}';
+  String _marginPercentNote(DashboardStatsModel s) {
+    if (s.subscriberRunRateRevenue <= 0) return 'Revenue minus vendor cost';
+    final pct = (s.subscriberRunRateMargin / s.subscriberRunRateRevenue * 100)
+        .round();
+    return '$pct% of revenue';
+  }
 
-  /// States the collection against the accrual yardstick, because the headline
-  /// cash figure on its own says nothing about whether the month is on track.
-  ///
-  /// The two converge to equality once every active subscriber has been
-  /// renewed and paid in full, which is the whole point of scoping this card
-  /// to the current billing month.
   String _collectionSubtitle(DashboardStatsModel stats) {
     if (stats.subscriberRunRateMargin <= 0) {
       return 'Renewals billed to the current month';
     }
     final pct = ((stats.marginCollectionRate ?? 0) * 100).round();
-    final realized = _formatCurrencyFull(stats.currentMonthMarginCollected);
-    final target = _formatCurrencyFull(stats.subscriberRunRateMargin);
+    final realized = _rs(stats.currentMonthMarginCollected);
+    final target = _rs(stats.subscriberRunRateMargin);
     if (stats.marginNotYetCollected <= 0) {
-      return 'Margin realized $realized — full run rate collected';
+      return 'Margin realized $realized, full run rate collected';
     }
-    return 'Margin realized $realized of $target run rate · $pct%';
+    return 'Margin realized $realized of $target · $pct%';
   }
 
   String _pendingAlertMessage(DashboardStatsModel stats) {
@@ -439,347 +301,264 @@ class _DashboardPageState extends State<DashboardPage> {
       clauses.add(
         '${stats.expiredCustomersDueCount} expired '
         '${stats.expiredCustomersDueCount == 1 ? 'customer has' : 'customers have'} '
-        'not been renewed this month '
-        '(${_formatCurrency(stats.expiredCustomersDue)})',
+        'not renewed this month (${_rs(stats.expiredCustomersDue)})',
       );
     }
     if (stats.currentMonthOutstanding > 0) {
       clauses.add(
-        '${_formatCurrency(stats.currentMonthOutstanding)} is outstanding on '
-        'part-paid renewals',
+        '${_rs(stats.currentMonthOutstanding)} is outstanding on part-paid renewals',
       );
     }
     return '${clauses.join(', and ')}.';
   }
 
-  /// Splits the pending figure into its two disjoint causes, since they need
-  /// different actions: settle a balance vs. go and renew someone.
   String _pendingSubtitle(DashboardStatsModel stats) {
     final parts = <String>[];
     if (stats.expiredCustomersDueCount > 0) {
       parts.add(
         '${stats.expiredCustomersDueCount} expired awaiting renewal '
-        '(${_formatCurrencyFull(stats.expiredCustomersDue)})',
+        '(${_rs(stats.expiredCustomersDue)})',
       );
     }
     if (stats.currentMonthOutstanding > 0) {
-      parts.add(
-        '${_formatCurrencyFull(stats.currentMonthOutstanding)} part-paid',
-      );
+      parts.add('${_rs(stats.currentMonthOutstanding)} part-paid');
     }
     return parts.isEmpty ? 'Fully collected for this month' : parts.join(' · ');
   }
 
-  // ===== KPI CARDS (real data-driven) =====
-  Widget _buildKPICards(bool isAdmin, DashboardStatsModel stats) {
-    return ResponsiveBuilder(
-      builder: (context, deviceType) {
-        int columns;
-        double aspectRatio;
-        switch (deviceType) {
-          case DeviceType.mobile:
-            columns = 1;
-            aspectRatio = 2.1;
-            break;
-          case DeviceType.tablet:
-            columns = 2;
-            aspectRatio = 1.6;
-            break;
-          case DeviceType.desktop:
-            columns = 4;
-            aspectRatio = 1.35;
-            break;
-        }
+  /// Cards sit in rows of 4 / 2 / 1 depending on the available width.
+  Widget _cardGrid(List<Widget> cards) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 16.0;
+        final cols = c.maxWidth >= 900 ? 4 : (c.maxWidth >= 560 ? 2 : 1);
+        final width = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
+    );
+  }
 
-        return GridView.count(
-          crossAxisCount: columns,
-          crossAxisSpacing: AppSpacing.lg,
-          mainAxisSpacing: AppSpacing.lg,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: aspectRatio,
-          children: [
-            KPICard(
-              title: 'Total Customers',
-              value: stats.totalCustomers.toString(),
-              subtitle: 'Active accounts',
-              trend: null,
-              isTrendPositive: true,
-              icon: Icons.people,
-              gradient: AppColors.blueGradient,
-              sparklineData: const [2, 3, 5, 4, 7, 6, 8, 9, 8, 10],
+  // ===== QUICK ACTIONS =====
+  Widget _buildQuickActions(BuildContext context) {
+    final outlined = OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 44),
+      foregroundColor: _kInk,
+      side: const BorderSide(color: Color(0xFFC9CED6)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+    );
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        OutlinedButton(
+          style: outlined,
+          onPressed: () => context.go(RoutePaths.addCustomer),
+          child: const Text('Add customer'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            backgroundColor: _kAccent,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
-            KPICard(
-              title: 'Active Subscribers',
-              value: stats.activeCustomers.toString(),
-              subtitle: 'Currently active',
-              trend: null,
-              isTrendPositive: true,
-              icon: Icons.check_circle,
-              gradient: AppColors.greenGradient,
-              sparklineData: const [4, 5, 4, 6, 5, 7, 8, 7, 9, 9],
+            textStyle: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
-            // The next four cards are the accrual chain:
-            // Recurring Margin + Installation Profit − Expenses = Net Profit.
-            if (isAdmin)
-              KPICard(
-                title: 'Recurring Margin',
-                value: _formatCurrency(stats.subscriberRunRateMargin),
-                subtitle: stats.unpricedCustomerCount > 0
-                    // Overstated: these customers have no package cost to
-                    // subtract, so their full bill is counted as margin.
-                    ? 'Overstated · ${stats.unpricedCustomerCount} of ${stats.activeCustomers} have no package cost'
-                    : 'Accrual run rate · ${stats.activeCustomers} active subscribers',
-                trend: null,
-                isTrendPositive: stats.subscriberRunRateMargin >= 0,
-                icon: Icons.autorenew,
-                gradient: AppColors.greenGradient,
-                sparklineData: const [5, 4, 6, 7, 6, 8, 7, 9, 10, 11],
+          ),
+          onPressed: () => context.go(RoutePaths.payments),
+          child: const Text('Collect payment'),
+        ),
+        OutlinedButton(
+          style: outlined,
+          onPressed: () => context.go(RoutePaths.expenses),
+          child: const Text('Add expense'),
+        ),
+        OutlinedButton(
+          style: outlined,
+          onPressed: () => context.go(RoutePaths.inventory),
+          child: const Text('Add stock'),
+        ),
+      ],
+    );
+  }
+
+  // ===== ONE ATTENTION BAR (replaces the two alert banners) =====
+  Widget _buildAttentionBar(BuildContext context, DashboardStatsModel stats) {
+    final hasExpiring = stats.expiringsoon > 0;
+    final hasPending = stats.pendingThisMonth > 0;
+    if (!hasExpiring && !hasPending) return const SizedBox.shrink();
+
+    final lines = <String>[
+      if (hasExpiring)
+        '${stats.expiringsoon} customers expire in the next 7 days.',
+      if (hasPending) _pendingAlertMessage(stats),
+    ];
+    const brown = Color(0xFF7A3E00);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF2C98A)),
+      ),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 12,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Needs your attention',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: brown,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  lines.join(' '),
+                  style: GoogleFonts.inter(fontSize: 14, color: brown),
+                ),
+              ],
+            ),
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (hasExpiring)
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    foregroundColor: brown,
+                    side: const BorderSide(color: brown),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => context.go(RoutePaths.customers),
+                  child: const Text('Review expiring'),
+                ),
+              if (hasPending)
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    backgroundColor: brown,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => context.go(
+                    stats.expiredCustomersDueCount > 0
+                        ? RoutePaths.customers
+                        : RoutePaths.payments,
+                  ),
+                  child: Text(
+                    stats.expiredCustomersDueCount > 0
+                        ? 'Renew expired'
+                        : 'Collect payment',
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== NET PROFIT (shows the sum; installations and expenses live here) =====
+  Widget _buildNetProfit(DashboardStatsModel stats) {
+    const soft = Color(0xFFC9D1E3);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _kInk,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Net profit this month',
+            style: GoogleFonts.inter(fontSize: 14, color: soft),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 24,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                _rs(stats.netProfit),
+                style: GoogleFonts.inter(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
-            if (isAdmin)
-              KPICard(
-                title: 'Installation Profit',
-                value: _formatCurrency(stats.monthlyInstallationProfit),
-                subtitle:
-                    '${_formatCurrency(stats.monthlyInstallationRevenue)} billed − '
-                    '${_formatCurrency(stats.monthlyInstallationCost)} cost · completed this month',
-                trend: null,
-                isTrendPositive: stats.monthlyInstallationProfit >= 0,
-                icon: Icons.engineering,
-                gradient: AppColors.orangeGradient,
-                sparklineData: const [3, 4, 3, 5, 6, 5, 7, 6, 8, 9],
-              ),
-            if (isAdmin)
-              KPICard(
-                title: 'Operating Expenses',
-                value: _formatCurrency(stats.monthlyExpenses),
-                subtitle: 'Logged this month to date',
-                trend: null,
-                isTrendPositive: false,
-                icon: Icons.receipt,
-                gradient: AppColors.redGradient,
-                sparklineData: const [8, 7, 6, 5, 4, 3, 4, 5, 4, 3],
-              ),
-            if (isAdmin)
-              KPICard(
-                title: 'Net Profit (Accrual)',
-                value: _formatCurrency(stats.netProfit),
-                // Spells out the arithmetic so the three cards above visibly
-                // reconcile to this one even when the grid wraps them onto
-                // separate rows.
-                subtitle:
-                    '${_formatCurrencyFull(stats.subscriberRunRateMargin)}'
-                    ' + ${_formatCurrencyFull(stats.monthlyInstallationProfit)}'
-                    ' − ${_formatCurrencyFull(stats.monthlyExpenses)}',
-                trend: null,
-                isTrendPositive: stats.netProfit >= 0,
-                icon: Icons.attach_money,
-                gradient: AppColors.purpleGradient,
-                sparklineData: const [2, 3, 2, 4, 5, 6, 7, 6, 8, 10],
-              ),
-            // Collected and Pending are both scoped to the CURRENT BILLING
-            // MONTH, so they answer "how is this month going" rather than
-            // "what has ever landed". Together with Recurring Margin they
-            // close the loop: collected margin climbs toward the run rate as
-            // renewals come in, and the shortfall is exactly what Pending
-            // still has to collect.
-            if (isAdmin)
-              KPICard(
-                title: 'Collected This Month',
-                value: _formatCurrency(stats.currentMonthCollected),
-                subtitle: _collectionSubtitle(stats),
-                trend: null,
-                isTrendPositive: true,
-                icon: Icons.account_balance_wallet,
-                gradient: AppColors.greenGradient,
-                sparklineData: const [5, 4, 6, 7, 6, 8, 7, 9, 10, 11],
-              ),
-            if (isAdmin)
-              KPICard(
-                title: 'Pending This Month',
-                value: _formatCurrency(stats.pendingThisMonth),
-                subtitle: _pendingSubtitle(stats),
-                trend: null,
-                isTrendPositive: false,
-                icon: Icons.schedule,
-                gradient: AppColors.redGradient,
-                sparklineData: const [10, 9, 8, 9, 7, 6, 5, 6, 4, 2],
-              ),
-            if (isAdmin)
-              KPICard(
-                title: 'Expired Customers',
-                value: stats.expiredCustomers.toString(),
-                subtitle: stats.expiredCustomersDueCount > 0
-                    ? '${stats.expiredCustomersDueCount} not yet renewed this month'
-                    : 'All lapsed accounts have been renewed',
-                trend: null,
-                isTrendPositive: false,
-                icon: Icons.person_off,
-                gradient: AppColors.redGradient,
-                sparklineData: const [4, 5, 4, 6, 5, 4, 3, 4, 3, 2],
-              ),
-            if (!isAdmin) ...[
-              KPICard(
-                title: 'Total Customers',
-                value: stats.totalCustomers.toString(),
-                subtitle: 'All subscribers',
-                trend: null,
-                isTrendPositive: true,
-                icon: Icons.group,
-                gradient: AppColors.blueGradient,
-                sparklineData: const [3, 4, 3, 5, 4, 6, 5, 7, 6, 8],
-              ),
-              KPICard(
-                title: 'Expiring Soon',
-                value: stats.expiringsoon.toString(),
-                subtitle: 'Next 7 days',
-                trend: null,
-                isTrendPositive: false,
-                icon: Icons.alarm,
-                gradient: AppColors.orangeGradient,
-                sparklineData: const [6, 5, 6, 4, 5, 3, 4, 3, 2, 5],
+              Text(
+                '= margin ${_rs(stats.subscriberRunRateMargin)}'
+                ' + installations ${_rs(stats.monthlyInstallationProfit)}'
+                ' − expenses ${_rs(stats.monthlyExpenses)}',
+                style: GoogleFonts.inter(fontSize: 14, color: soft),
               ),
             ],
-          ],
-        );
-      },
-    );
-  }
-
-  // ===== QUICK ACTIONS (Tickets & Reports removed) =====
-  Widget _buildQuickActions(BuildContext context, bool isAdmin) {
-    return ResponsiveBuilder(
-      builder: (context, deviceType) {
-        int columns;
-        switch (deviceType) {
-          case DeviceType.mobile:
-            columns = 2;
-            break;
-          case DeviceType.tablet:
-            columns = 3;
-            break;
-          case DeviceType.desktop:
-            columns = 4;
-            break;
-        }
-
-        return GridView.count(
-          crossAxisCount: columns,
-          crossAxisSpacing: AppSpacing.lg,
-          mainAxisSpacing: AppSpacing.lg,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.15,
-          children: [
-            QuickActionCard(
-              icon: Icons.person_add,
-              label: 'Add Customer',
-              description: 'Provision new subscriber',
-              gradient: AppColors.blueGradient,
-              onTap: () => context.go(RoutePaths.addCustomer),
-            ),
-            QuickActionCard(
-              icon: Icons.payments,
-              label: 'Collect Payment',
-              description: 'Record subscriber dues',
-              gradient: AppColors.greenGradient,
-              onTap: () => context.go(RoutePaths.payments),
-            ),
-            QuickActionCard(
-              icon: Icons.add,
-              label: 'Add Expense',
-              description: 'Record operational expenses',
-              gradient: AppColors.orangeGradient,
-              onTap: () => context.go(RoutePaths.expenses),
-            ),
-            QuickActionCard(
-              icon: Icons.inventory_2,
-              label: 'Add Inventory Item',
-              description: 'Stock ONU and cabling',
-              gradient: const [Color(0xFF06B6D4), Color(0xFF0891B2)],
-              onTap: () => context.go(RoutePaths.inventory),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ===== ACTIVITY TIMELINE (real recent payments) =====
-  Widget _buildActivityTimeline(List<PaymentModel> recentPayments) {
-    final activities = recentPayments.map((p) {
-      final date = p.completedDate ?? p.createdAt ?? DateTime.now();
-      return ActivityTimelineItem(
-        title: 'Payment Received',
-        description:
-            '${p.customerName ?? p.customerId} paid Rs ${(p.paidAmount ?? p.amount).toStringAsFixed(0)} via ${p.method ?? 'cash'}',
-        timestamp: date,
-        icon: Icons.check_circle,
-        color: AppColors.successGreen,
-        badge: 'Payment',
-      );
-    }).toList();
-
-    if (activities.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: Text(
-              'No recent activity.',
-              style: GoogleFonts.inter(color: AppColors.darkGray),
-            ),
           ),
-        ),
-      );
-    }
-
-    return ActivityTimelineWidget(
-      items: activities,
-      title: 'Recent Activity',
-      onViewMore: () {},
+        ],
+      ),
     );
   }
 
-  // ===== EXPIRING CONTRACTS TABLE (real data-driven) =====
+  // ===== RENEW SOON TABLE =====
   Widget _buildExpiringTable(List<CustomerModel> customers) {
     if (customers.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Center(
-            child: Text(
-              'No expiring contracts in the next 7 days.',
-              style: GoogleFonts.inter(color: AppColors.darkGray),
-            ),
-          ),
-        ),
-      );
+      return _emptyCard('No expiring contracts in the next 7 days.');
     }
 
     final now = DateTime.now();
+    DateTime dueOf(CustomerModel c) =>
+        c.nextDueDate ??
+        (c.createdAt != null
+            ? DateTime(
+                c.createdAt!.year,
+                c.createdAt!.month + 1,
+                c.createdAt!.day,
+              )
+            : now);
 
     return ResponsiveTable(
       columns: [
-        PremiumDataColumn(label: 'Customer Name'),
-        PremiumDataColumn(label: 'Connection Type'),
+        PremiumDataColumn(label: 'Customer'),
         PremiumDataColumn(label: 'Due Date'),
         PremiumDataColumn(label: 'Days Left'),
-        PremiumDataColumn(label: 'Status', width: 0.8),
         PremiumDataColumn(label: 'Action', width: 0.8),
       ],
       rows: customers.map((customer) {
-        final due =
-            customer.nextDueDate ??
-            (customer.createdAt != null
-                ? DateTime(
-                    customer.createdAt!.year,
-                    customer.createdAt!.month + 1,
-                    customer.createdAt!.day,
-                  )
-                : now);
+        final due = dueOf(customer);
         final daysLeft = due.difference(now).inDays;
-
         return PremiumDataRow(
           cells: [
             Text(
@@ -788,10 +567,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 fontWeight: FontWeight.bold,
                 color: AppColors.charcoal,
               ),
-            ),
-            Text(
-              customer.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
             Text('${due.day}/${due.month}/${due.year}'),
             Text(
@@ -803,13 +578,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const StatusBadge(status: StatusType.expiring, label: 'Expiring'),
             TextButton(
               onPressed: () => context.go(RoutePaths.customers),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryBlue,
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: _kAccent,
+                minimumSize: const Size(64, 44),
               ),
               child: Text(
                 'Renew',
@@ -821,17 +594,8 @@ class _DashboardPageState extends State<DashboardPage> {
       }).toList(),
       mobileItemBuilder: (context, index) {
         final customer = customers[index];
-        final due =
-            customer.nextDueDate ??
-            (customer.createdAt != null
-                ? DateTime(
-                    customer.createdAt!.year,
-                    customer.createdAt!.month + 1,
-                    customer.createdAt!.day,
-                  )
-                : now);
+        final due = dueOf(customer);
         final daysLeft = due.difference(now).inDays;
-
         return MobileDashboardCard(
           title: customer.name,
           subtitle: customer.connectionType == 'fiber' ? 'Fiber' : 'Wireless',
@@ -846,8 +610,9 @@ class _DashboardPageState extends State<DashboardPage> {
           actionButton: TextButton(
             onPressed: () => context.go(RoutePaths.customers),
             style: TextButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue.withOpacity(0.08),
-              foregroundColor: AppColors.primaryBlue,
+              backgroundColor: _kAccent.withOpacity(0.08),
+              foregroundColor: _kAccent,
+              minimumSize: const Size(64, 44),
             ),
             child: const Text('Renew'),
           ),
@@ -856,20 +621,13 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ===== RECENT PAYMENTS TABLE (real data-driven) =====
+  // ===== RECENT PAYMENTS TABLE =====
   Widget _buildRecentPaymentsTable(List<PaymentModel> payments) {
-    if (payments.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Center(
-            child: Text(
-              'No recent payments found.',
-              style: GoogleFonts.inter(color: AppColors.darkGray),
-            ),
-          ),
-        ),
-      );
+    if (payments.isEmpty) return _emptyCard('No recent payments found.');
+
+    String dateOf(PaymentModel p) {
+      final d = p.completedDate ?? p.createdAt;
+      return d != null ? '${d.day}/${d.month}/${d.year}' : '—';
     }
 
     return ResponsiveTable(
@@ -884,11 +642,6 @@ class _DashboardPageState extends State<DashboardPage> {
         final statusType = payment.status == 'paid'
             ? StatusType.completed
             : StatusType.pending;
-        final date = payment.completedDate ?? payment.createdAt;
-        final dateStr = date != null
-            ? '${date.day}/${date.month}/${date.year}'
-            : '—';
-
         return PremiumDataRow(
           cells: [
             Text(
@@ -900,7 +653,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             Text(payment.method ?? '—'),
             Text(
-              'Rs ${(payment.paidAmount ?? payment.amount).toStringAsFixed(0)}',
+              _rs((payment.paidAmount ?? payment.amount).toDouble()),
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: statusType == StatusType.completed
@@ -909,7 +662,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
             StatusBadge(status: statusType),
-            Text(dateStr),
+            Text(dateOf(payment)),
           ],
         );
       }).toList(),
@@ -918,22 +671,132 @@ class _DashboardPageState extends State<DashboardPage> {
         final statusType = payment.status == 'paid'
             ? StatusType.completed
             : StatusType.pending;
-        final date = payment.completedDate ?? payment.createdAt;
-        final dateStr = date != null
-            ? '${date.day}/${date.month}/${date.year}'
-            : '—';
-
         return MobileDashboardCard(
           title: payment.customerName ?? payment.customerId,
           subtitle: payment.method ?? '—',
           statusBadge: StatusBadge(status: statusType),
           details: {
-            'Amount':
-                'Rs ${(payment.paidAmount ?? payment.amount).toStringAsFixed(0)}',
-            'Date': dateStr,
+            'Amount': _rs((payment.paidAmount ?? payment.amount).toDouble()),
+            'Date': dateOf(payment),
           },
         );
       },
+    );
+  }
+
+  Widget _emptyCard(String text) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(color: AppColors.darkGray),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===== small private widgets =====
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  const _SectionTitle(this.text, {this.actionLabel, this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _kInk,
+              ),
+            ),
+          ),
+          if (actionLabel != null)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: _kAccent,
+                minimumSize: const Size(0, 44),
+              ),
+              child: Text(
+                actionLabel!,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? note;
+  final Color? valueColor;
+  final double? progress;
+  const _StatCard({
+    required this.label,
+    required this.value,
+    this.note,
+    this.valueColor,
+    this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: GoogleFonts.inter(fontSize: 13, color: _kMuted)),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? _kInk,
+            ),
+          ),
+          if (progress != null) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress!.clamp(0.0, 1.0),
+                minHeight: 8,
+                backgroundColor: _kBorder,
+                valueColor: const AlwaysStoppedAnimation<Color>(_kAccent),
+              ),
+            ),
+          ],
+          if (note != null) ...[
+            const SizedBox(height: 8),
+            Text(note!, style: GoogleFonts.inter(fontSize: 12, color: _kMuted)),
+          ],
+        ],
+      ),
     );
   }
 }

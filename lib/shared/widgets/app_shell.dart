@@ -33,7 +33,6 @@ class AppShell extends StatelessWidget {
           if (route.startsWith(RoutePaths.employees)) return 'Employees';
           if (route.startsWith(RoutePaths.installations)) return 'Installations';
           if (route.startsWith(RoutePaths.inventory)) return 'Inventory';
-          if (route.startsWith(RoutePaths.khataa)) return 'Khataa Ledger';
           if (route.startsWith(RoutePaths.reports)) return 'Reports';
           if (route.startsWith(RoutePaths.settings)) return 'Settings';
           return 'Dashboard';

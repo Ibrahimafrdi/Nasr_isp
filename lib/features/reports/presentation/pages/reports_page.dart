@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/theme/app_colors.dart';
-import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/core/finance/billing_cycle.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/reports/domain/entities/monthly_financial_summary.dart';
 import 'package:nasr_isp/features/reports/presentation/bloc/reports_bloc.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
-import 'package:nasr_isp/shared/widgets/alert_panel.dart';
 
-String _formatMonthKey(String key) => BillingCycle.formatMonthKey(key);
+const _kAccent = Color(0xFF0F766E);
+const _kInk = Color(0xFF14213D);
+const _kMuted = Color(0xFF5B6472);
+const _kBorder = Color(0xFFE3E6EB);
+const _kGood = Color(0xFF0B5B55);
+const _kWarn = Color(0xFFB45309);
+const _kBad = Color(0xFFB42318);
+
+String _monthLabel(String key) => BillingCycle.formatMonthKey(key);
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -28,6 +31,17 @@ class _ReportsPageState extends State<ReportsPage> {
     context.read<ReportsBloc>().add(const LoadReportsEvent());
   }
 
+  /// Rs 45,300 style. Always the full number, with a minus sign if negative.
+  String _fmt(num amount) {
+    final negative = amount < 0;
+    final digits = amount.abs().round().toString();
+    final withCommas = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (m) => ',',
+    );
+    return '${negative ? '-' : ''}Rs $withCommas';
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
@@ -38,43 +52,58 @@ class _ReportsPageState extends State<ReportsPage> {
 
         return BlocBuilder<ReportsBloc, ReportsState>(
           builder: (context, state) {
+            // Month list + current selection, available once loaded.
+            List<String>? months;
+            String? selectedKey;
+            if (state is ReportsLoaded) {
+              months = state.availableMonths;
+              selectedKey = state.selectedMonthKey;
+            } else if (state is ReportsSummaryLoading) {
+              months = state.availableMonths;
+              selectedKey = state.selectedMonthKey;
+            }
+
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding: Responsive.pagePaddingFor(
+                Responsive.deviceTypeOf(context),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Header ────────────────────────────────────────────────
+                  // ── Header + month picker ─────────────────────────────
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Icon(
-                        Icons.bar_chart_rounded,
-                        color: AppColors.primaryBlue,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Monthly Financial Reports',
-                            style: GoogleFonts.inter(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.black,
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Reports',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: _kInk,
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Subscription revenue, installation margins, and expenses by month',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: AppColors.darkGray,
+                            SizedBox(height: 6),
+                            Text(
+                              'What came in, what went out, and what you kept.',
+                              style: TextStyle(fontSize: 14, color: _kMuted),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      if (months != null && selectedKey != null) ...[
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 200,
+                          child: _buildMonthPicker(months, selectedKey),
+                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
                   if (state is ReportsLoading)
                     const Center(
@@ -82,9 +111,7 @@ class _ReportsPageState extends State<ReportsPage> {
                         padding: EdgeInsets.symmetric(vertical: 80),
                         child: CircularProgressIndicator(
                           strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.primaryBlue,
-                          ),
+                          valueColor: AlwaysStoppedAnimation<Color>(_kAccent),
                         ),
                       ),
                     )
@@ -97,14 +124,12 @@ class _ReportsPageState extends State<ReportsPage> {
                             const Icon(
                               Icons.error_outline,
                               size: 48,
-                              color: AppColors.errorRed,
+                              color: _kBad,
                             ),
                             const SizedBox(height: 16),
                             Text(
                               state.message,
-                              style: GoogleFonts.inter(
-                                color: AppColors.darkGray,
-                              ),
+                              style: const TextStyle(color: _kMuted),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
@@ -117,9 +142,19 @@ class _ReportsPageState extends State<ReportsPage> {
                         ),
                       ),
                     )
-                  else if (state is ReportsLoaded ||
-                      state is ReportsSummaryLoading)
-                    _buildContent(state),
+                  else if (state is ReportsLoaded)
+                    _buildContent(
+                      state.summary,
+                      state.previousSummary,
+                      state.selectedMonthKey,
+                    )
+                  else if (state is ReportsSummaryLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 60),
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -129,144 +164,100 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  Widget _buildContent(ReportsState state) {
-    final List<String> months;
-    final String selectedKey;
-    final MonthlyFinancialSummary? summary;
-    final MonthlyFinancialSummary? previousSummary;
-    final bool summaryLoading;
+  // ── Month picker ───────────────────────────────────────────────────────────
 
-    if (state is ReportsLoaded) {
-      months = state.availableMonths;
-      selectedKey = state.selectedMonthKey;
-      summary = state.summary;
-      previousSummary = state.previousSummary;
-      summaryLoading = false;
-    } else if (state is ReportsSummaryLoading) {
-      months = state.availableMonths;
-      selectedKey = state.selectedMonthKey;
-      summary = null;
-      previousSummary = null;
-      summaryLoading = true;
-    } else {
-      return const SizedBox.shrink();
-    }
+  Widget _buildMonthPicker(List<String> months, String selectedKey) {
+    // Most recent first, with "All time" pinned at the top.
+    final keys = [kAllTimeReportKey, ...months.reversed];
+    return DropdownButtonFormField<String>(
+      value: selectedKey,
+      isExpanded: true,
+      decoration: InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFC9CED6)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFC9CED6)),
+        ),
+      ),
+      items: keys
+          .map(
+            (key) => DropdownMenuItem(
+              value: key,
+              child: Text(
+                key == kAllTimeReportKey ? 'All time' : _monthLabel(key),
+                style: TextStyle(
+                  fontWeight: key == kAllTimeReportKey
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: (val) {
+        if (val != null) {
+          context.read<ReportsBloc>().add(SelectReportMonthEvent(val));
+        }
+      },
+    );
+  }
 
-    // Most-recent first for the dropdown display, with "All Time" pinned
-    // at the very top as the broadest view.
-    final dropdownKeys = [kAllTimeReportKey, ...months.reversed];
+  // ── Content ────────────────────────────────────────────────────────────────
 
+  Widget _buildContent(
+    MonthlyFinancialSummary summary,
+    MonthlyFinancialSummary? previous,
+    String selectedKey,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Month Selector ──────────────────────────────────────────────────
-        _buildMonthSelector(dropdownKeys, selectedKey),
-        const SizedBox(height: 24),
-
-        if (summaryLoading)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 60),
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-          )
-        else if (summary != null) ...[
-          // ── Unpriced-customer warning ─────────────────────────────────────
-          if (summary.unpricedCustomerCount > 0) ...[
-            AlertPanel(
-              type: AlertType.warning,
-              title: 'Revenue figures may be overstated',
-              message:
-                  '${summary.unpricedCustomerCount} active '
-                  '${summary.unpricedCustomerCount == 1 ? 'subscriber has' : 'subscribers have'} '
-                  'no package cost assigned. Their full bill is counted as margin, '
-                  'which inflates the subscription revenue and net profit figures below.',
-              icon: Icons.warning_amber,
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // ── Hero: Net Profit ────────────────────────────────────────────
-          _buildHeroProfitCard(summary, previousSummary, selectedKey),
+        if (summary.unpricedCustomerCount > 0) ...[
+          _buildWarning(summary.unpricedCustomerCount),
           const SizedBox(height: 16),
-
-          // ── Slim supporting stat row ─────────────────────────────────────
-          _buildStatPairRow(summary),
-          const SizedBox(height: 24),
-
-          // ── Detailed breakdown ───────────────────────────────────────────
-          _buildDetailCards(summary),
         ],
+        _buildHero(summary, previous, selectedKey),
+        const SizedBox(height: 16),
+        _buildSummaryCards(summary),
+        const SizedBox(height: 24),
+        _buildDetailGrid(summary),
       ],
     );
   }
 
-  // ── Month Selector ──────────────────────────────────────────────────────────
-
-  Widget _buildMonthSelector(List<String> dropdownKeys, String selectedKey) {
-    return Card(
-      elevation: 0,
-      color: AppColors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.lightGray),
+  Widget _buildWarning(int count) {
+    const brown = Color(0xFF7A3E00);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF2C98A)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
+      child: Text.rich(
+        TextSpan(
+          style: const TextStyle(fontSize: 14, color: brown),
           children: [
-            const Icon(Icons.calendar_month, color: AppColors.primaryBlue),
-            const SizedBox(width: 12),
-            Text(
-              'Reporting Month',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                color: AppColors.charcoal,
-              ),
+            const TextSpan(
+              text: 'These figures may be too high. ',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: selectedKey,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.lightGray),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.lightGray),
-                  ),
-                ),
-                items: dropdownKeys
-                    .map(
-                      (key) => DropdownMenuItem(
-                        value: key,
-                        child: Text(
-                          key == kAllTimeReportKey
-                              ? 'All Time'
-                              : _formatMonthKey(key),
-                          style: GoogleFonts.inter(
-                            fontWeight: key == kAllTimeReportKey
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    context.read<ReportsBloc>().add(
-                      SelectReportMonthEvent(val),
-                    );
-                  }
-                },
-              ),
+            TextSpan(
+              text:
+                  '$count active '
+                  '${count == 1 ? 'subscriber has' : 'subscribers have'} '
+                  'no package cost, so their full bill is counted as margin.',
             ),
           ],
         ),
@@ -274,584 +265,368 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  // ── Hero Net Profit Card ─────────────────────────────────────────────────────
+  // ── Net profit ─────────────────────────────────────────────────────────────
 
-  Widget _buildHeroProfitCard(
+  Widget _buildHero(
     MonthlyFinancialSummary summary,
-    MonthlyFinancialSummary? previousSummary,
+    MonthlyFinancialSummary? previous,
     String selectedKey,
   ) {
-    final isProfit = summary.netProfit >= 0;
-    final gradientColors = isProfit
-        ? AppColors.greenGradient
-        : AppColors.redGradient;
-
     final isAllTime = selectedKey == kAllTimeReportKey;
+    final isProfit = summary.netProfit >= 0;
+    const soft = Color(0xFFC9D1E3);
 
-    // Month-over-month delta — omitted entirely for the all-time view,
-    // if there's no prior month to compare against, or the previous
-    // month's net profit was exactly zero (a percentage change against
-    // zero is meaningless).
-    String? deltaText;
-    bool? deltaIsUp;
-    if (!isAllTime &&
-        previousSummary != null &&
-        previousSummary.netProfit != 0) {
+    // Month-over-month change: skipped for all-time, when there is no earlier
+    // month, or when last month's profit was exactly zero.
+    String? delta;
+    if (!isAllTime && previous != null && previous.netProfit != 0) {
       final change =
-          ((summary.netProfit - previousSummary.netProfit) /
-              previousSummary.netProfit.abs()) *
+          ((summary.netProfit - previous.netProfit) /
+              previous.netProfit.abs()) *
           100;
-      deltaIsUp = change >= 0;
-      final prevLabel = _formatMonthKey(previousSummary.monthKey);
-      deltaText =
-          '${deltaIsUp ? '▲' : '▼'} ${change.abs().toStringAsFixed(0)}% vs $prevLabel';
+      delta =
+          '${change >= 0 ? '▲' : '▼'} ${change.abs().toStringAsFixed(0)}%'
+          ' vs ${_monthLabel(previous.monthKey)}';
     }
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: isProfit ? _kInk : const Color(0xFF7F1D1D),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: gradientColors.first.withOpacity(0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isAllTime
-                      ? 'Net Profit — All Time (Cash Collected Basis)'
-                      : 'Net Profit — Cash Collected Basis',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.85),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _fmt(summary.netProfit),
-                  style: GoogleFonts.inter(
-                    fontSize: 38,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.1,
-                  ),
-                ),
-              ],
-            ),
+          Text(
+            isAllTime
+                ? 'Net profit, all time (cash collected)'
+                : 'Net profit for ${_monthLabel(selectedKey)} (cash collected)',
+            style: const TextStyle(fontSize: 14, color: soft),
           ),
-          if (deltaText != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                deltaText,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                _fmt(summary.netProfit),
+                style: const TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
-            ),
+              if (delta != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    delta,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Subscriptions collected ${_fmt(summary.subscriptionCollected)}'
+            '  ·  Installation profit ${_fmt(summary.installationProfit)}'
+            '  ·  Expenses ${_fmt(summary.totalExpenses)}',
+            style: const TextStyle(fontSize: 14, color: soft),
+          ),
         ],
       ),
     );
   }
 
-  // ── Slim supporting stat row (Revenue / Expenses) ────────────────────────────
+  // ── Three summary cards ────────────────────────────────────────────────────
 
-  Widget _buildStatPairRow(MonthlyFinancialSummary summary) {
-    final totalRevenue =
-        summary.subscriptionCollected + summary.installationRevenue;
-
+  Widget _statCard(String label, String value, {String? note, Color? color}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.lightGray),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: _StatBlock(
-              label: 'Total Revenue',
-              value: _fmt(totalRevenue),
-              subtitle: 'Collected + installation',
-              color: AppColors.primaryBlue,
+          Text(label, style: const TextStyle(fontSize: 13, color: _kMuted)),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: color ?? _kInk,
             ),
           ),
-          Container(
-            width: 1,
-            height: 40,
-            color: AppColors.lightGray,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-          ),
-          Expanded(
-            child: _StatBlock(
-              label: 'Total Expenses',
-              value: _fmt(summary.totalExpenses),
-              subtitle: 'Operating costs this month',
-              color: AppColors.errorRed,
-            ),
-          ),
+          if (note != null) ...[
+            const SizedBox(height: 4),
+            Text(note, style: const TextStyle(fontSize: 12, color: _kMuted)),
+          ],
         ],
       ),
     );
   }
 
-  // ── Detailed Breakdown Cards ────────────────────────────────────────────────
+  Widget _buildSummaryCards(MonthlyFinancialSummary s) {
+    final revenue = s.subscriptionCollected + s.installationRevenue;
+    final rate = s.subscriptionBilled > 0
+        ? '${(s.subscriptionCollected / s.subscriptionBilled * 100).round()}%'
+        : '—';
+    return _grid(
+      minColumns: 1,
+      children: [
+        _statCard(
+          'Total revenue',
+          _fmt(revenue),
+          note: 'Subscriptions collected + installations billed',
+        ),
+        _statCard(
+          'Total expenses',
+          _fmt(s.totalExpenses),
+          note: 'Operating costs',
+          color: s.totalExpenses > 0 ? _kBad : null,
+        ),
+        _statCard(
+          'Collection rate',
+          rate,
+          note: 'Collected out of billed',
+          color: _kAccent,
+        ),
+      ],
+    );
+  }
 
-  Widget _buildDetailCards(MonthlyFinancialSummary summary) {
-    return ResponsiveBuilder(
-      builder: (context, deviceType) {
-        final leftColumn = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSubscriptionCard(summary),
-            const SizedBox(height: 16),
-            _buildInstallationCard(summary),
-          ],
-        );
-
-        final rightColumn = _buildExpensesCard(summary);
-
-        if (deviceType == DeviceType.mobile) {
-          return Column(
-            children: [leftColumn, const SizedBox(height: 16), rightColumn],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 3, child: leftColumn),
-            const SizedBox(width: 16),
-            Expanded(flex: 2, child: rightColumn),
-          ],
+  /// Equal-width cards: 3 per row when wide, 2 on medium, 1 on phones.
+  Widget _grid({required List<Widget> children, int minColumns = 1}) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 16.0;
+        final cols = c.maxWidth >= 1000
+            ? 3
+            : (c.maxWidth >= 640 ? 2 : minColumns);
+        final width = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: children
+              .map((child) => SizedBox(width: width, child: child))
+              .toList(),
         );
       },
     );
   }
 
-  Widget _buildSubscriptionCard(MonthlyFinancialSummary summary) {
-    return _SectionCard(
-      title: 'Subscription Revenue',
-      icon: Icons.autorenew,
-      iconColor: AppColors.primaryBlue,
+  // ── Detail cards ───────────────────────────────────────────────────────────
+
+  Widget _buildDetailGrid(MonthlyFinancialSummary s) {
+    return _grid(
       children: [
-        _DetailRow(
-          label: 'Billed this month',
-          value: _fmt(summary.subscriptionBilled),
-          valueColor: AppColors.charcoal,
-          tooltip: 'Total charged on subscription renewals',
-        ),
-        const Divider(height: 20),
-        _DetailRow(
-          label: 'Collected',
-          value: _fmt(summary.subscriptionCollected),
-          valueColor: AppColors.successGreen,
-          bold: true,
-        ),
-        const SizedBox(height: 8),
-        _DetailRow(
-          label: 'Outstanding',
-          value: _fmt(
-            (summary.subscriptionBilled - summary.subscriptionCollected).clamp(
-              0,
-              double.infinity,
-            ),
-          ),
-          valueColor: AppColors.warningOrange,
-        ),
-        if (summary.subscriptionBilled > 0) ...[
-          const SizedBox(height: 12),
-          _CollectionBar(
-            collected: summary.subscriptionCollected,
-            billed: summary.subscriptionBilled,
-          ),
-        ],
+        _buildSubscriptionCard(s),
+        _buildInstallationCard(s),
+        _buildExpensesCard(s),
       ],
     );
   }
 
-  Widget _buildInstallationCard(MonthlyFinancialSummary summary) {
-    return _SectionCard(
-      title: 'Installation Revenue',
-      icon: Icons.engineering,
-      iconColor: AppColors.warningOrange,
-      children: [
-        _DetailRow(
-          label: 'Revenue billed',
-          value: _fmt(summary.installationRevenue),
-          valueColor: AppColors.charcoal,
-          tooltip: 'Setup fees + materials at sell price',
-        ),
+  Widget _sectionCard(String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _kInk,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _row(
+    String label,
+    String value, {
+    Color color = _kInk,
+    bool bold = false,
+    String? note,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _kInk,
+                  fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          if (note != null)
+            Text(note, style: const TextStyle(fontSize: 12, color: _kMuted)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionCard(MonthlyFinancialSummary s) {
+    final outstanding = (s.subscriptionBilled - s.subscriptionCollected).clamp(
+      0,
+      double.infinity,
+    );
+    final pct = s.subscriptionBilled > 0
+        ? (s.subscriptionCollected / s.subscriptionBilled).clamp(0.0, 1.0)
+        : 0.0;
+    return _sectionCard('Subscriptions', [
+      _row('Billed', _fmt(s.subscriptionBilled), note: 'Charged on renewals'),
+      _row(
+        'Collected',
+        _fmt(s.subscriptionCollected),
+        color: _kGood,
+        bold: true,
+      ),
+      _row('Outstanding', _fmt(outstanding), color: _kWarn),
+      if (s.subscriptionBilled > 0) ...[
         const SizedBox(height: 4),
-        _DetailRow(
-          label: 'Cost incurred',
-          value: _fmt(summary.installationCost),
-          valueColor: AppColors.errorRed,
-          tooltip: 'Materials at cost + labour',
-        ),
-        const Divider(height: 20),
-        _DetailRow(
-          label: 'Installation Profit',
-          value: _fmt(summary.installationProfit),
-          valueColor: summary.installationProfit >= 0
-              ? AppColors.successGreen
-              : AppColors.errorRed,
-          bold: true,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildExpensesCard(MonthlyFinancialSummary summary) {
-    final categoriesWithSpend =
-        ExpenseCategory.values
-            .where((cat) => (summary.expensesByCategory[cat] ?? 0) > 0)
-            .toList()
-          // Largest expense first — easiest to scan what's driving costs.
-          ..sort(
-            (a, b) => (summary.expensesByCategory[b] ?? 0).compareTo(
-              summary.expensesByCategory[a] ?? 0,
-            ),
-          );
-
-    final maxValue = categoriesWithSpend.isEmpty
-        ? 0.0
-        : summary.expensesByCategory[categoriesWithSpend.first]!;
-
-    return _SectionCard(
-      title: 'Operating Expenses',
-      icon: Icons.receipt_long,
-      iconColor: AppColors.errorRed,
-      children: [
-        if (categoriesWithSpend.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'No expenses recorded this month.',
-              style: GoogleFonts.inter(color: AppColors.mediumGray),
-            ),
-          )
-        else
-          ...categoriesWithSpend.map((cat) {
-            final value = summary.expensesByCategory[cat]!;
-            final fraction = maxValue > 0 ? value / maxValue : 0.0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _ExpenseBarRow(
-                label: cat.label,
-                value: _fmt(value),
-                fraction: fraction,
-              ),
-            );
-          }),
-        if (categoriesWithSpend.isNotEmpty) ...[
-          const Divider(height: 20),
-          _DetailRow(
-            label: 'Total Expenses',
-            value: _fmt(summary.totalExpenses),
-            valueColor: AppColors.errorRed,
-            bold: true,
-          ),
-        ],
-      ],
-    );
-  }
-
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-
-  String _fmt(double amount) {
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(2)}M PKR';
-    } else if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}K PKR';
-    }
-    return 'Rs ${amount.toStringAsFixed(0)}';
-  }
-
-  String _formatMonthKey(String key) {
-    final parts = key.split('-');
-    if (parts.length < 2) return key;
-    final year = parts[0];
-    final month = int.tryParse(parts[1]) ?? 0;
-    const monthNames = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final name = month >= 1 && month <= 12 ? monthNames[month] : '?';
-    return '$name $year';
-  }
-}
-
-// ── Reusable sub-widgets ──────────────────────────────────────────────────────
-
-/// One half of the slim supporting stat row below the hero card.
-class _StatBlock extends StatelessWidget {
-  final String label;
-  final String value;
-  final String subtitle;
-  final Color color;
-
-  const _StatBlock({
-    required this.label,
-    required this.value,
-    required this.subtitle,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: AppColors.darkGray,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 21,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: GoogleFonts.inter(fontSize: 11, color: AppColors.mediumGray),
-        ),
-      ],
-    );
-  }
-}
-
-/// A horizontal bar for one expense category — width proportional to its
-/// share of the largest category this month, so relative cost drivers are
-/// visible at a glance without a charting package.
-class _ExpenseBarRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final double fraction;
-
-  const _ExpenseBarRow({
-    required this.label,
-    required this.value,
-    required this.fraction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.inter(fontSize: 13, color: AppColors.darkGray),
-            ),
-            Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.charcoal,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                children: [
-                  Container(
-                    height: 6,
-                    width: constraints.maxWidth,
-                    color: AppColors.lightGray,
-                  ),
-                  Container(
-                    height: 6,
-                    width: constraints.maxWidth * fraction.clamp(0.0, 1.0),
-                    color: AppColors.errorRed,
-                  ),
-                ],
-              );
-            },
+          child: LinearProgressIndicator(
+            value: pct.toDouble(),
+            minHeight: 8,
+            backgroundColor: _kBorder,
+            valueColor: const AlwaysStoppedAnimation<Color>(_kAccent),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color iconColor;
-  final List<Widget> children;
-
-  const _SectionCard({
-    required this.title,
-    required this.icon,
-    required this.iconColor,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppColors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.lightGray),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: iconColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.black,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color valueColor;
-  final bool bold;
-  final String? tooltip;
-
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-    this.bold = false,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final labelWidget = Text(
-      label,
-      style: GoogleFonts.inter(
-        fontSize: 13,
-        color: AppColors.darkGray,
-        fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-      ),
-    );
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        tooltip != null
-            ? Tooltip(message: tooltip!, child: labelWidget)
-            : labelWidget,
+        const SizedBox(height: 6),
         Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-            color: valueColor,
-          ),
+          '${(pct * 100).round()}% collected',
+          style: const TextStyle(fontSize: 12, color: _kMuted),
         ),
       ],
-    );
+    ]);
   }
-}
 
-class _CollectionBar extends StatelessWidget {
-  final double collected;
-  final double billed;
+  Widget _buildInstallationCard(MonthlyFinancialSummary s) {
+    return _sectionCard('Installations', [
+      _row(
+        'Billed',
+        _fmt(s.installationRevenue),
+        note: 'Setup fees + materials at sell price',
+      ),
+      _row(
+        'Cost',
+        _fmt(s.installationCost),
+        color: s.installationCost > 0 ? _kBad : _kInk,
+        note: 'Materials at cost + labour',
+      ),
+      const Divider(height: 20),
+      _row(
+        'Profit',
+        _fmt(s.installationProfit),
+        color: s.installationProfit >= 0 ? _kGood : _kBad,
+        bold: true,
+      ),
+    ]);
+  }
 
-  const _CollectionBar({required this.collected, required this.billed});
+  Widget _buildExpensesCard(MonthlyFinancialSummary s) {
+    // Largest expense first: easiest to see what is driving costs.
+    final categories =
+        ExpenseCategory.values
+            .where((cat) => (s.expensesByCategory[cat] ?? 0) > 0)
+            .toList()
+          ..sort(
+            (a, b) => (s.expensesByCategory[b] ?? 0).compareTo(
+              s.expensesByCategory[a] ?? 0,
+            ),
+          );
+    final maxValue = categories.isEmpty
+        ? 0.0
+        : s.expensesByCategory[categories.first]!;
 
-  @override
-  Widget build(BuildContext context) {
-    final pct = billed > 0 ? (collected / billed).clamp(0.0, 1.0) : 0.0;
+    return _sectionCard('Expenses', [
+      if (categories.isEmpty)
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            'No expenses recorded for this period.',
+            style: TextStyle(fontSize: 14, color: _kMuted),
+          ),
+        )
+      else ...[
+        for (final cat in categories)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _expenseBar(
+              cat.label,
+              _fmt(s.expensesByCategory[cat]!),
+              maxValue > 0 ? s.expensesByCategory[cat]! / maxValue : 0.0,
+            ),
+          ),
+        const Divider(height: 20),
+        _row('Total', _fmt(s.totalExpenses), color: _kBad, bold: true),
+      ],
+    ]);
+  }
+
+  /// Bar width is proportional to the largest category.
+  Widget _expenseBar(String label, String value, double fraction) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Text(label, style: const TextStyle(fontSize: 14, color: _kInk)),
             Text(
-              'Collection rate',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppColors.mediumGray,
-              ),
-            ),
-            Text(
-              '${(pct * 100).round()}%',
-              style: GoogleFonts.inter(
-                fontSize: 11,
+              value,
+              style: const TextStyle(
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: pct >= 1.0
-                    ? AppColors.successGreen
-                    : AppColors.warningOrange,
+                color: _kInk,
               ),
             ),
           ],
@@ -860,12 +635,10 @@ class _CollectionBar extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: pct,
+            value: fraction.clamp(0.0, 1.0),
             minHeight: 6,
-            backgroundColor: AppColors.lightGray,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              pct >= 1.0 ? AppColors.successGreen : AppColors.primaryBlue,
-            ),
+            backgroundColor: _kBorder,
+            valueColor: const AlwaysStoppedAnimation<Color>(_kBad),
           ),
         ),
       ],

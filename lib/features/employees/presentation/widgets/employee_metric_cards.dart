@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
-/// Responsive team KPI card row for the Employees page.
+/// Team summary cards for the Employees page.
 ///
-/// Pure UI — receives count values and adapts to mobile/desktop screens.
+/// Pure UI: receives counts and lays itself out as 4 / 2 columns.
 class EmployeeMetricCards extends StatelessWidget {
   final int totalCount;
   final int activeCount;
@@ -18,31 +17,83 @@ class EmployeeMetricCards extends StatelessWidget {
     required this.isMobile,
   });
 
+  static const _ink = Color(0xFF14213D);
+  static const _muted = Color(0xFF5B6472);
+  static const _border = Color(0xFFE3E6EB);
+
+  Widget _card(String label, String value, {String? note, Color? color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: color ?? _ink,
+            ),
+          ),
+          if (note != null) ...[
+            const SizedBox(height: 4),
+            Text(note, style: const TextStyle(fontSize: 12, color: _muted)),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final double avgSubs = activeCount > 0 ? (totalSubsAssigned / activeCount) : 0.0;
+    final disabled = totalCount - activeCount;
+    final avg = activeCount > 0 ? totalSubsAssigned / activeCount : 0.0;
+    final avgText = avg == avg.roundToDouble()
+        ? avg.round().toString()
+        : avg.toStringAsFixed(1);
 
-    final cards = [
-      DashboardCard(
-        label: 'Total Field Personnel',
-        value: activeCount.toString(),
-        icon: Icons.groups_outlined,
-        subtitle: 'Out of $totalCount total registered',
+    final cards = <Widget>[
+      _card(
+        'Active technicians',
+        '$activeCount',
+        note: 'Out of $totalCount registered',
+        color: const Color(0xFF0F766E),
       ),
-      DashboardCard(
-        label: 'Subscribers Assigned',
-        value: totalSubsAssigned.toString(),
-        icon: Icons.supervised_user_circle_outlined,
-        subtitle: '${avgSubs.toStringAsFixed(0)} avg/tech (active only)',
+      _card(
+        'Disabled',
+        '$disabled',
+        note: 'Cannot take new installations',
+        color: disabled > 0 ? const Color(0xFFB42318) : null,
       ),
+      _card(
+        'Subscribers assigned',
+        '$totalSubsAssigned',
+        note: 'Installations by active technicians',
+      ),
+      _card('Average per technician', avgText, note: 'Active technicians only'),
     ];
 
-    return Row(
-      children: [
-        Expanded(child: cards[0]),
-        SizedBox(width: isMobile ? 12 : 16),
-        Expanded(child: cards[1]),
-      ],
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 16.0;
+        final cols = c.maxWidth >= 900 ? 4 : 2;
+        final width = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
     );
   }
 }

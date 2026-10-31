@@ -6,7 +6,7 @@ class AddInventoryItem {
 
   AddInventoryItem(this.repository);
 
-  Future<void> call(InventoryItemEntity item) async {
-    return repository.addInventoryItem(item);
+  Future<void> call(InventoryItemEntity item, {String? performedBy}) async {
+    return repository.addInventoryItem(item, performedBy: performedBy);
   }
 }

@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
@@ -61,19 +60,24 @@ class _InstallationsPageState extends State<InstallationsPage> {
     try {
       final customers = await getIt<GetCustomers>()();
       final inventory = await getIt<GetInventoryItems>()();
-      final employeesSnap =
-          await FirebaseFirestore.instance.collection('employee_directory').get();
+      final employeesSnap = await FirebaseFirestore.instance
+          .collection('employee_directory')
+          .get();
 
       // Only offer active technicians for assignment — matches EmployeeModel's
       // own default (missing/null status is treated as active).
       final employees = employeesSnap.docs
-          .where((doc) =>
-              (doc.data()['status'] as String? ?? 'active').toLowerCase() !=
-              'inactive')
-          .map((doc) => {
-                'id': doc.id,
-                'name': doc.data()['name'] as String? ?? 'Unnamed',
-              })
+          .where(
+            (doc) =>
+                (doc.data()['status'] as String? ?? 'active').toLowerCase() !=
+                'inactive',
+          )
+          .map(
+            (doc) => {
+              'id': doc.id,
+              'name': doc.data()['name'] as String? ?? 'Unnamed',
+            },
+          )
           .toList();
 
       if (mounted) {
@@ -92,12 +96,14 @@ class _InstallationsPageState extends State<InstallationsPage> {
   }
 
   void _triggerLoad() {
-    context.read<InstallationBloc>().add(LoadInstallationsEvent(
-      status: _selectedStatus,
-      connectionType: _selectedConnectionType,
-      employeeId: _selectedEmployeeId,
-      searchQuery: _searchController.text.trim(),
-    ));
+    context.read<InstallationBloc>().add(
+      LoadInstallationsEvent(
+        status: _selectedStatus,
+        connectionType: _selectedConnectionType,
+        employeeId: _selectedEmployeeId,
+        searchQuery: _searchController.text.trim(),
+      ),
+    );
   }
 
   @override
@@ -116,7 +122,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
     _triggerLoad();
   }
 
-  void _showAddEditInstallationDialog(BuildContext context, {InstallationEntity? existing}) {
+  void _showAddEditInstallationDialog(
+    BuildContext context, {
+    InstallationEntity? existing,
+  }) {
     final formKey = GlobalKey<FormState>();
     CustomerEntity? selectedCustomer;
     final customerSearchController = TextEditingController();
@@ -125,11 +134,14 @@ class _InstallationsPageState extends State<InstallationsPage> {
     if (existing != null) {
       customerSearchController.text = existing.customerName;
       try {
-        selectedCustomer = _allCustomers.firstWhere((c) => c.id == existing.customerId);
+        selectedCustomer = _allCustomers.firstWhere(
+          (c) => c.id == existing.customerId,
+        );
       } catch (_) {}
     }
 
-    ConnectionType connectionType = existing?.connectionType ?? ConnectionType.wireless;
+    ConnectionType connectionType =
+        existing?.connectionType ?? ConnectionType.wireless;
     DateTime installationDate = existing?.installationDate ?? DateTime.now();
 
     String? assignedEmployeeId = existing?.assignedEmployeeId;
@@ -140,9 +152,13 @@ class _InstallationsPageState extends State<InstallationsPage> {
     }
 
     final costController = TextEditingController(
-      text: existing != null ? existing.installationCost.toStringAsFixed(0) : '3000',
+      text: existing != null
+          ? existing.installationCost.toStringAsFixed(0)
+          : '3000',
     );
-    final remarksController = TextEditingController(text: existing?.remarks ?? '');
+    final remarksController = TextEditingController(
+      text: existing?.remarks ?? '',
+    );
     // Seeded from the stored value so an edit can never silently zero it —
     // before this field existed, saving from this dialog wiped laborCost.
     final laborCostController = TextEditingController(
@@ -168,7 +184,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
     bool isSaving = false;
 
     final isMobileDialog = Responsive.isMobile(context);
-    final dialogTitle = existing == null ? 'Provision New Line Installation' : 'Modify Line Installation';
+    final dialogTitle = existing == null
+        ? 'Provision New Line Installation'
+        : 'Modify Line Installation';
 
     showDialog(
       context: context,
@@ -178,28 +196,33 @@ class _InstallationsPageState extends State<InstallationsPage> {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             final authState = context.read<AuthBloc>().state;
-            final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
+            final isAdmin =
+                authState is AuthAuthenticated && authState.user.isAdmin;
 
             // Once a job is already completed, its inventory deduction has
             // already happened — further BOM edits here wouldn't adjust
             // stock, so they're locked to avoid silent inventory drift.
             final materialsLocked =
-                existing != null && existing.status == InstallationStatus.completed;
+                existing != null &&
+                existing.status == InstallationStatus.completed;
 
             // Live BOM totals, through the same MaterialTotals used by the
             // saved entity — so this preview and the record it produces
             // cannot disagree.
             final materials = MaterialTotals.fromRows(itemsUsedState);
             final totalItemsDeductQty = itemsUsedState.fold<int>(
-                0, (acc, row) => acc + ((row['qty'] as num?)?.toInt() ?? 0));
+              0,
+              (acc, row) => acc + ((row['qty'] as num?)?.toInt() ?? 0),
+            );
 
             // What the job will be worth once saved. Materials are billed on
             // top of the setup fee, so they land on both sides of the ledger.
             final previewMoney = MoneyLine(
               amountBilled:
                   (double.tryParse(costController.text.trim()) ?? 0.0) +
-                      materials.revenue,
-              costIncurred: materials.cost +
+                  materials.revenue,
+              costIncurred:
+                  materials.cost +
                   (double.tryParse(laborCostController.text.trim()) ?? 0.0),
             );
 
@@ -210,7 +233,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
             // rows (or a previous auto-fill) are never overwritten.
             void autoFillItemsForConnectionType(ConnectionType type) {
               if (materialsLocked || itemsUsedState.isNotEmpty) return;
-              final matches = autoSelectInstallationItems(type, _allInventoryItems);
+              final matches = autoSelectInstallationItems(
+                type,
+                _allInventoryItems,
+              );
               if (matches.isEmpty) return;
               setDialogState(() {
                 itemsUsedState = matches;
@@ -220,8 +246,11 @@ class _InstallationsPageState extends State<InstallationsPage> {
 
             Future<void> submit() async {
               if (formKey.currentState!.validate()) {
+                final bloc = context.read<InstallationBloc>();
+
                 // Check if status is transitioning to Completed and has materials
-                final isNewComplete = existing?.status != InstallationStatus.completed &&
+                final isNewComplete =
+                    existing?.status != InstallationStatus.completed &&
                     status == InstallationStatus.completed;
 
                 if (isNewComplete && itemsUsedState.isNotEmpty) {
@@ -229,7 +258,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     context: ctx,
                     builder: (cCtx) => AlertDialog(
                       title: const Text('Confirm Inventory Deduction'),
-                      content: Text('Saving this job as Completed will immediately deduct a total of $totalItemsDeductQty item(s) from inventory. Do you wish to continue?'),
+                      content: Text(
+                        'Saving this job as Completed will immediately deduct a total of $totalItemsDeductQty item(s) from inventory. Do you wish to continue?',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(cCtx, false),
@@ -238,11 +269,12 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         ElevatedButton(
                           onPressed: () => Navigator.pop(cCtx, true),
                           child: const Text('Confirm and Deduct'),
-                        )
+                        ),
                       ],
                     ),
                   );
                   if (confirmSave != true) return;
+                  if (!ctx.mounted || !context.mounted) return;
                 }
 
                 setDialogState(() => isSaving = true);
@@ -254,15 +286,19 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   final qty = row['qty'] as int;
                   final unitCost = row['unitCost'] as double;
                   final sellPrice = row['sellPrice'] as double;
-                  final invItem = _allInventoryItems.firstWhere((i) => i.id == itemId);
+                  final invItem = _allInventoryItems.firstWhere(
+                    (i) => i.id == itemId,
+                  );
 
-                  items.add(InstallationItemUsedEntity(
-                    inventoryItemId: itemId,
-                    itemName: invItem.name,
-                    quantity: qty,
-                    costPriceAtTime: unitCost,
-                    sellPriceAtTime: sellPrice,
-                  ));
+                  items.add(
+                    InstallationItemUsedEntity(
+                      inventoryItemId: itemId,
+                      itemName: invItem.name,
+                      quantity: qty,
+                      costPriceAtTime: unitCost,
+                      sellPriceAtTime: sellPrice,
+                    ),
+                  );
                 }
 
                 final customer = selectedCustomer!;
@@ -303,36 +339,40 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         installationCost: double.parse(costController.text),
                         status: status,
                         remarks: remarksController.text.trim(),
-                        itemsUsed: items, // empty list reads as no BOM, same as null
+                        itemsUsed:
+                            items, // empty list reads as no BOM, same as null
                         laborCost: enteredLabor,
                       );
 
-                if (!mounted) return;
+                if (!mounted || !ctx.mounted || !context.mounted) return;
 
-                final bloc = context.read<InstallationBloc>();
                 if (existing == null) {
-                  bloc.add(CreateInstallationEvent(
-                    updatedInstallation,
-                    status: _selectedStatus,
-                    connectionType: _selectedConnectionType,
-                    employeeId: _selectedEmployeeId,
-                    searchQuery: _searchController.text.trim(),
-                  ));
+                  bloc.add(
+                    CreateInstallationEvent(
+                      updatedInstallation,
+                      status: _selectedStatus,
+                      connectionType: _selectedConnectionType,
+                      employeeId: _selectedEmployeeId,
+                      searchQuery: _searchController.text.trim(),
+                    ),
+                  );
                 } else {
-                  bloc.add(UpdateInstallationEvent(
-                    updatedInstallation,
-                    status: _selectedStatus,
-                    connectionType: _selectedConnectionType,
-                    employeeId: _selectedEmployeeId,
-                    searchQuery: _searchController.text.trim(),
-                  ));
+                  bloc.add(
+                    UpdateInstallationEvent(
+                      updatedInstallation,
+                      status: _selectedStatus,
+                      connectionType: _selectedConnectionType,
+                      employeeId: _selectedEmployeeId,
+                      searchQuery: _searchController.text.trim(),
+                    ),
+                  );
                 }
 
                 final result = await bloc.stream.firstWhere(
                   (s) => s is InstallationLoaded || s is InstallationError,
                 );
 
-                if (!mounted || !ctx.mounted) return;
+                if (!mounted || !ctx.mounted || !context.mounted) return;
 
                 if (result is InstallationError) {
                   setDialogState(() => isSaving = false);
@@ -364,11 +404,17 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     children: [
                       DropdownButtonFormField<ConnectionType>(
                         value: connectionType,
-                        decoration: const InputDecoration(labelText: 'Connection Line Type'),
-                        items: ConnectionType.values.map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(t.displayName),
-                        )).toList(),
+                        decoration: const InputDecoration(
+                          labelText: 'Connection Line Type',
+                        ),
+                        items: ConnectionType.values
+                            .map(
+                              (t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(t.displayName),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (val) {
                           if (val != null) {
                             setDialogState(() => connectionType = val);
@@ -385,6 +431,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                             firstDate: DateTime(2020),
                             lastDate: DateTime(2030),
                           );
+                          if (!dialogContext.mounted) return;
                           if (picked != null) {
                             setDialogState(() => installationDate = picked);
                           }
@@ -407,11 +454,17 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       Expanded(
                         child: DropdownButtonFormField<ConnectionType>(
                           value: connectionType,
-                          decoration: const InputDecoration(labelText: 'Connection Line Type'),
-                          items: ConnectionType.values.map((t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(t.displayName),
-                          )).toList(),
+                          decoration: const InputDecoration(
+                            labelText: 'Connection Line Type',
+                          ),
+                          items: ConnectionType.values
+                              .map(
+                                (t) => DropdownMenuItem(
+                                  value: t,
+                                  child: Text(t.displayName),
+                                ),
+                              )
+                              .toList(),
                           onChanged: (val) {
                             if (val != null) {
                               setDialogState(() => connectionType = val);
@@ -430,6 +483,7 @@ class _InstallationsPageState extends State<InstallationsPage> {
                               firstDate: DateTime(2020),
                               lastDate: DateTime(2030),
                             );
+                            if (!dialogContext.mounted) return;
                             if (picked != null) {
                               setDialogState(() => installationDate = picked);
                             }
@@ -452,17 +506,20 @@ class _InstallationsPageState extends State<InstallationsPage> {
             void handleStatusChange(InstallationStatus? val) {
               if (val != null) {
                 // Block Cancel transition in UI if previously completed
-                if (existing?.status == InstallationStatus.completed && val == InstallationStatus.cancelled) {
+                if (existing?.status == InstallationStatus.completed &&
+                    val == InstallationStatus.cancelled) {
                   showDialog(
                     context: ctx,
                     builder: (wCtx) => AlertDialog(
                       title: const Text('Action Blocked'),
-                      content: const Text('Cancelling a completed installation is not allowed directly. You must manually manage the stock reversals or log movements.'),
+                      content: const Text(
+                        'Cancelling a completed installation is not allowed directly. You must manually manage the stock reversals or log movements.',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(wCtx),
                           child: const Text('OK'),
-                        )
+                        ),
                       ],
                     ),
                   );
@@ -486,8 +543,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         inputFormatters: AppInputFormatters.decimal,
                         onChanged: (_) => setDialogState(() {}),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Billed cost is required';
-                          if (double.tryParse(v) == null) return 'Enter a numeric value';
+                          if (v == null || v.isEmpty)
+                            return 'Billed cost is required';
+                          if (double.tryParse(v) == null)
+                            return 'Enter a numeric value';
                           return null;
                         },
                       ),
@@ -497,7 +556,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           controller: laborCostController,
                           decoration: const InputDecoration(
                             labelText: 'Technician / Labor Cost (PKR)',
-                            helperText: 'Paid to the installer. Reduces job profit.',
+                            helperText:
+                                'Paid to the installer. Reduces job profit.',
                           ),
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
@@ -505,8 +565,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           inputFormatters: AppInputFormatters.decimal,
                           onChanged: (_) => setDialogState(() {}),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty) return null; // treated as 0
-                            if (double.tryParse(v) == null) return 'Enter a numeric value';
+                            if (v == null || v.trim().isEmpty)
+                              return null; // treated as 0
+                            if (double.tryParse(v) == null)
+                              return 'Enter a numeric value';
                             return null;
                           },
                         ),
@@ -514,11 +576,17 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       const SizedBox(height: 16),
                       DropdownButtonFormField<InstallationStatus>(
                         value: status,
-                        decoration: const InputDecoration(labelText: 'Operational Status'),
-                        items: InstallationStatus.values.map((s) => DropdownMenuItem(
-                          value: s,
-                          child: Text(s.displayName),
-                        )).toList(),
+                        decoration: const InputDecoration(
+                          labelText: 'Operational Status',
+                        ),
+                        items: InstallationStatus.values
+                            .map(
+                              (s) => DropdownMenuItem(
+                                value: s,
+                                child: Text(s.displayName),
+                              ),
+                            )
+                            .toList(),
                         onChanged: handleStatusChange,
                       ),
                     ],
@@ -537,8 +605,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           inputFormatters: AppInputFormatters.decimal,
                           onChanged: (_) => setDialogState(() {}),
                           validator: (v) {
-                            if (v == null || v.isEmpty) return 'Billed cost is required';
-                            if (double.tryParse(v) == null) return 'Enter a numeric value';
+                            if (v == null || v.isEmpty)
+                              return 'Billed cost is required';
+                            if (double.tryParse(v) == null)
+                              return 'Enter a numeric value';
                             return null;
                           },
                         ),
@@ -557,8 +627,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                             inputFormatters: AppInputFormatters.decimal,
                             onChanged: (_) => setDialogState(() {}),
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty) return null; // treated as 0
-                              if (double.tryParse(v) == null) return 'Enter a numeric value';
+                              if (v == null || v.trim().isEmpty)
+                                return null; // treated as 0
+                              if (double.tryParse(v) == null)
+                                return 'Enter a numeric value';
                               return null;
                             },
                           ),
@@ -568,11 +640,17 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       Expanded(
                         child: DropdownButtonFormField<InstallationStatus>(
                           value: status,
-                          decoration: const InputDecoration(labelText: 'Operational Status'),
-                          items: InstallationStatus.values.map((s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(s.displayName),
-                          )).toList(),
+                          decoration: const InputDecoration(
+                            labelText: 'Operational Status',
+                          ),
+                          items: InstallationStatus.values
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s,
+                                  child: Text(s.displayName),
+                                ),
+                              )
+                              .toList(),
                           onChanged: handleStatusChange,
                         ),
                       ),
@@ -590,30 +668,35 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       return _allCustomers;
                     }
                     return _allCustomers.where((CustomerEntity customer) {
-                      return customer.name.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                      return customer.name.toLowerCase().contains(
+                        textEditingValue.text.toLowerCase(),
+                      );
                     });
                   },
-                  displayStringForOption: (CustomerEntity option) => option.name,
-                  fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
-                    // Sync autocomplete text controller on creation/edit
-                    if (textController.text.isEmpty && customerSearchController.text.isNotEmpty) {
-                      textController.text = customerSearchController.text;
-                    }
-                    return TextFormField(
-                      controller: textController,
-                      focusNode: focusNode,
-                      decoration: const InputDecoration(
-                        labelText: 'Search Subscriber Account / Name',
-                        suffixIcon: Icon(Icons.search, size: 18),
-                      ),
-                      validator: (v) {
-                        if (selectedCustomer == null) {
-                          return 'Please select a valid subscriber from the dropdown options';
+                  displayStringForOption: (CustomerEntity option) =>
+                      option.name,
+                  fieldViewBuilder:
+                      (context, textController, focusNode, onFieldSubmitted) {
+                        // Sync autocomplete text controller on creation/edit
+                        if (textController.text.isEmpty &&
+                            customerSearchController.text.isNotEmpty) {
+                          textController.text = customerSearchController.text;
                         }
-                        return null;
+                        return TextFormField(
+                          controller: textController,
+                          focusNode: focusNode,
+                          decoration: const InputDecoration(
+                            labelText: 'Search Subscriber Account / Name',
+                            suffixIcon: Icon(Icons.search, size: 18),
+                          ),
+                          validator: (v) {
+                            if (selectedCustomer == null) {
+                              return 'Please select a valid subscriber from the dropdown options';
+                            }
+                            return null;
+                          },
+                        );
                       },
-                    );
-                  },
                   onSelected: (CustomerEntity selection) {
                     setDialogState(() {
                       selectedCustomer = selection;
@@ -621,7 +704,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
 
                       // Auto fill connection type
                       final connStr = selection.connectionType.toLowerCase();
-                      if (connStr.contains('fiber') || connStr.contains('optical')) {
+                      if (connStr.contains('fiber') ||
+                          connStr.contains('optical')) {
                         connectionType = ConnectionType.opticalFibre;
                       } else {
                         connectionType = ConnectionType.wireless;
@@ -639,21 +723,30 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 // Assigned Employee
                 DropdownButtonFormField<String>(
                   value: assignedEmployeeId,
-                  decoration: const InputDecoration(labelText: 'Assigned Installer / Technician'),
-                  items: _employeesList.map((emp) => DropdownMenuItem(
-                    value: emp['id'] as String,
-                    child: Text(emp['name'] as String),
-                  )).toList(),
+                  decoration: const InputDecoration(
+                    labelText: 'Assigned Installer / Technician',
+                  ),
+                  items: _employeesList
+                      .map(
+                        (emp) => DropdownMenuItem(
+                          value: emp['id'] as String,
+                          child: Text(emp['name'] as String),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (val) {
                     if (val != null) {
-                      final matched = _employeesList.firstWhere((e) => e['id'] == val);
+                      final matched = _employeesList.firstWhere(
+                        (e) => e['id'] == val,
+                      );
                       setDialogState(() {
                         assignedEmployeeId = val;
                         assignedEmployeeName = matched['name'] as String;
                       });
                     }
                   },
-                  validator: (v) => v == null ? 'Technician assignment required' : null,
+                  validator: (v) =>
+                      v == null ? 'Technician assignment required' : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -664,7 +757,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 // Remarks
                 TextFormField(
                   controller: remarksController,
-                  decoration: const InputDecoration(labelText: 'Job Remarks / Details'),
+                  decoration: const InputDecoration(
+                    labelText: 'Job Remarks / Details',
+                  ),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 16),
@@ -676,7 +771,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     materialsLocked
                         ? 'Materials Used (locked — job already completed)'
                         : 'Materials Used (optional — leave empty for historical records)',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   subtitle: materialsLocked
                       ? const Text(
@@ -699,20 +797,25 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         final itemDropdown = DropdownButtonFormField<String>(
                           value: selectedItemId,
                           hint: const Text('Select Material'),
-                          items: _allInventoryItems.map((item) => DropdownMenuItem(
-                            value: item.id,
-                            child: Text(
-                              item.quantityInStock <= 0
-                                  ? '${item.name} (0 pcs — Out of Stock)'
-                                  : '${item.name} (Stock: ${item.quantityInStock} ${item.unit.isEmpty ? 'pcs' : item.unit})',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )).toList(),
+                          items: _allInventoryItems
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item.id,
+                                  child: Text(
+                                    item.quantityInStock <= 0
+                                        ? '${item.name} (0 pcs — Out of Stock)'
+                                        : '${item.name} (Stock: ${item.quantityInStock} ${item.unit.isEmpty ? 'pcs' : item.unit})',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
                           onChanged: materialsLocked
                               ? null
                               : (val) {
                                   if (val != null) {
-                                    final selectedItem = _allInventoryItems.firstWhere((i) => i.id == val);
+                                    final selectedItem = _allInventoryItems
+                                        .firstWhere((i) => i.id == val);
                                     setDialogState(() {
                                       row['itemId'] = val;
                                       row['unitCost'] = selectedItem.unitCost;
@@ -741,18 +844,29 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         final sellPriceField = isAdmin
                             ? TextFormField(
                                 key: ValueKey('sellPrice_$idx'),
-                                initialValue: (row['sellPrice'] as double).toStringAsFixed(2),
-                                decoration: const InputDecoration(labelText: 'Sell Price'),
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                initialValue: (row['sellPrice'] as double)
+                                    .toStringAsFixed(2),
+                                decoration: const InputDecoration(
+                                  labelText: 'Sell Price',
+                                ),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 enabled: !materialsLocked,
                                 onChanged: (val) {
                                   final parsed = double.tryParse(val) ?? 0.0;
-                                  setDialogState(() => row['sellPrice'] = parsed);
+                                  setDialogState(
+                                    () => row['sellPrice'] = parsed,
+                                  );
                                 },
                               )
                             : null;
                         final deleteButton = IconButton(
-                          icon: const Icon(Icons.delete, color: AppColors.errorRed),
+                          icon: const Icon(
+                            Icons.delete,
+                            color: AppColors.errorRed,
+                          ),
                           onPressed: materialsLocked
                               ? null
                               : () {
@@ -801,7 +915,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                 Expanded(flex: 1, child: sellPriceField),
                                 const SizedBox(width: 8),
                               ],
-                              if (unitCostText != null) Expanded(flex: 1, child: unitCostText),
+                              if (unitCostText != null)
+                                Expanded(flex: 1, child: unitCostText),
                               deleteButton,
                             ],
                           ),
@@ -818,7 +933,8 @@ class _InstallationsPageState extends State<InstallationsPage> {
                                   'itemId': _allInventoryItems.first.id,
                                   'qty': 1,
                                   'unitCost': _allInventoryItems.first.unitCost,
-                                  'sellPrice': _allInventoryItems.first.sellPrice,
+                                  'sellPrice':
+                                      _allInventoryItems.first.sellPrice,
                                 });
                               });
                             },
@@ -864,9 +980,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           ),
                         ],
                       ),
-                    ]
+                    ],
                   ],
-                )
+                ),
               ],
             );
 
@@ -874,7 +990,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
                 ? const SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Icon(Icons.check, size: 16);
             final saveLabel = Text(isSaving ? 'Saving...' : 'Save Job');
@@ -900,7 +1019,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                         onPressed: isSaving ? null : submit,
                         icon: saveIcon,
                         label: saveLabel,
-                        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
                       ),
                     ),
                   ),
@@ -935,7 +1056,10 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
-  void _confirmDeleteInstallation(BuildContext context, InstallationEntity inst) {
+  void _confirmDeleteInstallation(
+    BuildContext context,
+    InstallationEntity inst,
+  ) {
     bool isDeleting = false;
     showDialog(
       context: context,
@@ -953,31 +1077,40 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.errorRed,
+                  ),
                   onPressed: isDeleting
                       ? null
                       : () async {
                           setDialogState(() => isDeleting = true);
                           final bloc = context.read<InstallationBloc>();
-                          bloc.add(DeleteInstallationEvent(
-                            inst.id,
-                            status: _selectedStatus,
-                            connectionType: _selectedConnectionType,
-                            employeeId: _selectedEmployeeId,
-                            searchQuery: _searchController.text.trim(),
-                          ));
-
-                          final result = await bloc.stream.firstWhere(
-                            (s) => s is InstallationLoaded || s is InstallationError,
+                          bloc.add(
+                            DeleteInstallationEvent(
+                              inst.id,
+                              status: _selectedStatus,
+                              connectionType: _selectedConnectionType,
+                              employeeId: _selectedEmployeeId,
+                              searchQuery: _searchController.text.trim(),
+                            ),
                           );
 
-                          if (!mounted || !context.mounted) return;
+                          final result = await bloc.stream.firstWhere(
+                            (s) =>
+                                s is InstallationLoaded ||
+                                s is InstallationError,
+                          );
+
+                          if (!mounted || !dCtx.mounted || !context.mounted)
+                            return;
 
                           if (result is InstallationError) {
                             setDialogState(() => isDeleting = false);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Failed to delete: ${result.message}'),
+                                content: Text(
+                                  'Failed to delete: ${result.message}',
+                                ),
                                 backgroundColor: AppColors.errorRed,
                               ),
                             );
@@ -986,7 +1119,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
 
                           Navigator.pop(dCtx);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Installation log deleted')),
+                            const SnackBar(
+                              content: Text('Installation log deleted'),
+                            ),
                           );
                         },
                   child: Text(isDeleting ? 'Deleting...' : 'Delete'),
@@ -997,6 +1132,23 @@ class _InstallationsPageState extends State<InstallationsPage> {
         );
       },
     );
+  }
+
+  static const _accent = Color(0xFF0F766E);
+  static const _ink = Color(0xFF14213D);
+  static const _muted = Color(0xFF5B6472);
+  static const _border = Color(0xFFE3E6EB);
+  static const _line = Color(0xFFC9CED6);
+
+  /// Rs 3,000 style, with a minus sign if negative.
+  String _rs(num amount) {
+    final negative = amount < 0;
+    final digits = amount.abs().round().toString();
+    final withCommas = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (m) => ',',
+    );
+    return '${negative ? '-' : ''}Rs $withCommas';
   }
 
   @override
@@ -1014,16 +1166,27 @@ class _InstallationsPageState extends State<InstallationsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Header ───────────────────────────────────────────────────
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Expanded(
-                    child: Breadcrumb(
-                      items: [
-                        BreadcrumbItem(
-                          label: 'Home',
-                          onTap: () => context.go(RoutePaths.dashboard),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Installations',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: _ink,
+                          ),
                         ),
-                        BreadcrumbItem(label: 'Installations'),
+                        SizedBox(height: 6),
+                        Text(
+                          'New connections: who did the job, and what it earned.',
+                          style: TextStyle(fontSize: 14, color: _muted),
+                        ),
                       ],
                     ),
                   ),
@@ -1033,48 +1196,31 @@ class _InstallationsPageState extends State<InstallationsPage> {
                       onPressed: _isLoadingDropdowns
                           ? null
                           : () => _showAddEditInstallationDialog(context),
-                      icon: const Icon(Icons.construction, size: 18),
-                      label: const Text('Log Installation'),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Log installation'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        backgroundColor: _accent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
                   ],
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // Search & Filter Panel
-              InstallationFilterPanel(
-                searchController: _searchController,
-                selectedStatus: _selectedStatus,
-                selectedConnectionType: _selectedConnectionType,
-                selectedEmployeeId: _selectedEmployeeId,
-                employeesList: _employeesList,
-                activeFilterCount: (_selectedStatus != null ? 1 : 0) +
-                    (_selectedConnectionType != null ? 1 : 0) +
-                    (_selectedEmployeeId != null ? 1 : 0) +
-                    (_searchController.text.isNotEmpty ? 1 : 0),
-                onSearchChanged: (query) => _triggerLoad(),
-                onConnectionTypeChanged: (val) {
-                  setState(() => _selectedConnectionType = val);
-                  _triggerLoad();
-                },
-                onEmployeeChanged: (val) {
-                  setState(() => _selectedEmployeeId = val);
-                  _triggerLoad();
-                },
-                onStatusChanged: (status) {
-                  setState(() => _selectedStatus = status);
-                  _triggerLoad();
-                },
-                onClearFilters: _clearFilters,
-              ),
               const SizedBox(height: 24),
 
-              // Main Bloc Builder for logs
+              // ── Main Bloc Builder: summary, filters, list ────────────────
               BlocConsumer<InstallationBloc, InstallationState>(
                 listener: (context, state) {
                   if (state is InstallationLoaded) {
                     _lastLoaded = state;
-                  } else if (state is InstallationError && _lastLoaded != null) {
+                  } else if (state is InstallationError &&
+                      _lastLoaded != null) {
                     // Keep the existing log on screen; just surface the failure.
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -1088,142 +1234,143 @@ class _InstallationsPageState extends State<InstallationsPage> {
                   // Prefer the freshly-loaded state; otherwise fall back to
                   // the last successfully loaded log rather than blanking the
                   // page during a transient reload or a failed save/delete.
-                  final state =
-                      rawState is InstallationLoaded ? rawState : _lastLoaded;
+                  final state = rawState is InstallationLoaded
+                      ? rawState
+                      : _lastLoaded;
 
                   if (state == null) {
                     if (rawState is InstallationError) {
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32.0),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.error_outline,
-                                    size: 48, color: AppColors.errorRed),
-                                const SizedBox(height: 16),
-                                Text(
-                                  rawState.message,
-                                  style: const TextStyle(color: AppColors.errorRed),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: _triggerLoad,
-                                  child: const Text('Retry'),
-                                ),
-                              ],
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _border),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: AppColors.errorRed,
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            Text(
+                              rawState.message,
+                              style: const TextStyle(color: AppColors.errorRed),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _triggerLoad,
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
                       );
                     }
-                    return const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: Center(
-                          child: CircularProgressIndicator(strokeWidth: 3),
-                        ),
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 3),
                       ),
                     );
                   }
 
-                  {
-                    final list = state.installations;
+                  final list = state.installations;
 
-                    // SCOPE: the financial cards cover completed jobs only,
-                    // within the current filters. Cancelled and pending jobs
-                    // never contribute money on any screen. The table below
-                    // still shows every job — it is an operations log, not a
-                    // ledger.
-                    final billable = list
-                        .where((i) => isFinanciallyCountable(i.status))
-                        .toList();
-                    final totals = installationsMoney(billable);
+                  // SCOPE: the money cards cover completed jobs only, within
+                  // the current filters. Cancelled and pending jobs never
+                  // contribute money on any screen. The list below still
+                  // shows every job: it is an operations log, not a ledger.
+                  final billable = list
+                      .where((i) => isFinanciallyCountable(i.status))
+                      .toList();
+                  final totals = installationsMoney(billable);
 
-                    return Column(
-                      children: [
-                        // Metric cards (Admin only)
-                        if (isAdmin) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DashboardCard(
-                                  label: 'Billed to Customers',
-                                  value: DateTimeUtils.formatCurrency(totals.amountBilled),
-                                  icon: Icons.payments,
-                                  subtitle: 'Setup fees + materials · '
-                                      '${billable.length} completed of ${list.length} in view',
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: DashboardCard(
-                                  label: 'Material & Labor Cost',
-                                  value: DateTimeUtils.formatCurrency(totals.costIncurred),
-                                  icon: Icons.shopping_bag_outlined,
-                                  backgroundColor: AppTheme.errorColor.withOpacity(0.04),
-                                  subtitle: 'Completed jobs in current view',
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: DashboardCard(
-                                  label: 'Net Installation Profit',
-                                  value: DateTimeUtils.formatCurrency(totals.profit),
-                                  icon: Icons.account_balance_wallet,
-                                  backgroundColor: AppTheme.successColor.withOpacity(0.05),
-                                  subtitle: totals.marginPct != null
-                                      ? '${totals.marginPct!.toStringAsFixed(1)}% margin · billed − cost'
-                                      : 'No completed jobs in view',
-                                ),
-                              ),
-                            ],
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isAdmin) ...[
+                        _buildMoneyCards(totals, billable.length, list.length),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // Filters
+                      InstallationFilterPanel(
+                        searchController: _searchController,
+                        selectedStatus: _selectedStatus,
+                        selectedConnectionType: _selectedConnectionType,
+                        selectedEmployeeId: _selectedEmployeeId,
+                        employeesList: _employeesList,
+                        activeFilterCount:
+                            (_selectedStatus != null ? 1 : 0) +
+                            (_selectedConnectionType != null ? 1 : 0) +
+                            (_selectedEmployeeId != null ? 1 : 0) +
+                            (_searchController.text.isNotEmpty ? 1 : 0),
+                        onSearchChanged: (query) {
+                          setState(() {});
+                          _triggerLoad();
+                        },
+                        onConnectionTypeChanged: (val) {
+                          setState(() => _selectedConnectionType = val);
+                          _triggerLoad();
+                        },
+                        onEmployeeChanged: (val) {
+                          setState(() => _selectedEmployeeId = val);
+                          _triggerLoad();
+                        },
+                        onStatusChanged: (status) {
+                          setState(() => _selectedStatus = status);
+                          _triggerLoad();
+                        },
+                        onClearFilters: _clearFilters,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // List
+                      if (list.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _border),
                           ),
-                          const SizedBox(height: 32),
-                        ],
-
-                        // Data Table
-                        Card(
-                          elevation: 1,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+                          child: const EmptyStateWidget(
+                            icon: Icons.construction_outlined,
+                            title: 'No installations found',
+                            subtitle:
+                                'Change your filters or log a new installation to begin.',
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Installation Operations Log',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 16),
-                                list.isEmpty
-                                    ? const EmptyStateWidget(
-                                        icon: Icons.construction_outlined,
-                                        title: 'No Installations Found',
-                                        subtitle: 'Adjust your filters or log a new installation to begin.',
-                                      )
-                                    : ResponsiveSwitcher(
-                                        mobile: InstallationCardList(
-                                          installations: list,
-                                          isAdmin: isAdmin,
-                                          onEdit: (inst) => _showAddEditInstallationDialog(context, existing: inst),
-                                          onDelete: (inst) => _confirmDeleteInstallation(context, inst),
-                                        ),
-                                        desktop: _buildInstallationsTable(list, isAdmin),
-                                      ),
-                              ],
+                        )
+                      else
+                        ResponsiveSwitcher(
+                          mobile: InstallationCardList(
+                            installations: list,
+                            isAdmin: isAdmin,
+                            onEdit: (inst) => _showAddEditInstallationDialog(
+                              context,
+                              existing: inst,
                             ),
+                            onDelete: (inst) =>
+                                _confirmDeleteInstallation(context, inst),
+                          ),
+                          desktop: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _border),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: _buildInstallationsTable(list, isAdmin),
                           ),
                         ),
-                      ],
-                    );
-                  }
+                    ],
+                  );
                 },
               ),
             ],
@@ -1233,125 +1380,298 @@ class _InstallationsPageState extends State<InstallationsPage> {
     );
   }
 
+  // ── Money cards (admin only) ───────────────────────────────────────────────
 
-  Widget _buildInstallationsTable(List<InstallationEntity> installations, bool isAdmin) {
-    return DataTableWrapper(
-      columns: [
-        const DataColumn(label: Text('Customer')),
-        const DataColumn(label: Text('Assigned Installer')),
-        const DataColumn(label: Text('Date Installed')),
-        const DataColumn(label: Text('Materials Used (BOM)')),
-        if (isAdmin) ...[
-          const DataColumn(label: Text('Cost (Materials + Labor)')),
-          const DataColumn(label: Text('Billed (Fee + Materials)')),
-          const DataColumn(label: Text('Net Return')),
-        ],
-        const DataColumn(label: Text('Status')),
-        if (isAdmin) const DataColumn(label: Text('Actions')),
-      ],
-      rows: installations.map((inst) {
-        // Every figure here comes off the one MoneyLine, so the visible
-        // columns always satisfy Billed − Cost = Net Return.
-        final money = inst.money;
-
-        // Construct BOM text
-        String bomText = 'No items logged';
-        if (inst.itemsUsed != null && inst.itemsUsed!.isNotEmpty) {
-          bomText = inst.itemsUsed!.map((i) => '${i.itemName} (x${i.quantity})').join(', ');
-        }
-
-        return DataRow(
-          cells: [
-            DataCell(
-              Text(
-                inst.customerName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
+  Widget _statCard(String label, String value, {String? note, Color? color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: color ?? _ink,
             ),
-            DataCell(Text(inst.assignedEmployeeName ?? 'Unassigned')),
-            DataCell(Text(DateTimeUtils.formatDate(inst.installationDate))),
-            DataCell(
-              Tooltip(
-                message: bomText,
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 220),
-                  child: Text(
-                    bomText,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-            if (isAdmin) ...[
-              DataCell(Text(inst.hasCostData
-                  ? DateTimeUtils.formatCurrency(money.costIncurred)
-                  : 'N/A')),
-              DataCell(Text(DateTimeUtils.formatCurrency(money.amountBilled))),
-              DataCell(
-                Tooltip(
-                  // A job with no logged costs still has an exact profit — it
-                  // just equals what was billed. Caveat it rather than hiding
-                  // it behind 'N/A', which made the column un-summable.
-                  message: inst.hasCostData
-                      ? ''
-                      : 'No material or labour cost recorded — profit assumes zero cost.',
-                  child: Text(
-                    DateTimeUtils.formatCurrency(money.profit),
-                    style: TextStyle(
-                      color: !inst.hasCostData
-                          ? AppColors.charcoal
-                          : (money.profit > 0
-                              ? AppTheme.successColor
-                              : (money.profit < 0
-                                  ? AppTheme.errorColor
-                                  : AppColors.charcoal)),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: installationStatusColor(inst.status).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  inst.status.displayName,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: installationStatusColor(inst.status),
-                  ),
-                ),
-              ),
-            ),
-            if (isAdmin)
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 16, color: AppColors.primaryBlue),
-                      onPressed: () => _showAddEditInstallationDialog(context, existing: inst),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, size: 16, color: AppColors.errorRed),
-                      onPressed: () => _confirmDeleteInstallation(context, inst),
-                    )
-                  ],
-                ),
-              ),
+          ),
+          if (note != null) ...[
+            const SizedBox(height: 4),
+            Text(note, style: const TextStyle(fontSize: 12, color: _muted)),
           ],
-        );
-      }).toList(),
+        ],
+      ),
     );
   }
 
+  Widget _buildMoneyCards(dynamic totals, int completedCount, int totalCount) {
+    final cards = <Widget>[
+      _statCard(
+        'Billed to customers',
+        _rs(totals.amountBilled),
+        note:
+            'Setup fees + materials · $completedCount completed of $totalCount in view',
+      ),
+      _statCard(
+        'Material and labour cost',
+        _rs(totals.costIncurred),
+        note: 'Completed jobs in this view',
+      ),
+      _statCard(
+        'Net installation profit',
+        _rs(totals.profit),
+        color: totals.profit >= 0 ? _accent : AppColors.errorRed,
+        note: totals.marginPct != null
+            ? '${totals.marginPct!.toStringAsFixed(1)}% margin · billed minus cost'
+            : 'No completed jobs in this view',
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 16.0;
+        final cols = c.maxWidth >= 900 ? 3 : (c.maxWidth >= 560 ? 2 : 1);
+        final width = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  // ── Table (fills the full width) ───────────────────────────────────────────
+
+  Widget _headerCell(String t) => Text(
+    t,
+    style: const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: _muted,
+    ),
+  );
+
+  Widget _tableRow(List<int> flex, List<Widget> cells, {bool last = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : const Border(bottom: BorderSide(color: Color(0xFFEEF0F3))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < cells.length; i++)
+            Expanded(
+              flex: flex[i],
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: cells[i],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstallationsTable(
+    List<InstallationEntity> installations,
+    bool isAdmin,
+  ) {
+    final flex = isAdmin
+        ? const [17, 13, 11, 18, 9, 10, 10, 10, 14]
+        : const [26, 20, 16, 26, 12];
+    final minWidth = isAdmin ? 1180.0 : 700.0;
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = c.maxWidth < minWidth ? minWidth : c.maxWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            child: Column(
+              children: [
+                _tableRow(flex, [
+                  _headerCell('Customer'),
+                  _headerCell('Installer'),
+                  _headerCell('Date'),
+                  _headerCell('Materials used'),
+                  if (isAdmin) _headerCell('Cost'),
+                  if (isAdmin) _headerCell('Billed'),
+                  if (isAdmin) _headerCell('Profit'),
+                  _headerCell('Status'),
+                  if (isAdmin) _headerCell('Actions'),
+                ]),
+                for (var i = 0; i < installations.length; i++)
+                  _installationRow(
+                    flex,
+                    installations[i],
+                    isAdmin,
+                    last: i == installations.length - 1,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _installationRow(
+    List<int> flex,
+    InstallationEntity inst,
+    bool isAdmin, {
+    required bool last,
+  }) {
+    // Every figure comes off the one MoneyLine, so the visible columns always
+    // satisfy Billed - Cost = Profit.
+    final money = inst.money;
+    final statusColor = installationStatusColor(inst.status);
+
+    String bomText = 'No items logged';
+    if (inst.itemsUsed != null && inst.itemsUsed!.isNotEmpty) {
+      bomText = inst.itemsUsed!
+          .map((i) => '${i.itemName} (x${i.quantity})')
+          .join(', ');
+    }
+
+    final profitColor = !inst.hasCostData
+        ? _ink
+        : (money.profit > 0
+              ? AppTheme.successColor
+              : (money.profit < 0 ? AppTheme.errorColor : _ink));
+
+    return _tableRow(flex, [
+      Text(
+        inst.customerName,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          color: _ink,
+        ),
+      ),
+      Text(
+        inst.assignedEmployeeName ?? 'Unassigned',
+        style: const TextStyle(fontSize: 14, color: _ink),
+      ),
+      Text(
+        DateTimeUtils.formatDate(inst.installationDate),
+        style: const TextStyle(fontSize: 14, color: _ink),
+      ),
+      Tooltip(
+        message: bomText,
+        child: Text(
+          bomText,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            color: _muted,
+            fontStyle: bomText == 'No items logged' ? FontStyle.italic : null,
+          ),
+        ),
+      ),
+      if (isAdmin)
+        Text(
+          inst.hasCostData ? _rs(money.costIncurred) : '—',
+          style: const TextStyle(fontSize: 14, color: _ink),
+        ),
+      if (isAdmin)
+        Text(
+          _rs(money.amountBilled),
+          style: const TextStyle(fontSize: 14, color: _ink),
+        ),
+      if (isAdmin)
+        Tooltip(
+          // A job with no logged costs still has an exact profit: it just
+          // equals what was billed. Caveat it rather than hiding it.
+          message: inst.hasCostData
+              ? ''
+              : 'No material or labour cost recorded, so profit assumes zero cost.',
+          child: Text(
+            _rs(money.profit),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: profitColor,
+            ),
+          ),
+        ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            inst.status.displayName,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: statusColor,
+            ),
+          ),
+        ),
+      ),
+      if (isAdmin)
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                foregroundColor: _ink,
+                side: const BorderSide(color: _line),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              onPressed: () =>
+                  _showAddEditInstallationDialog(context, existing: inst),
+              child: const Text('Edit'),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'More actions',
+              icon: const Icon(Icons.more_horiz),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              onSelected: (v) {
+                if (v == 'delete') _confirmDeleteInstallation(context, inst);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(
+                    'Delete log',
+                    style: TextStyle(color: AppTheme.errorColor),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+    ], last: last);
+  }
 }

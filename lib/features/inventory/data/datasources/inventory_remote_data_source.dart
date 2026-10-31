@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/inventory/data/models/inventory_item_model.dart';
 import 'package:nasr_isp/features/inventory/data/models/stock_movement_model.dart';
 
 abstract class InventoryRemoteDataSource {
-  Future<void> addInventoryItem(InventoryItemModel item);
+  Future<void> addInventoryItem(InventoryItemModel item, {String? performedBy});
   Future<List<InventoryItemModel>> getInventoryItems();
   Future<void> updateInventoryItem(InventoryItemModel item);
   Future<void> deleteInventoryItem(String itemId);
@@ -14,14 +15,18 @@ abstract class InventoryRemoteDataSource {
 
 class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
-  InventoryRemoteDataSourceImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  InventoryRemoteDataSourceImpl({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = firebaseAuth ?? FirebaseAuth.instance;
 
   CollectionReference get _col => _firestore.collection('inventory');
 
   @override
-  Future<void> addInventoryItem(InventoryItemModel item) async {
+  Future<void> addInventoryItem(InventoryItemModel item, {String? performedBy}) async {
     final querySnapshot = await _col.get();
     DocumentSnapshot? existingDoc;
 
@@ -49,6 +54,14 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
 
       await _col.doc(existingDoc.id).update(updatedData);
 
+      // Resolve actor for the stock movement
+      final user = _auth.currentUser;
+      final actor = (performedBy != null && performedBy.isNotEmpty)
+          ? performedBy
+          : (user?.displayName != null && user!.displayName!.isNotEmpty
+              ? user.displayName!
+              : (user?.email ?? user?.uid ?? 'Admin'));
+
       // Record stock-in movement for the restock
       final movementDocRef = _col.doc(existingDoc.id).collection('movements').doc();
       await movementDocRef.set({
@@ -58,7 +71,7 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
         'quantity': item.quantityInStock,
         'reason': 'Restocked via Add Item',
         'date': FieldValue.serverTimestamp(),
-        'performedBy': 'Admin',
+        'performedBy': actor,
       });
     } else {
       final data = item.toFirestore();
@@ -71,31 +84,9 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
   @override
   Future<List<InventoryItemModel>> getInventoryItems() async {
     final snapshot = await _col.orderBy('name').get();
-    final Map<String, InventoryItemModel> itemsMap = {};
-
-    for (final doc in snapshot.docs) {
-      final item = InventoryItemModel.fromFirestore(doc);
-      final key = item.name.trim().toLowerCase();
-      if (itemsMap.containsKey(key)) {
-        // Consolidate duplicate records if any exist in database
-        final existing = itemsMap[key]!;
-        final mergedQty = existing.quantityInStock + item.quantityInStock;
-        final mergedModel = existing.copyWith(
-          quantityInStock: mergedQty,
-          unitCost: item.unitCost > 0 ? item.unitCost : existing.unitCost,
-          sellPrice: item.sellPrice > 0 ? item.sellPrice : existing.sellPrice,
-        );
-        itemsMap[key] = mergedModel;
-
-        // Clean up duplicate document in background
-        _col.doc(existing.id).update({'quantityInStock': mergedQty});
-        deleteInventoryItem(doc.id);
-      } else {
-        itemsMap[key] = item;
-      }
-    }
-
-    return itemsMap.values.toList();
+    return snapshot.docs
+        .map((doc) => InventoryItemModel.fromFirestore(doc))
+        .toList();
   }
 
   @override

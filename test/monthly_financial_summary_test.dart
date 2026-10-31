@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/customers/data/models/customer_model.dart';
@@ -10,7 +9,6 @@ import 'package:nasr_isp/features/expenses/domain/entities/expense_entity.dart';
 import 'package:nasr_isp/features/expenses/domain/repositories/expense_repository.dart';
 import 'package:nasr_isp/features/expenses/domain/usecases/get_expenses.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
-import 'package:nasr_isp/features/installations/domain/entities/installation_item_used_entity.dart';
 import 'package:nasr_isp/features/installations/domain/repositories/installation_repository.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
@@ -20,6 +18,7 @@ import 'package:nasr_isp/features/payments/data/models/payment_model.dart';
 import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/domain/repositories/payment_repository.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_earliest_payment_date.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_available_report_months.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
 
@@ -37,7 +36,15 @@ class _FakePaymentRepository implements PaymentRepository {
   final List<PaymentModel> payments;
   _FakePaymentRepository(this.payments);
   @override
-  Future<List<PaymentEntity>> getAllPayments() async => payments;
+  Future<List<PaymentEntity>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => payments;
+  @override
+  Future<DateTime?> getEarliestPaymentDate() async {
+    final dates = payments.map((p) => p.createdAt).whereType<DateTime>();
+    return dates.isEmpty ? null : dates.reduce((a, b) => a.isBefore(b) ? a : b);
+  }
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -208,7 +215,7 @@ void main() {
 
       final usecase = GetAvailableReportMonths(
         getCustomers: GetCustomers(_FakeCustomerRepository(customers)),
-        getAllPayments: GetAllPayments(_FakePaymentRepository([])),
+        getEarliestPaymentDate: GetEarliestPaymentDate(_FakePaymentRepository([])),
         getExpenses: GetExpenses(_FakeExpenseRepository([])),
       );
 

@@ -117,7 +117,6 @@ class RenewSubscription {
         periodEnd: periodEnd,
         packageCostAtBilling: existing.packageCostAtBilling ?? packageCost,
       );
-      await paymentRepository.updatePayment(charge);
     } else {
       final isPaidInFull = amountReceived >= customer.monthlyBill;
       charge = PaymentEntity(
@@ -145,11 +144,13 @@ class RenewSubscription {
         packageCostAtBilling: packageCost,
         periodEnd: periodEnd,
       );
-      await paymentRepository.addPayment(charge);
     }
 
     final renewed = customer.copyWith(nextDueDate: periodEnd);
-    await customerRepository.updateCustomer(renewed);
+    await customerRepository.updateCustomerWithPayment(
+      customer: renewed,
+      payment: charge,
+    );
 
     return RenewalOutcome(customer: renewed, payment: charge);
   }

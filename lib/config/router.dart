@@ -123,13 +123,6 @@ GoRouter createAppRouter(AuthBloc authBloc) {
             redirect: _adminOnlyRedirect,
           ),
 
-          // Khataa (admin-only)
-          // GoRoute(
-          //   path: RoutePaths.khataa,
-          //   builder: (context, state) => const KhataaPage(),
-          //   redirect: _adminOnlyRedirect,
-          // ),
-
           // Settings (admin-only)
           GoRoute(
             path: RoutePaths.settings,

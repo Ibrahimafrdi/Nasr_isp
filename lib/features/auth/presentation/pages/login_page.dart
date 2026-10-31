@@ -72,7 +72,7 @@ class _LoginPageState extends State<LoginPage>
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
-            context.go(RoutePaths.dashboard);
+            context.go(RoutePaths.customers);
           } else if (state is AuthError) {
             _showErrorSnackbar(context, state.message);
           }
@@ -601,8 +601,8 @@ class _LoginPageState extends State<LoginPage>
                                         if (!formKey.currentState!.validate()) {
                                           return;
                                         }
-                                        final email =
-                                            resetEmailController.text.trim();
+                                        final email = resetEmailController.text
+                                            .trim();
                                         setDialogState(() {
                                           isLoading = true;
                                           errorMessage = null;
@@ -611,8 +611,8 @@ class _LoginPageState extends State<LoginPage>
                                         try {
                                           await FirebaseAuth.instance
                                               .sendPasswordResetEmail(
-                                            email: email,
-                                          );
+                                                email: email,
+                                              );
                                           if (dialogContext.mounted) {
                                             Navigator.of(dialogContext).pop();
                                           }
@@ -639,8 +639,8 @@ class _LoginPageState extends State<LoginPage>
                                           strokeWidth: 2,
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
-                                            Colors.white,
-                                          ),
+                                                Colors.white,
+                                              ),
                                         ),
                                       )
                                     : const Text(

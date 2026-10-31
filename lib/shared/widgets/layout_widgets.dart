@@ -92,12 +92,6 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
         route: RoutePaths.payments,
         subItems: [
           const SidebarSubItem(label: 'Payments', route: RoutePaths.payments),
-          // Khataa — admin only
-          // if (isAdmin)
-          //   const SidebarSubItem(
-          //     label: 'Khataa Ledger',
-          //     route: RoutePaths.khataa,
-          //   ),
           if (isAdmin)
             const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
           if (isAdmin)

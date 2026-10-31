@@ -259,9 +259,9 @@ class PaymentsBloc extends Bloc<PaymentsEvent, PaymentsState> {
       }
 
       final totalAmount =
-          payments.fold<double>(0, (sum, p) => sum + p.amount);
+          payments.fold<double>(0, (total, p) => total + p.amount);
       final collectedAmount =
-          payments.fold<double>(0, (sum, p) => sum + p.paidAmount);
+          payments.fold<double>(0, (total, p) => total + p.paidAmount);
 
       final currentPage = event.page;
       final totalPages = hasMore ? currentPage + 1 : currentPage;

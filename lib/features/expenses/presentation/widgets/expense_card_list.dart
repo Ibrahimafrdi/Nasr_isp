@@ -5,7 +5,7 @@ import 'package:nasr_isp/features/expenses/domain/entities/expense_entity.dart';
 
 /// Mobile card list for the Expenses page.
 ///
-/// Pure UI — all callbacks are received from the parent page.
+/// Pure UI: all callbacks are received from the parent page.
 class ExpenseCardList extends StatelessWidget {
   final List<ExpenseEntity> expenses;
   final bool isAdmin;
@@ -20,6 +20,10 @@ class ExpenseCardList extends StatelessWidget {
     required this.onDelete,
   });
 
+  static const _ink = Color(0xFF14213D);
+  static const _muted = Color(0xFF5B6472);
+  static const _line = Color(0xFFC9CED6);
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -30,134 +34,104 @@ class ExpenseCardList extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppTheme.lightGray.withValues(alpha: 0.6),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE3E6EB)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
                       e.title,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         fontSize: 15,
-                        color: AppTheme.primaryColor,
+                        color: _ink,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
+                      color: const Color(0xFFE6F2F1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       e.category.label,
                       style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0B5B55),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Text(
-                      DateTimeUtils.formatCurrency(e.amount),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.errorColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      DateTimeUtils.formatDate(e.date),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 10),
+              Text(
+                DateTimeUtils.formatCurrency(e.amount),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: _ink,
+                ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.person_outline,
-                      size: 14, color: AppTheme.mediumGray),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Paid by: ${e.paidBy}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.mediumGray,
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 4),
+              Text(
+                'Paid by ${e.paidBy} · ${DateTimeUtils.formatDate(e.date)}',
+                style: const TextStyle(fontSize: 13, color: _muted),
               ),
               if (e.notes != null && e.notes!.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Notes: ${e.notes}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: AppTheme.darkGray,
-                  ),
+                  e.notes!,
+                  style: const TextStyle(fontSize: 13, color: _muted),
                 ),
               ],
               if (isAdmin) ...[
-                const Divider(height: 20),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 4,
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    TextButton.icon(
-                      onPressed: () => onEdit(e),
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('Edit'),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => onDelete(e),
-                      icon: const Icon(Icons.delete_outline,
-                          size: 16, color: AppTheme.errorColor),
-                      label: const Text(
-                        'Delete',
-                        style: TextStyle(color: AppTheme.errorColor),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        foregroundColor: _ink,
+                        side: const BorderSide(color: _line),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
+                      onPressed: () => onEdit(e),
+                      child: const Text('Edit'),
+                    ),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      tooltip: 'More actions',
+                      icon: const Icon(Icons.more_horiz),
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      onSelected: (v) {
+                        if (v == 'delete') onDelete(e);
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text(
+                            'Delete expense',
+                            style: TextStyle(color: AppTheme.errorColor),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

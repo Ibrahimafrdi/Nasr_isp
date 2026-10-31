@@ -9,7 +9,6 @@ class AuthHelpers {
     RoutePaths.employees,
     RoutePaths.settings,
     RoutePaths.inventory,
-    RoutePaths.khataa,
   ];
 
   /// Check if user is an admin

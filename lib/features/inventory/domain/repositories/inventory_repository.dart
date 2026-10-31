@@ -2,7 +2,7 @@ import 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entit
 import 'package:nasr_isp/features/inventory/domain/entities/stock_movement_entity.dart';
 
 abstract class InventoryRepository {
-  Future<void> addInventoryItem(InventoryItemEntity item);
+  Future<void> addInventoryItem(InventoryItemEntity item, {String? performedBy});
   Future<List<InventoryItemEntity>> getInventoryItems();
   Future<void> updateInventoryItem(InventoryItemEntity item);
   Future<void> deleteInventoryItem(String itemId);

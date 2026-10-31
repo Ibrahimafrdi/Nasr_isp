@@ -10,9 +10,10 @@ class LoadInventoryItems extends InventoryEvent {}
 
 class AddInventoryItemEvent extends InventoryEvent {
   final InventoryItemEntity item;
-  const AddInventoryItemEvent(this.item);
+  final String? performedBy;
+  const AddInventoryItemEvent(this.item, {this.performedBy});
   @override
-  List<Object?> get props => [item];
+  List<Object?> get props => [item, performedBy];
 }
 
 class UpdateInventoryItemEvent extends InventoryEvent {

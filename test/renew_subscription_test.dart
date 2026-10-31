@@ -16,9 +16,25 @@ import 'package:nasr_isp/features/payments/domain/repositories/payment_repositor
 
 class _FakeCustomerRepository implements CustomerRepository {
   final List<CustomerEntity> updated = [];
+  _FakePaymentRepository? paymentRepo;
 
   @override
   Future<void> updateCustomer(CustomerEntity c) async => updated.add(c);
+
+  @override
+  Future<void> updateCustomerWithPayment({
+    required CustomerEntity customer,
+    PaymentEntity? payment,
+  }) async {
+    updated.add(customer);
+    if (payment != null && paymentRepo != null) {
+      if (payment.id.isNotEmpty) {
+        await paymentRepo!.updatePayment(payment);
+      } else {
+        await paymentRepo!.addPayment(payment);
+      }
+    }
+  }
 
   @override
   Future<List<CustomerEntity>> getCustomers() async => throw UnimplementedError();
@@ -53,7 +69,12 @@ class _FakePaymentRepository implements PaymentRepository {
   Future<void> updatePayment(PaymentEntity p) async => updated.add(p);
 
   @override
-  Future<List<PaymentEntity>> getAllPayments() async => throw UnimplementedError();
+  Future<List<PaymentEntity>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => throw UnimplementedError();
+  @override
+  Future<DateTime?> getEarliestPaymentDate() async => throw UnimplementedError();
   @override
   Future<List<PaymentEntity>> getPayments({
     int limit = 10,
@@ -143,12 +164,14 @@ RenewSubscription _useCase({
   required _FakePaymentRepository payments,
   required _FakeCustomerRepository customers,
   _FakePackageRepository? packages,
-}) =>
-    RenewSubscription(
-      paymentRepository: payments,
-      customerRepository: customers,
-      getPackages: GetPackages(packages ?? _FakePackageRepository([_package()])),
-    );
+}) {
+  customers.paymentRepo = payments;
+  return RenewSubscription(
+    paymentRepository: payments,
+    customerRepository: customers,
+    getPackages: GetPackages(packages ?? _FakePackageRepository([_package()])),
+  );
+}
 
 void main() {
   group('a full renewal', () {

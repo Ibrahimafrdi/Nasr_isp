@@ -54,7 +54,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     Emitter<InventoryState> emit,
   ) async {
     try {
-      await addInventoryItem(event.item);
+      await addInventoryItem(event.item, performedBy: event.performedBy);
       final items = await getInventoryItems();
       emit(InventoryLoaded(items));
     } catch (e) {

@@ -64,9 +64,14 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
-  Future<void> _confirmToggleStatus(BuildContext context, EmployeeEntity emp) async {
+  Future<void> _confirmToggleStatus(
+    BuildContext context,
+    EmployeeEntity emp,
+  ) async {
     final isInactive = emp.status == EmployeeStatus.inactive;
-    final newStatus = isInactive ? EmployeeStatus.active : EmployeeStatus.inactive;
+    final newStatus = isInactive
+        ? EmployeeStatus.active
+        : EmployeeStatus.inactive;
 
     showDialog(
       context: context,
@@ -100,7 +105,9 @@ class _EmployeesPageState extends State<EmployeesPage> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Employee status updated to ${newStatus.displayName}'),
+              content: Text(
+                'Employee status updated to ${newStatus.displayName}',
+              ),
               backgroundColor: newStatus == EmployeeStatus.active
                   ? AppTheme.successColor
                   : AppTheme.errorColor,
@@ -112,7 +119,10 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
-  void _showAddEditEmployeeDialog(BuildContext context, [EmployeeEntity? employee]) {
+  void _showAddEditEmployeeDialog(
+    BuildContext context, [
+    EmployeeEntity? employee,
+  ]) {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: employee?.name ?? '');
     final phoneController = TextEditingController(
@@ -121,20 +131,27 @@ class _EmployeesPageState extends State<EmployeesPage> {
           : '',
     );
     final emailController = TextEditingController(text: employee?.email ?? '');
-    final addressController = TextEditingController(text: employee?.address ?? '');
-    final designationController = TextEditingController(text: employee?.designation ?? '');
+    final addressController = TextEditingController(
+      text: employee?.address ?? '',
+    );
+    final designationController = TextEditingController(
+      text: employee?.designation ?? '',
+    );
     final salaryController = TextEditingController(
       text: employee != null ? employee.salary.toStringAsFixed(0) : '',
     );
 
-    String? selectedArea =
-        (employee != null && employee.sectorArea.isNotEmpty) ? employee.sectorArea : null;
+    String? selectedArea = (employee != null && employee.sectorArea.isNotEmpty)
+        ? employee.sectorArea
+        : null;
     EmployeeStatus selectedStatus = employee?.status ?? EmployeeStatus.active;
     DateTime joinDate = employee?.joinDate ?? DateTime.now();
     bool isSaving = false;
 
     final isMobileDialog = Responsive.isMobile(context);
-    final dialogTitle = employee == null ? 'Add Team Member / Installer' : 'Edit Team Member';
+    final dialogTitle = employee == null
+        ? 'Add Team Member / Installer'
+        : 'Edit Team Member';
 
     showDialog(
       context: context,
@@ -172,7 +189,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                   (s) => s is EmployeeLoaded || s is EmployeeError,
                 );
 
-                if (!context.mounted) return;
+                if (!ctx.mounted || !context.mounted) return;
 
                 if (result is EmployeeError) {
                   setState(() => isSaving = false);
@@ -210,8 +227,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                     decoration: const InputDecoration(
                       labelText: 'Employee Full Name *',
                     ),
-                    validator: (v) =>
-                        ValidationUtils.validateName(v, 'Name'),
+                    validator: (v) => ValidationUtils.validateName(v, 'Name'),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -236,9 +252,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: addressController,
-                    decoration: const InputDecoration(
-                      labelText: 'Address',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Address'),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -247,8 +261,9 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       labelText: 'Job Role / Designation *',
                       hintText: 'e.g. Senior Line Technician',
                     ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Designation is required' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Designation is required'
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
@@ -258,10 +273,22 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       labelText: 'Assigned Operational Sector Area',
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'DHA & Clifton', child: Text('DHA & Clifton')),
-                      DropdownMenuItem(value: 'Gulshan & Johar', child: Text('Gulshan & Johar')),
-                      DropdownMenuItem(value: 'Nazimabad & F.B Area', child: Text('Nazimabad & F.B Area')),
-                      DropdownMenuItem(value: 'Saddar & Tariq Road', child: Text('Saddar & Tariq Road')),
+                      DropdownMenuItem(
+                        value: 'DHA & Clifton',
+                        child: Text('DHA & Clifton'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Gulshan & Johar',
+                        child: Text('Gulshan & Johar'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Nazimabad & F.B Area',
+                        child: Text('Nazimabad & F.B Area'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Saddar & Tariq Road',
+                        child: Text('Saddar & Tariq Road'),
+                      ),
                     ],
                     onChanged: (val) {
                       if (val != null) setState(() => selectedArea = val);
@@ -273,7 +300,9 @@ class _EmployeesPageState extends State<EmployeesPage> {
                     decoration: const InputDecoration(
                       labelText: 'Salary (PKR) *',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: AppInputFormatters.decimal,
                     validator: (v) =>
                         ValidationUtils.validateAmount(v, fieldName: 'Salary'),
@@ -288,14 +317,13 @@ class _EmployeesPageState extends State<EmployeesPage> {
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
+                      if (!context.mounted) return;
                       if (picked != null) {
                         setState(() => joinDate = picked);
                       }
                     },
                     child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Join Date',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Join Date'),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -308,9 +336,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<EmployeeStatus>(
                     value: selectedStatus,
-                    decoration: const InputDecoration(
-                      labelText: 'Status',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Status'),
                     items: EmployeeStatus.values.map((status) {
                       return DropdownMenuItem(
                         value: status,
@@ -336,7 +362,9 @@ class _EmployeesPageState extends State<EmployeesPage> {
                   )
                 : const Icon(Icons.check, size: 16);
             final saveLabel = Text(
-              isSaving ? 'Saving...' : (employee == null ? 'Add Employee' : 'Save Changes'),
+              isSaving
+                  ? 'Saving...'
+                  : (employee == null ? 'Add Employee' : 'Save Changes'),
             );
 
             if (isMobileDialog) {
@@ -394,7 +422,10 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
-  void _showEmployeeDetailsDialog(BuildContext context, EmployeeEntity employee) {
+  void _showEmployeeDetailsDialog(
+    BuildContext context,
+    EmployeeEntity employee,
+  ) {
     final isMobileDialog = Responsive.isMobile(context);
     showDialog(
       context: context,
@@ -483,21 +514,46 @@ class _EmployeesPageState extends State<EmployeesPage> {
             const Divider(),
             const SizedBox(height: 12),
             _detailRow(Icons.phone_outlined, 'Contact Phone', employee.phone),
-            _detailRow(Icons.mail_outline_rounded, 'Email Address', employee.email.isNotEmpty ? employee.email : '—'),
-            _detailRow(Icons.map_outlined, 'Operational Sector', employee.sectorArea),
-            _detailRow(Icons.payments_outlined, 'Salary', 'PKR ${employee.salary.toStringAsFixed(0)}'),
-            _detailRow(Icons.calendar_today_outlined, 'Join Date', dateFormatted),
-            _detailRow(Icons.home_work_outlined, 'Address', employee.address.isNotEmpty ? employee.address : '—'),
+            _detailRow(
+              Icons.mail_outline_rounded,
+              'Email Address',
+              employee.email.isNotEmpty ? employee.email : '—',
+            ),
+            _detailRow(
+              Icons.map_outlined,
+              'Operational Sector',
+              employee.sectorArea,
+            ),
+            _detailRow(
+              Icons.payments_outlined,
+              'Salary',
+              'PKR ${employee.salary.toStringAsFixed(0)}',
+            ),
+            _detailRow(
+              Icons.calendar_today_outlined,
+              'Join Date',
+              dateFormatted,
+            ),
+            _detailRow(
+              Icons.home_work_outlined,
+              'Address',
+              employee.address.isNotEmpty ? employee.address : '—',
+            ),
           ],
         );
 
         final toggleButton = ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
-            backgroundColor: isInactive ? AppTheme.successColor : AppTheme.errorColor,
+            backgroundColor: isInactive
+                ? AppTheme.successColor
+                : AppTheme.errorColor,
             foregroundColor: Colors.white,
           ),
           onPressed: toggleStatus,
-          icon: Icon(isInactive ? Icons.check_circle_outline : Icons.block, size: 16),
+          icon: Icon(
+            isInactive ? Icons.check_circle_outline : Icons.block,
+            size: 16,
+          ),
           label: Text(isInactive ? 'Enable Tech' : 'Disable Tech'),
         );
         final editButton = ElevatedButton.icon(
@@ -540,10 +596,7 @@ class _EmployeesPageState extends State<EmployeesPage> {
         return AlertDialog(
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Employee Profile'),
-              statusBadge,
-            ],
+            children: [const Text('Employee Profile'), statusBadge],
           ),
           content: SizedBox(
             width: 480,
@@ -597,6 +650,51 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // HOW TO USE THIS FILE
+  // In lib/features/employees/presentation/pages/employees_page.dart:
+  //   1. Keep the imports and everything above `@override Widget build`
+  //      (the add/edit dialog, the details dialog, _detailRow, toggle logic).
+  //   2. Delete from
+  //         @override
+  //         Widget build(BuildContext context) {
+  //           final isMobile = Responsive.isMobile(context);
+  //      down to the END of the file (including the last `}` of the class).
+  //   3. Paste everything below this comment block. Its last `}` closes the
+  //      class.
+  // ════════════════════════════════════════════════════════════════════════
+
+  static const _accent = Color(0xFF0F766E);
+  static const _ink = Color(0xFF14213D);
+  static const _muted = Color(0xFF5B6472);
+  static const _border = Color(0xFFE3E6EB);
+  static const _line = Color(0xFFC9CED6);
+
+  /// null = show everyone.
+  EmployeeStatus? _statusFilter;
+
+  Widget _pill(String label, bool selected, VoidCallback onTap) {
+    return Material(
+      color: selected ? _accent : Colors.white,
+      shape: StadiumBorder(side: BorderSide(color: selected ? _accent : _line)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : _ink,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
@@ -628,7 +726,9 @@ class _EmployeesPageState extends State<EmployeesPage> {
               // Prefer the freshly-loaded state; otherwise fall back to the
               // last successfully loaded list rather than blanking the page
               // during a transient reload or a failed add/update/toggle.
-              final displayState = state is EmployeeLoaded ? state : _lastLoaded;
+              final displayState = state is EmployeeLoaded
+                  ? state
+                  : _lastLoaded;
 
               if (displayState == null) {
                 if (state is EmployeeError) {
@@ -638,11 +738,16 @@ class _EmployeesPageState extends State<EmployeesPage> {
                       children: [
                         Text(
                           state.message,
-                          style: const TextStyle(color: AppTheme.errorColor, fontSize: 16),
+                          style: const TextStyle(
+                            color: AppTheme.errorColor,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton(
-                          onPressed: () => context.read<EmployeeBloc>().add(const LoadEmployeesEvent()),
+                          onPressed: () => context.read<EmployeeBloc>().add(
+                            const LoadEmployeesEvent(),
+                          ),
                           child: const Text('Retry'),
                         ),
                       ],
@@ -652,118 +757,181 @@ class _EmployeesPageState extends State<EmployeesPage> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              {
-                final state = displayState;
-                final employeesList = state.employees;
-                final activeTechs = employeesList.where((e) => e.status == EmployeeStatus.active).toList();
+              final employeesList = displayState.employees;
+              final activeTechs = employeesList
+                  .where((e) => e.status == EmployeeStatus.active)
+                  .toList();
 
-                // Subscribers count maps to installations
-                int totalSubsAssigned = 0;
-                state.installationCounts.forEach((empId, count) {
-                  // Only count installations of active technicians
-                  final isEmpActive = employeesList.any((emp) => emp.id == empId && emp.status == EmployeeStatus.active);
-                  if (isEmpActive) {
-                    totalSubsAssigned += count;
-                  }
-                });
+              // Subscribers count maps to installations (active techs only).
+              int totalSubsAssigned = 0;
+              displayState.installationCounts.forEach((empId, count) {
+                final isEmpActive = employeesList.any(
+                  (emp) =>
+                      emp.id == empId && emp.status == EmployeeStatus.active,
+                );
+                if (isEmpActive) totalSubsAssigned += count;
+              });
 
-                return SingleChildScrollView(
-                  padding: EdgeInsets.all(
-                    isMobile ? AppConstants.paddingMedium : AppConstants.paddingLarge,
+              final shown = _statusFilter == null
+                  ? employeesList
+                  : employeesList
+                        .where((e) => e.status == _statusFilter)
+                        .toList();
+
+              final search = TextField(
+                controller: _searchController,
+                onChanged: (query) {
+                  setState(() {});
+                  context.read<EmployeeBloc>().add(SearchEmployeesEvent(query));
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search name, phone or area',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          tooltip: 'Clear search',
+                          onPressed: () {
+                            _searchController.clear();
+                            context.read<EmployeeBloc>().add(
+                              const SearchEmployeesEvent(''),
+                            );
+                            setState(() {});
+                          },
+                        ),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _line),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ─── Header ────────────────────────────────────────────
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Breadcrumb(
-                              items: [
-                                BreadcrumbItem(
-                                  label: 'Home',
-                                  onTap: () => context.go(RoutePaths.dashboard),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _line),
+                  ),
+                ),
+              );
+
+              final pills = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _pill(
+                    'All',
+                    _statusFilter == null,
+                    () => setState(() => _statusFilter = null),
+                  ),
+                  _pill(
+                    'Active',
+                    _statusFilter == EmployeeStatus.active,
+                    () => setState(() => _statusFilter = EmployeeStatus.active),
+                  ),
+                  _pill(
+                    'Disabled',
+                    _statusFilter == EmployeeStatus.inactive,
+                    () =>
+                        setState(() => _statusFilter = EmployeeStatus.inactive),
+                  ),
+                ],
+              );
+
+              return SingleChildScrollView(
+                padding: Responsive.pagePaddingFor(
+                  Responsive.deviceTypeOf(context),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ─── Header ──────────────────────────────────────────
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Employees',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink,
                                 ),
-                                BreadcrumbItem(label: 'Employees'),
-                              ],
-                            ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Your field team and the work assigned to them.',
+                                style: TextStyle(fontSize: 14, color: _muted),
+                              ),
+                            ],
                           ),
-                          if (isAdmin)
-                            ElevatedButton.icon(
-                              onPressed: () => _showAddEditEmployeeDialog(context),
-                              icon: const Icon(Icons.person_add_alt_1, size: 18),
-                              label: Text(isMobile ? 'Add' : 'Add Technician'),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // ─── Metric Cards ──────────────────────────────────────
-                      EmployeeMetricCards(
-                        totalCount: employeesList.length,
-                        activeCount: activeTechs.length,
-                        totalSubsAssigned: totalSubsAssigned,
-                        isMobile: isMobile,
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Search bar
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Card(
+                        ),
+                        if (isAdmin) ...[
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: () =>
+                                _showAddEditEmployeeDialog(context),
+                            icon: const Icon(Icons.person_add_alt_1, size: 18),
+                            label: Text(isMobile ? 'Add' : 'Add technician'),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(0, 44),
+                              backgroundColor: _accent,
+                              foregroundColor: Colors.white,
                               elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.search, color: AppColors.mediumGray),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: TextField(
-                                        controller: _searchController,
-                                        decoration: const InputDecoration(
-                                          hintText: 'Search by Name, Contact, Sector operational area or Designation...',
-                                          border: InputBorder.none,
-                                          enabledBorder: InputBorder.none,
-                                          focusedBorder: InputBorder.none,
-                                          fillColor: Colors.transparent,
-                                          filled: false,
-                                        ),
-                                        onChanged: (query) {
-                                          context.read<EmployeeBloc>().add(SearchEmployeesEvent(query));
-                                        },
-                                      ),
-                                    ),
-                                    if (_searchController.text.isNotEmpty)
-                                      IconButton(
-                                        icon: const Icon(Icons.clear),
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          context.read<EmployeeBloc>().add(const SearchEmployeesEvent(''));
-                                          setState(() {});
-                                        },
-                                      ),
-                                  ],
-                                ),
                               ),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 20),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-                      // ─── Main Body ─────────────────────────────────────────
-                      _buildEmployeeTableCard(employeesList, state.installationCounts, isMobile: isMobile),
-                    ],
-                  ),
-                );
-              }
+                    // ─── Summary ─────────────────────────────────────────
+                    EmployeeMetricCards(
+                      totalCount: employeesList.length,
+                      activeCount: activeTechs.length,
+                      totalSubsAssigned: totalSubsAssigned,
+                      isMobile: isMobile,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ─── Search + status filter in one row ───────────────
+                    LayoutBuilder(
+                      builder: (context, c) {
+                        if (c.maxWidth >= 700) {
+                          return Row(
+                            children: [
+                              SizedBox(width: 320, child: search),
+                              const SizedBox(width: 16),
+                              Expanded(child: pills),
+                            ],
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [search, const SizedBox(height: 12), pills],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ─── List ────────────────────────────────────────────
+                    _buildEmployeeList(
+                      shown,
+                      displayState.installationCounts,
+                      isMobile: isMobile,
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         );
@@ -771,137 +939,220 @@ class _EmployeesPageState extends State<EmployeesPage> {
     );
   }
 
+  // ─── List (table on desktop, cards on mobile) ──────────────────────────────
 
-  // ─── Employee Table Card ───────────────────────────────────────────────────
-
-  Widget _buildEmployeeTableCard(
+  Widget _buildEmployeeList(
     List<EmployeeEntity> employees,
     Map<String, int> installationCounts, {
     required bool isMobile,
   }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: AppTheme.lightGray.withOpacity(0.5)),
+    if (employees.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _border),
+        ),
+        child: const Center(
+          child: Text('No employees found.', style: TextStyle(color: _muted)),
+        ),
+      );
+    }
+
+    if (isMobile) {
+      return EmployeeCardList(
+        employees: employees,
+        installationCounts: installationCounts,
+        onViewDetail: (emp) => _showEmployeeDetailsDialog(context, emp),
+        onEdit: (emp) => _showAddEditEmployeeDialog(context, emp),
+        onToggleStatus: (emp) => _confirmToggleStatus(context, emp),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
+      child: _buildEmployeesTable(employees, installationCounts),
+    );
+  }
+
+  static const _flex = [26, 18, 16, 14, 10, 16];
+
+  Widget _headerCell(String t) => Text(
+    t,
+    style: const TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      color: _muted,
+    ),
+  );
+
+  Widget _tableRow(List<Widget> cells, {bool last = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : const Border(bottom: BorderSide(color: Color(0xFFEEF0F3))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < cells.length; i++)
+            Expanded(
+              flex: _flex[i],
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: cells[i],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Desktop table: fills the full width.
+  Widget _buildEmployeesTable(
+    List<EmployeeEntity> employees,
+    Map<String, int> installationCounts,
+  ) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = c.maxWidth < 860 ? 860.0 : c.maxWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            child: Column(
+              children: [
+                _tableRow([
+                  _headerCell('Name'),
+                  _headerCell('Sector area'),
+                  _headerCell('Contact'),
+                  _headerCell('Subscribers assigned'),
+                  _headerCell('Status'),
+                  _headerCell('Actions'),
+                ]),
+                for (var i = 0; i < employees.length; i++)
+                  _employeeRow(
+                    employees[i],
+                    installationCounts[employees[i].id] ?? 0,
+                    last: i == employees.length - 1,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _employeeRow(EmployeeEntity emp, int subs, {required bool last}) {
+    final isInactive = emp.status == EmployeeStatus.inactive;
+    final statusColor = isInactive
+        ? AppTheme.errorColor
+        : AppTheme.successColor;
+
+    return _tableRow([
+      InkWell(
+        onTap: () => _showEmployeeDetailsDialog(context, emp),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Field Personnel Directory',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              emp.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: Color.fromARGB(255, 8, 14, 28),
+              ),
             ),
-            const SizedBox(height: 16),
-            if (employees.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Text(
-                    'No employees found.',
-                    style: TextStyle(color: AppColors.mediumGray),
-                  ),
-                ),
-              )
-            else
-              isMobile
-                  ? EmployeeCardList(
-                      employees: employees,
-                      installationCounts: installationCounts,
-                      onViewDetail: (emp) => _showEmployeeDetailsDialog(context, emp),
-                      onEdit: (emp) => _showAddEditEmployeeDialog(context, emp),
-                      onToggleStatus: (emp) => _confirmToggleStatus(context, emp),
-                    )
-                  : _buildEmployeesTable(employees, installationCounts),
+            const SizedBox(height: 2),
+            Text(
+              emp.designation,
+              style: const TextStyle(fontSize: 12, color: _muted),
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  /// Desktop: DataTable
-  Widget _buildEmployeesTable(List<EmployeeEntity> employees, Map<String, int> installationCounts) {
-    return DataTableWrapper(
-      columns: const [
-        DataColumn(label: Text('Name')),
-        DataColumn(label: Text('Designation')),
-        DataColumn(label: Text('Sector Area')),
-        DataColumn(label: Text('Contact')),
-        DataColumn(label: Text('Assigned Subscribers')),
-        DataColumn(label: Text('Status')),
-        DataColumn(label: Text('Actions')),
-      ],
-      rows: employees.map((emp) {
-        final subs = installationCounts[emp.id] ?? 0;
-        final isInactive = emp.status == EmployeeStatus.inactive;
-
-        return DataRow(
-          cells: [
-            DataCell(
-              InkWell(
-                onTap: () => _showEmployeeDetailsDialog(context, emp),
-                child: Text(
-                  emp.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primaryColor,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+      Text(
+        emp.sectorArea.isEmpty ? '—' : emp.sectorArea,
+        style: const TextStyle(fontSize: 14, color: _ink),
+      ),
+      Text(
+        AppInputFormatters.formatPhone(emp.phone),
+        style: const TextStyle(fontSize: 14, color: _ink),
+      ),
+      Text('$subs', style: const TextStyle(fontSize: 14, color: _ink)),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            emp.status.displayName,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: statusColor,
+            ),
+          ),
+        ),
+      ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              foregroundColor: _ink,
+              side: const BorderSide(color: _line),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
             ),
-            DataCell(Text(emp.designation)),
-            DataCell(Text(emp.sectorArea)),
-            DataCell(Text(emp.phone)),
-            DataCell(Text(subs.toString())),
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isInactive
-                      ? AppTheme.errorColor.withOpacity(0.1)
-                      : AppTheme.successColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
+            onPressed: () => _showAddEditEmployeeDialog(context, emp),
+            child: const Text('Edit'),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More actions',
+            icon: const Icon(Icons.more_horiz),
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            onSelected: (v) {
+              if (v == 'view') _showEmployeeDetailsDialog(context, emp);
+              if (v == 'toggle') _confirmToggleStatus(context, emp);
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'view', child: Text('View profile')),
+              PopupMenuItem(
+                value: 'toggle',
                 child: Text(
-                  emp.status.displayName,
+                  isInactive ? 'Enable technician' : 'Disable technician',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: isInactive ? AppTheme.errorColor : AppTheme.successColor,
+                    color: isInactive ? null : AppTheme.errorColor,
                   ),
                 ),
               ),
-            ),
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 18, color: AppTheme.primaryColor),
-                    tooltip: 'Edit Profile',
-                    onPressed: () => _showAddEditEmployeeDialog(context, emp),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      isInactive ? Icons.check_circle_outline : Icons.block,
-                      size: 18,
-                      color: isInactive ? AppTheme.successColor : AppTheme.errorColor,
-                    ),
-                    tooltip: isInactive ? 'Enable Employee' : 'Disable Employee',
-                    onPressed: () => _confirmToggleStatus(context, emp),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      }).toList(),
-    );
+            ],
+          ),
+        ],
+      ),
+    ], last: last);
   }
-
 }

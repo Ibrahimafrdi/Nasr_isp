@@ -11,6 +11,14 @@ class DashboardStatsModel extends Equatable {
   /// depend on who has actually paid. First term of [netProfit].
   final double subscriberRunRateMargin;
 
+  /// What all ACTIVE customers are billed per month (sum of monthlyBill).
+  /// Revenue - vendor cost = [subscriberRunRateMargin].
+  final double subscriberRunRateRevenue;
+
+  /// What you pay the vendor each month for the active customers' packages.
+  double get subscriberVendorCost =>
+      subscriberRunRateRevenue - subscriberRunRateMargin;
+
   /// CASH BASIS: subscription payments with status 'paid' whose
   /// completedDate/createdAt falls in the current month.
   ///
@@ -123,6 +131,7 @@ class DashboardStatsModel extends Equatable {
     required this.monthlyInstallationRevenue,
     required this.monthlyInstallationCost,
     required this.monthlyInstallationProfit,
+    this.subscriberRunRateRevenue = 0,
     this.unpricedCustomerCount = 0,
     this.currentMonthBilled = 0,
     this.currentMonthCollected = 0,
@@ -160,6 +169,7 @@ class DashboardStatsModel extends Equatable {
     expiredCustomers,
     expiringsoon,
     subscriberRunRateMargin,
+    subscriberRunRateRevenue,
     cashCollectedThisMonth,
     monthlyExpenses,
     netProfit,

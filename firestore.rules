@@ -14,7 +14,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && currentUserDoc().role == 'admin';
+        && currentUserDoc().role == 'admin'
+        && currentUserDoc().isActive == true;
     }
 
     // ── users: identity + role. This must be locked down first — every
@@ -62,42 +63,33 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ── Everything else: baseline "must be signed in" gate. These
-    // collections are read and written by both admin and employee-role
-    // accounts through overlapping app flows (e.g. adding a customer also
-    // creates an installation and decrements inventory in a single
-    // transaction), so a finer-grained per-role split needs a dedicated
-    // pass through each flow before it can be safely tightened further. ──
+    // ── Core business collections: locked down to active admin accounts. ──
     match /customers/{customerId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
     }
 
     match /installations/{installationId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
     }
 
     match /packages/{packageId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
     }
 
     match /payments/{paymentId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
     }
 
     match /inventory/{itemId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
 
       match /movements/{movementId} {
-        allow read, write: if isSignedIn();
+        allow read, write: if isAdmin();
       }
     }
 
-    match /khataa/{entryId} {
-      allow read, write: if isSignedIn();
-    }
-
     match /expenses/{expenseId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
     }
 
     match /app_settings/{docId} {

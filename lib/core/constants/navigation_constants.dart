@@ -46,11 +46,6 @@ class NavigationConstants {
       routePath: '/inventory',
     ),
     SidebarItem(
-      icon: Icons.warning_amber,
-      label: 'Network Issues',
-      routePath: '/khataa',
-    ),
-    SidebarItem(
       icon: Icons.person,
       label: 'Employees',
       routePath: '/employees',
@@ -85,11 +80,6 @@ class NavigationConstants {
       icon: Icons.router,
       label: 'Network Status',
       routePath: '/installations',
-    ),
-    SidebarItem(
-      icon: Icons.warning_amber,
-      label: 'Service Alerts',
-      routePath: '/khataa',
     ),
     SidebarItem(
       icon: Icons.settings,

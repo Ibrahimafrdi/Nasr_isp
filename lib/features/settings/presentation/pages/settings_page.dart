@@ -10,11 +10,18 @@ import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/user_management_bloc.dart';
+import 'package:nasr_isp/features/settings/presentation/widgets/user_table.dart';
 import 'package:nasr_isp/features/auth/data/models/user_model.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
-import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
+
+// Colours for the redesigned screen, private to this file.
+const Color _kPageBg = Color(0xFFF6F7F9);
+const Color _kInk = Color(0xFF14213D);
+const Color _kMuted = Color(0xFF5B6472);
+const Color _kBorder = Color(0xFFE3E6EB);
+const Color _kTeal = Color(0xFF0F766E);
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -111,10 +118,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: AppColors.offWhite,
+      backgroundColor: _kPageBg,
       body: MultiBlocListener(
         listeners: [
           BlocListener<SettingsBloc, SettingsState>(
@@ -182,74 +187,49 @@ class _SettingsPageContentState extends State<SettingsPageContent>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Breadcrumb(
-                items: [
-                  BreadcrumbItem(
-                    label: 'Home',
-                    onTap: () => context.go('/dashboard'),
-                  ),
-                  BreadcrumbItem(label: 'Settings'),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Administrative Control Panel',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.black,
+              const Text(
+                'Settings',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _kInk,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Manage app configuration and configure authorization credentials.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.darkGray,
-                ),
+              const SizedBox(height: 6),
+              const Text(
+                'Company details, billing rules, and who can sign in.',
+                style: TextStyle(fontSize: 14, color: _kMuted),
               ),
-              const SizedBox(height: 24),
-              // Beautiful Premium Tabs Header
+              const SizedBox(height: 20),
+              // Text-only tabs
               Container(
                 decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: AppColors.lightGray,
-                      width: 1,
-                    ),
-                  ),
+                  border: Border(bottom: BorderSide(color: _kBorder)),
                 ),
                 child: TabBar(
                   controller: _tabController,
                   isScrollable: true,
-                  indicatorColor: AppColors.primaryBlue,
-                  labelColor: AppColors.primaryBlue,
-                  unselectedLabelColor: AppColors.darkGray,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 16),
+                  tabAlignment: TabAlignment.start,
+                  dividerColor: Colors.transparent,
+                  indicatorColor: _kTeal,
+                  indicatorWeight: 3,
+                  labelColor: _kTeal,
+                  unselectedLabelColor: _kMuted,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                  ),
                   tabs: const [
-                    Tab(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.business_center_outlined),
-                          SizedBox(width: 8),
-                          Text('General Settings'),
-                        ],
-                      ),
-                    ),
-                    Tab(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.people_outline_rounded),
-                          SizedBox(width: 8),
-                          Text('User Management'),
-                        ],
-                      ),
-                    ),
+                    Tab(text: 'General'),
+                    Tab(text: 'Users'),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               // Tab Body Area
               AnimatedBuilder(
                 animation: _tabController,
@@ -267,6 +247,55 @@ class _SettingsPageContentState extends State<SettingsPageContent>
           ),
         ),
       ),
+    );
+  }
+
+  /// White card with a title, used for both groups of settings.
+  Widget _sectionCard(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: _kInk,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  /// Two fields side by side on wide screens, stacked on narrow ones.
+  Widget _pair(Widget first, Widget second) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 700) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: first),
+              const SizedBox(width: 24),
+              Expanded(child: second),
+            ],
+          );
+        }
+        return Column(
+          children: [first, const SizedBox(height: 20), second],
+        );
+      },
     );
   }
 
@@ -289,249 +318,77 @@ class _SettingsPageContentState extends State<SettingsPageContent>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Company Information Section Card
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.lightGray),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppConstants.paddingLarge),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.apartment_rounded, color: AppColors.primaryBlue),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Company Information',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.black,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 32, color: AppColors.lightGray),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isWide = constraints.maxWidth > 700;
-                          return Column(
-                            children: [
-                              if (isWide)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Company Name',
-                                        controller: _companyNameController,
-                                        isRequired: true,
-                                        validator: (val) => ValidationUtils.validateRequired(val, 'Company Name'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 24),
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Helpline / Phone',
-                                        controller: _companyPhoneController,
-                                        isRequired: true,
-                                        keyboardType: TextInputType.phone,
-                                        validator: (val) => ValidationUtils.validateRequired(val, 'Helpline'),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else ...[
-                                AppFormField(
-                                  label: 'Company Name',
-                                  controller: _companyNameController,
-                                  isRequired: true,
-                                  validator: (val) => ValidationUtils.validateRequired(val, 'Company Name'),
-                                ),
-                                const SizedBox(height: 20),
-                                AppFormField(
-                                  label: 'Helpline / Phone',
-                                  controller: _companyPhoneController,
-                                  isRequired: true,
-                                  keyboardType: TextInputType.phone,
-                                  validator: (val) => ValidationUtils.validateRequired(val, 'Helpline'),
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-                              if (isWide)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Support Email',
-                                        controller: _companyEmailController,
-                                        isRequired: true,
-                                        keyboardType: TextInputType.emailAddress,
-                                        validator: (val) => ValidationUtils.validateEmail(val),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 24),
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Company Address',
-                                        controller: _companyAddressController,
-                                        isRequired: true,
-                                        validator: (val) => ValidationUtils.validateRequired(val, 'Address'),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else ...[
-                                AppFormField(
-                                  label: 'Support Email',
-                                  controller: _companyEmailController,
-                                  isRequired: true,
-                                  keyboardType: TextInputType.emailAddress,
-                                  validator: (val) => ValidationUtils.validateEmail(val),
-                                ),
-                                const SizedBox(height: 20),
-                                AppFormField(
-                                  label: 'Company Address',
-                                  controller: _companyAddressController,
-                                  isRequired: true,
-                                  validator: (val) => ValidationUtils.validateRequired(val, 'Address'),
-                                ),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
-                    ],
+              _sectionCard('Company information', [
+                _pair(
+                  AppFormField(
+                    label: 'Company Name',
+                    controller: _companyNameController,
+                    isRequired: true,
+                    validator: (val) => ValidationUtils.validateRequired(val, 'Company Name'),
+                  ),
+                  AppFormField(
+                    label: 'Helpline / Phone',
+                    controller: _companyPhoneController,
+                    isRequired: true,
+                    keyboardType: TextInputType.phone,
+                    validator: (val) => ValidationUtils.validateRequired(val, 'Helpline'),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              // System Preferences Section Card
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.lightGray),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppConstants.paddingLarge),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.settings_suggest_rounded, color: AppColors.primaryBlue),
-                          const SizedBox(width: 8),
-                          Text(
-                            'System Preferences',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.black,
-                                ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 32, color: AppColors.lightGray),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isWide = constraints.maxWidth > 700;
-                          return Column(
-                            children: [
-                              if (isWide)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Currency Symbol',
-                                        controller: _currencySymbolController,
-                                        isRequired: true,
-                                        validator: (val) => ValidationUtils.validateRequired(val, 'Currency'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 24),
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Due Reminder (Days before)',
-                                        controller: _dueReminderDaysController,
-                                        isRequired: true,
-                                        keyboardType: TextInputType.number,
-                                        inputFormatters: AppInputFormatters.integer,
-                                        validator: (val) => ValidationUtils.validateInteger(val, fieldName: 'Reminder Days'),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else ...[
-                                AppFormField(
-                                  label: 'Currency Symbol',
-                                  controller: _currencySymbolController,
-                                  isRequired: true,
-                                  validator: (val) => ValidationUtils.validateRequired(val, 'Currency'),
-                                ),
-                                const SizedBox(height: 20),
-                                AppFormField(
-                                  label: 'Due Reminder (Days before)',
-                                  controller: _dueReminderDaysController,
-                                  isRequired: true,
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: AppInputFormatters.integer,
-                                  validator: (val) => ValidationUtils.validateInteger(val, fieldName: 'Reminder Days'),
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-                              if (isWide)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Late Fee Amount',
-                                        controller: _lateFeeAmountController,
-                                        isRequired: true,
-                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        inputFormatters: AppInputFormatters.decimal,
-                                        validator: (val) => ValidationUtils.validateAmount(val, fieldName: 'Late Fee', allowZero: true),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 24),
-                                    Expanded(
-                                      child: AppFormField(
-                                        label: 'Invoice Number Prefix',
-                                        controller: _invoicePrefixController,
-                                        isRequired: true,
-                                        validator: (val) => ValidationUtils.validateRequired(val, 'Invoice Prefix'),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else ...[
-                                AppFormField(
-                                  label: 'Late Fee Amount',
-                                  controller: _lateFeeAmountController,
-                                  isRequired: true,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  inputFormatters: AppInputFormatters.decimal,
-                                  validator: (val) => ValidationUtils.validateAmount(val, fieldName: 'Late Fee', allowZero: true),
-                                ),
-                                const SizedBox(height: 20),
-                                AppFormField(
-                                  label: 'Invoice Number Prefix',
-                                  controller: _invoicePrefixController,
-                                  isRequired: true,
-                                  validator: (val) => ValidationUtils.validateRequired(val, 'Invoice Prefix'),
-                                ),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
-                    ],
+                const SizedBox(height: 20),
+                _pair(
+                  AppFormField(
+                    label: 'Support Email',
+                    controller: _companyEmailController,
+                    isRequired: true,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (val) => ValidationUtils.validateEmail(val),
+                  ),
+                  AppFormField(
+                    label: 'Company Address',
+                    controller: _companyAddressController,
+                    isRequired: true,
+                    validator: (val) => ValidationUtils.validateRequired(val, 'Address'),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              // Action Save Button — full-width & stacked on mobile, inline on desktop
+              ]),
+              const SizedBox(height: 20),
+              _sectionCard('Billing rules', [
+                _pair(
+                  AppFormField(
+                    label: 'Currency Symbol',
+                    controller: _currencySymbolController,
+                    isRequired: true,
+                    validator: (val) => ValidationUtils.validateRequired(val, 'Currency'),
+                  ),
+                  AppFormField(
+                    label: 'Due Reminder (Days before)',
+                    controller: _dueReminderDaysController,
+                    isRequired: true,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: AppInputFormatters.integer,
+                    validator: (val) => ValidationUtils.validateInteger(val, fieldName: 'Reminder Days'),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _pair(
+                  AppFormField(
+                    label: 'Late Fee Amount',
+                    controller: _lateFeeAmountController,
+                    isRequired: true,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: AppInputFormatters.decimal,
+                    validator: (val) => ValidationUtils.validateAmount(val, fieldName: 'Late Fee', allowZero: true),
+                  ),
+                  AppFormField(
+                    label: 'Invoice Number Prefix',
+                    controller: _invoicePrefixController,
+                    isRequired: true,
+                    validator: (val) => ValidationUtils.validateRequired(val, 'Invoice Prefix'),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 20),
+              // Save button — full-width on mobile, right-aligned on desktop
               Padding(
                 padding: const EdgeInsets.only(bottom: 24.0),
                 child: ResponsiveBuilder(
@@ -539,27 +396,30 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     final button = ElevatedButton.icon(
                       onPressed: isSaving ? null : () => _saveSettings(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                        backgroundColor: _kTeal,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        minimumSize: const Size(0, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       icon: isSaving
                           ? const SizedBox(
-                              width: 20,
-                              height: 20,
+                              width: 18,
+                              height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : const Icon(Icons.save_rounded),
-                      label: Text(
-                        isSaving ? 'Saving Settings...' : 'Save Settings',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
+                          : const Icon(Icons.save_rounded, size: 18),
+                      label: Text(isSaving ? 'Saving settings...' : 'Save settings'),
                     );
                     if (deviceType == DeviceType.mobile) {
                       return SizedBox(width: double.infinity, child: button);
@@ -595,128 +455,75 @@ class _SettingsPageContentState extends State<SettingsPageContent>
           users = state.users;
         }
 
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppColors.lightGray),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppConstants.paddingLarge),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'System Access Accounts',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.black,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddUserDialog(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: AppColors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add User'),
-                    ),
-                  ],
-                ),
-                const Divider(height: 32, color: AppColors.lightGray),
-                if (users.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(48.0),
-                      child: Text('No auth users found in system.'),
-                    ),
-                  )
-                else
-                  ResponsiveSwitcher(
-                    mobile: _buildUserCardList(context, users, currentUser),
-                    desktop: PremiumDataTable(
-                      columns: [
-                        PremiumDataColumn(label: 'Name'),
-                        PremiumDataColumn(label: 'Email'),
-                        PremiumDataColumn(label: 'Role'),
-                        PremiumDataColumn(label: 'Status'),
-                        PremiumDataColumn(label: 'Actions'),
-                      ],
-                      rows: users.map((user) {
-                        final isSelf = currentUser?.id == user.id;
-
-                        return PremiumDataRow(
-                          cells: [
-                            Text(
-                              user.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            Text(user.email),
-                            // Role Dropdown Cell
-                            DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: user.role == 'admin' ? 'admin' : 'employee',
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'admin',
-                                    child: Text('Admin'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'employee',
-                                    child: Text('Employee'),
-                                  ),
-                                ],
-                                onChanged: isSelf
-                                    ? null // Disable changing your own role
-                                    : (newRole) {
-                                        if (newRole != null && newRole != user.role) {
-                                          _confirmRoleChange(context, user, newRole);
-                                        }
-                                      },
-                              ),
-                            ),
-                            // Status Badge + Text cell
-                            Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: user.isActive
-                                        ? AppColors.successGreen
-                                        : AppColors.errorRed,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(user.isActive ? 'Active' : 'Inactive'),
-                              ],
-                            ),
-                            // Switch / Actions Cell
-                            Switch(
-                              value: user.isActive,
-                              activeThumbColor: AppColors.successGreen,
-                              onChanged: isSelf
-                                  ? null // Disable self deactivation
-                                  : (value) => _confirmStatusToggle(context, user, value),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+                const Expanded(
+                  child: Text(
+                    'Who can sign in',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _kInk,
                     ),
                   ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddUserDialog(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kTeal,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add user'),
+                ),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
+            if (users.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(48),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _kBorder),
+                ),
+                child: const Center(
+                  child: Text('No auth users found in system.'),
+                ),
+              )
+            else
+              ResponsiveSwitcher(
+                mobile: _buildUserCardList(context, users, currentUser),
+                desktop: UserTable(
+                  users: users,
+                  currentUserId: currentUser?.id,
+                  onRoleChanged: (user, newRole) =>
+                      _confirmRoleChange(context, user, newRole),
+                  onStatusChanged: (user, newActive) =>
+                      _confirmStatusToggle(context, user, newActive),
+                ),
+              ),
+            const SizedBox(height: 12),
+            const Text(
+              'You cannot change your own role or switch yourself off.',
+              style: TextStyle(fontSize: 13, color: _kMuted),
+            ),
+          ],
         );
       },
     );

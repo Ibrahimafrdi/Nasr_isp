@@ -189,8 +189,10 @@ class SetCustomerStatus {
       ),
       periodEnd: periodEnd,
     );
-    await paymentRepository.addPayment(charge);
-    await customerRepository.updateCustomer(reactivated);
+    await customerRepository.updateCustomerWithPayment(
+      customer: reactivated,
+      payment: charge,
+    );
 
     return CustomerStatusOutcome(customer: reactivated, charge: charge);
   }

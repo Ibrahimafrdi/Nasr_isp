@@ -5,7 +5,15 @@
     "seed": "node import-packages.js && node import-customers.js"
   },
   "dependencies": {
-    "firebase-admin": "^14.2.0",
+    "firebase-admin": "^14.5.0",
     "xlsx": "^0.18.5"
-  }
+  },
+  "name": "nasr-isp-migration",
+  "version": "1.0.0",
+  "description": "",
+  "main": "import-customers.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

@@ -45,6 +45,7 @@ import 'package:nasr_isp/features/payments/domain/entities/payment_entity.dart';
 import 'package:nasr_isp/features/payments/domain/repositories/payment_repository.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/add_payment.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart';
+import 'package:nasr_isp/features/payments/domain/usecases/get_earliest_payment_date.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payment_by_customer_and_month.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/get_payments.dart';
 import 'package:nasr_isp/features/payments/domain/usecases/update_payment.dart';
@@ -96,6 +97,11 @@ class FakeCustomerRepository implements CustomerRepository {
   Future<void> updateCustomer(CustomerEntity customer) async {}
   @override
   Future<void> deleteCustomer(String id) async {}
+  @override
+  Future<void> updateCustomerWithPayment({
+    required CustomerEntity customer,
+    PaymentEntity? payment,
+  }) async {}
 }
 
 class FakePackageRepository implements PackageRepository {
@@ -137,7 +143,12 @@ class FakePaymentRepository implements PaymentRepository {
     DateTime? dateRangeEnd,
   }) async => [];
   @override
-  Future<List<PaymentEntity>> getAllPayments() async => [];
+  Future<List<PaymentEntity>> getAllPayments({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async => [];
+  @override
+  Future<DateTime?> getEarliestPaymentDate() async => null;
   @override
   Future<void> updatePayment(PaymentEntity payment) async {}
   @override
@@ -283,9 +294,10 @@ Future<void> registerFakeDependencies() async {
     getInstallations: getInstallations,
     getPackages: getPackages,
   );
+  final getEarliestPaymentDate = GetEarliestPaymentDate(paymentRepo);
   final getAvailableReportMonths = GetAvailableReportMonths(
     getCustomers: getCustomers,
-    getAllPayments: getAllPayments,
+    getEarliestPaymentDate: getEarliestPaymentDate,
     getExpenses: getExpenses,
   );
   getIt.registerLazySingleton<GetMonthlyFinancialSummary>(() => getMonthlyFinancialSummary);

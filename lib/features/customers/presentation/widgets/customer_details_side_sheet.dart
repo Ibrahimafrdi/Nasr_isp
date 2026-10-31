@@ -232,6 +232,9 @@ class CustomerDetailsSideSheet extends StatelessWidget {
                         icon: const Icon(Icons.edit_outlined, size: 15),
                         label: const Text('Edit', style: TextStyle(fontSize: 13)),
                         onPressed: () {
+                          // The sheet now opens as an overlay, so close it
+                          // before leaving the page.
+                          onClose();
                           context.go(
                             '${RoutePaths.customers}/${customer.id}/edit',
                           );
