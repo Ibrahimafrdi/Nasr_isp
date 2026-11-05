@@ -1,183 +1,192 @@
 import 'package:flutter/material.dart';
-import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
 
 const Color _kInk = Color(0xFF14213D);
 const Color _kBorder = Color(0xFFE3E6EB);
 const Color _kTeal = Color(0xFF0F766E);
 const Color _kMuted = Color(0xFF5B6472);
+const Color _kSoft = Color(0xFFF1F3F6);
 
-/// One-row filter bar for the Customers list page.
+/// One slim row: search on the left, connection type on the right.
 ///
-/// Search comes first, then the status chips (with counts), then the
-/// connection type. Pure UI - all state lives in [CustomersPage].
+/// Status filtering lives in `CustomerSummaryTiles` above the list, so this
+/// bar only needs the two controls left. Pure UI - state lives in the page.
 class CustomerFilterPanel extends StatelessWidget {
   final TextEditingController searchController;
-  final String? selectedStatus;
-  final String? selectedConnectionType;
+  final String? selectedConnectionType; // null = all, 'wireless', 'fiber'
   final int activeFilterCount;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String?> onStatusChanged;
   final ValueChanged<String?> onConnectionTypeChanged;
   final VoidCallback? onClearFilters;
-
-  /// Counts across all customers, not only the current page. Defaults to
-  /// empty so older call sites keep compiling.
-  final CustomersSummary summary;
 
   const CustomerFilterPanel({
     super.key,
     required this.searchController,
-    required this.selectedStatus,
     required this.selectedConnectionType,
     required this.activeFilterCount,
     required this.onSearchChanged,
-    required this.onStatusChanged,
     required this.onConnectionTypeChanged,
     this.onClearFilters,
-    this.summary = CustomersSummary.empty,
   });
-
-  int _countFor(CustomerStatus status) {
-    switch (status) {
-      case CustomerStatus.active:
-        return summary.active;
-      case CustomerStatus.expiringSoon:
-        return summary.expiringSoon;
-      case CustomerStatus.expired:
-        return summary.expired;
-      case CustomerStatus.inactive:
-        return summary.inactive;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color.fromARGB(255, 86, 96, 115)),
+    final search = TextField(
+      controller: searchController,
+      onChanged: onSearchChanged,
+      style: const TextStyle(fontSize: 14, color: _kInk),
+      decoration: InputDecoration(
+        hintText: 'Search name, phone, CNIC or address',
+        hintStyle: const TextStyle(fontSize: 14, color: _kMuted),
+        prefixIcon: const Icon(Icons.search, size: 20, color: _kMuted),
+        suffixIcon: searchController.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear search',
+                icon: const Icon(Icons.close, size: 18, color: _kMuted),
+                onPressed: () {
+                  searchController.clear();
+                  onSearchChanged('');
+                },
+              ),
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kTeal, width: 1.5),
+        ),
       ),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          SizedBox(
-            width: 400,
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearchChanged,
-              style: const TextStyle(fontSize: 14, color: _kInk),
-              decoration: InputDecoration(
-                hintText: 'Search name, phone, CNIC or address',
-                hintStyle: const TextStyle(fontSize: 14, color: _kMuted),
-                prefixIcon: const Icon(Icons.search, size: 20, color: _kMuted),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 14,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: _kBorder),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: _kTeal, width: 1.5),
-                ),
+    );
+
+    final type = _TypeSegment(
+      selected: selectedConnectionType,
+      onChanged: onConnectionTypeChanged,
+    );
+
+    final clear = (activeFilterCount > 0 && onClearFilters != null)
+        ? TextButton.icon(
+            onPressed: onClearFilters,
+            icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+            label: const Text('Clear filters'),
+            style: TextButton.styleFrom(
+              foregroundColor: _kTeal,
+              minimumSize: const Size(0, 44),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          _FilterChipButton(
-            label: 'All ${summary.total}',
-            selected: selectedStatus == null,
-            onTap: () => onStatusChanged(null),
-          ),
-          ...CustomerStatus.values.map(
-            (s) => _FilterChipButton(
-              label: '${s.label} ${_countFor(s)}',
-              selected: selectedStatus == s.label,
-              onTap: () => onStatusChanged(s.label),
-            ),
-          ),
-          Container(width: 1, height: 28, color: _kBorder),
-          _FilterChipButton(
-            label: 'Any type',
-            selected: selectedConnectionType == null,
-            onTap: () => onConnectionTypeChanged(null),
-          ),
-          _FilterChipButton(
-            label: 'Wireless',
-            selected: selectedConnectionType == 'wireless',
-            onTap: () => onConnectionTypeChanged('wireless'),
-          ),
-          _FilterChipButton(
-            label: 'Fiber',
-            selected: selectedConnectionType == 'fiber',
-            onTap: () => onConnectionTypeChanged('fiber'),
-          ),
-          if (activeFilterCount > 0 && onClearFilters != null)
-            TextButton(
-              onPressed: onClearFilters,
-              style: TextButton.styleFrom(
-                foregroundColor: _kTeal,
-                minimumSize: const Size(0, 44),
-                textStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+          )
+        : null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide: one row. Narrow: search on top, controls below.
+        if (constraints.maxWidth >= 720) {
+          return Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    child: search,
+                  ),
                 ),
               ),
-              child: const Text('Clear filters'),
+              if (clear != null) ...[clear, const SizedBox(width: 8)],
+              type,
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            search,
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [type, if (clear != null) clear],
             ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
 
-class _FilterChipButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+/// "All types | Wireless | Fiber" as one segmented control.
+class _TypeSegment extends StatelessWidget {
+  final String? selected;
+  final ValueChanged<String?> onChanged;
 
-  const _FilterChipButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+  const _TypeSegment({required this.selected, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? _kTeal : Colors.white,
-      shape: StadiumBorder(
-        side: BorderSide(color: selected ? _kTeal : _kBorder),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          height: 44,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Center(
-              widthFactor: 1,
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  color: selected ? Colors.white : _kInk,
+    Widget seg(String label, String? value, IconData? icon) {
+      final isOn = selected == value;
+      return Material(
+        color: isOn ? Colors.white : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        elevation: isOn ? 0.5 : 0,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => onChanged(value),
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: isOn ? Border.all(color: _kBorder) : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: isOn ? _kTeal : _kMuted),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isOn ? FontWeight.w600 : FontWeight.w500,
+                    color: isOn ? _kTeal : _kInk,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _kSoft,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          seg('All types', null, null),
+          const SizedBox(width: 2),
+          seg('Wireless', 'wireless', Icons.wifi),
+          const SizedBox(width: 2),
+          seg('Fiber', 'fiber', Icons.cable),
+        ],
       ),
     );
   }

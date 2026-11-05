@@ -244,6 +244,7 @@ void main() {
               c == InventoryCategory.equipment ? 'Equipment' : 'Consumable',
           onViewDetail: (_) {},
           onAdjustStock: (_) {},
+          onIssueStock: (_) {},
           onEdit: (_) {},
           onDelete: (_) {},
         ),

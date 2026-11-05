@@ -299,69 +299,6 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _buildDemoCredentials() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _accentBlue.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _accentBlue.withOpacity(0.18), width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 13,
-                color: _accentBlue.withOpacity(0.8),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'DEMO CREDENTIALS',
-                style: TextStyle(
-                  color: _accentBlue.withOpacity(0.9),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _credRow('Admin', 'admin@nasr.com / admin123'),
-          const SizedBox(height: 2),
-          _credRow('Employee', 'employee@nasr.com / emp123'),
-        ],
-      ),
-    );
-  }
-
-  Widget _credRow(String role, String value) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 60,
-          child: Text(
-            role,
-            style: const TextStyle(
-              color: _textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSignInButton() {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {

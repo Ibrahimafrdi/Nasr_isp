@@ -429,8 +429,8 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
         expiredAmount += c.monthlyBill;
       }
       if (due != null) {
-        final days = BillingCycle.daysUntilDue(due, now);
-        if (days >= 0 && days <= BillingCycle.renewalWindowDays) {
+        final days = BillingCycle.dayUntilDue(due, now);
+        if (!c.isExpiredAt(now) && days <= BillingCycle.renewalWindowDays) {
           expiringSoon++;
         }
       }
@@ -482,8 +482,8 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
                 (due == null || !BillingCycle.isDueForRenewal(due, now));
           case CustomerStatus.expiringSoon:
             if (!c.isActive || due == null) return false;
-            final days = BillingCycle.daysUntilDue(due, now);
-            return days >= 0 && days <= BillingCycle.renewalWindowDays;
+            final days = BillingCycle.dayUntilDue(due, now);
+            return !c.isExpiredAt(now) && days <= BillingCycle.renewalWindowDays;
           case CustomerStatus.expired:
             return c.isExpiredAt(now);
           case CustomerStatus.inactive:

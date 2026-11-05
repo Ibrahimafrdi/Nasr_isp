@@ -100,23 +100,23 @@ class GetMonthlyFinancialSummary {
         .toList();
 
     final subscriptionBilled =
-        monthCharges.fold(0.0, (sum, p) => sum + (p.amount as double));
+        monthCharges.fold(0.0, (sum, p) => sum + p.amount);
     final subscriptionCollected =
-        monthCharges.fold(0.0, (sum, p) => sum + (p.paidAmount as double));
+        monthCharges.fold(0.0, (sum, p) => sum + p.paidAmount);
 
     // ── Subscription unpriced-customer count ─────────────────────────────────
     // Active customers whose package cost cannot be resolved.
     final activeCustomers =
-        allCustomers.where((c) => c.isActive as bool).toList();
+        allCustomers.where((c) => c.isActive).toList();
     final subscriberMargins = activeCustomers.map((c) {
-      final packageId = c.packageId as String?;
+      final packageId = c.packageId;
       final pkg = (packageId != null && packageId.isNotEmpty)
           ? packageMap[packageId]
           : null;
       return c.monthlyMargin(pkg);
     }).toList();
     final unpricedCustomerCount =
-        subscriberMargins.where((m) => !(m.isReliable as bool)).length;
+        subscriberMargins.where((m) => !m.isReliable).length;
 
     // ── Installation figures ─────────────────────────────────────────────────
     final monthInstallations = completedInMonth(
@@ -127,17 +127,17 @@ class GetMonthlyFinancialSummary {
 
     // ── Expense figures ──────────────────────────────────────────────────────
     final monthExpenses = allExpenses.where((e) {
-      final date = e.date as DateTime;
+      final date = e.date;
       return date.year == month.year && date.month == month.month;
     }).toList();
 
     final totalExpenses =
-        monthExpenses.fold(0.0, (sum, e) => sum + (e.amount as double));
+        monthExpenses.fold(0.0, (sum, e) => sum + e.amount);
 
     final expensesByCategory = <ExpenseCategory, double>{};
     for (final e in monthExpenses) {
-      final cat = e.category as ExpenseCategory;
-      expensesByCategory[cat] = (expensesByCategory[cat] ?? 0.0) + (e.amount as double);
+      final cat = e.category;
+      expensesByCategory[cat] = (expensesByCategory[cat] ?? 0.0) + e.amount;
     }
 
     // ── Net profit (cash basis) ──────────────────────────────────────────────

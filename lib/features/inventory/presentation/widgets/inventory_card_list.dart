@@ -19,6 +19,7 @@ class InventoryCardList extends StatelessWidget {
 
   final void Function(InventoryItemEntity item) onViewDetail;
   final void Function(InventoryItemEntity item) onAdjustStock;
+  final void Function(InventoryItemEntity item) onIssueStock;
   final void Function(InventoryItemEntity item) onEdit;
   final void Function(InventoryItemEntity item) onDelete;
 
@@ -28,6 +29,7 @@ class InventoryCardList extends StatelessWidget {
     required this.categoryLabel,
     required this.onViewDetail,
     required this.onAdjustStock,
+    required this.onIssueStock,
     required this.onEdit,
     required this.onDelete,
   });
@@ -37,14 +39,17 @@ class InventoryCardList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: items
-          .map((item) => _InventoryCard(
-                item: item,
-                categoryLabel: categoryLabel,
-                onViewDetail: onViewDetail,
-                onAdjustStock: onAdjustStock,
-                onEdit: onEdit,
-                onDelete: onDelete,
-              ))
+          .map(
+            (item) => _InventoryCard(
+              item: item,
+              categoryLabel: categoryLabel,
+              onViewDetail: onViewDetail,
+              onAdjustStock: onAdjustStock,
+              onIssueStock: onIssueStock,
+              onEdit: onEdit,
+              onDelete: onDelete,
+            ),
+          )
           .toList(),
     );
   }
@@ -55,6 +60,7 @@ class _InventoryCard extends StatelessWidget {
   final String Function(InventoryCategory category) categoryLabel;
   final void Function(InventoryItemEntity item) onViewDetail;
   final void Function(InventoryItemEntity item) onAdjustStock;
+  final void Function(InventoryItemEntity item) onIssueStock;
   final void Function(InventoryItemEntity item) onEdit;
   final void Function(InventoryItemEntity item) onDelete;
 
@@ -63,6 +69,7 @@ class _InventoryCard extends StatelessWidget {
     required this.categoryLabel,
     required this.onViewDetail,
     required this.onAdjustStock,
+    required this.onIssueStock,
     required this.onEdit,
     required this.onDelete,
   });
@@ -79,7 +86,9 @@ class _InventoryCard extends StatelessWidget {
         : (isLow ? AppTheme.warningColor : AppTheme.successColor);
 
     final unitLabel = item.unit.trim().isEmpty ? 'pcs' : item.unit;
-    final qtyDisplay = isOut ? '0 $unitLabel' : '${item.quantityInStock} $unitLabel';
+    final qtyDisplay = isOut
+        ? '0 $unitLabel'
+        : '${item.quantityInStock} $unitLabel';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -87,10 +96,10 @@ class _InventoryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.lightGray.withOpacity(0.6)),
+        border: Border.all(color: AppTheme.lightGray.withValues(alpha: 0.6)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -119,12 +128,11 @@ class _InventoryCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   statusText,
@@ -144,10 +152,7 @@ class _InventoryCard extends StatelessWidget {
             spacing: 14,
             runSpacing: 6,
             children: [
-              InfoChip(
-                Icons.category_outlined,
-                categoryLabel(item.category),
-              ),
+              InfoChip(Icons.category_outlined, categoryLabel(item.category)),
               InfoChip(
                 Icons.inventory_2_outlined,
                 qtyDisplay,
@@ -170,11 +175,12 @@ class _InventoryCard extends StatelessWidget {
                     ? Icons.cable
                     : Icons.wifi,
                 item.connectionType.label,
-                color: item.connectionType == InventoryConnectionType.opticalFibre
+                color:
+                    item.connectionType == InventoryConnectionType.opticalFibre
                     ? Colors.purple
                     : (item.connectionType == InventoryConnectionType.both
-                        ? Colors.teal
-                        : Colors.blue[800]),
+                          ? Colors.teal
+                          : Colors.blue[800]),
               ),
             ],
           ),
@@ -191,6 +197,11 @@ class _InventoryCard extends StatelessWidget {
                 icon: const Icon(Icons.tune, size: 16),
                 label: const Text('Adjust', style: TextStyle(fontSize: 12)),
                 onPressed: () => onAdjustStock(item),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.outbox_outlined, size: 16),
+                label: const Text('Issue', style: TextStyle(fontSize: 12)),
+                onPressed: () => onIssueStock(item),
               ),
               TextButton.icon(
                 icon: const Icon(Icons.edit_outlined, size: 16),

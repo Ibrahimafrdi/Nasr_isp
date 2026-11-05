@@ -13,14 +13,15 @@ class InventoryLoading extends InventoryState {}
 class InventoryLoaded extends InventoryState {
   final List<InventoryItemEntity> items;
   final List<InventoryItemEntity> lowStockItems;
+  final List<StockIssueEntity> stockIssues;
 
-  InventoryLoaded(this.items)
+  InventoryLoaded(this.items, [this.stockIssues = const []])
     : lowStockItems = items
           .where((i) => i.quantityInStock <= i.reorderLevel)
           .toList();
 
   @override
-  List<Object?> get props => [items];
+  List<Object?> get props => [items, stockIssues];
 }
 
 class StockMovementsLoaded extends InventoryState {

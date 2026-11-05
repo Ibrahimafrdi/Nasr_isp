@@ -44,15 +44,19 @@ class CustomerCardList extends StatelessWidget {
     final now = DateTime.now();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: customers.map((customer) => _CustomerCard(
-        customer: customer,
-        currentUser: currentUser,
-        getPackageName: getPackageName,
-        onDelete: onDelete,
-        onRenew: onRenew,
-        onToggleStatus: onToggleStatus,
-        now: now,
-      )).toList(),
+      children: customers
+          .map(
+            (customer) => _CustomerCard(
+              customer: customer,
+              currentUser: currentUser,
+              getPackageName: getPackageName,
+              onDelete: onDelete,
+              onRenew: onRenew,
+              onToggleStatus: onToggleStatus,
+              now: now,
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -79,9 +83,16 @@ class _CustomerCard extends StatelessWidget {
   /// Same wording as the desktop table's Next Due Date cell, so the two
   /// layouts never describe the same customer differently.
   static String _dueLabel(DateTime due, DateTime now) {
-    final days = BillingCycle.daysUntilDue(due, now);
-    if (days < 0) return 'Overdue by ${-days}d';
-    if (days == 0) return 'Due today';
+    final days = BillingCycle.dayUntilDue(due, now);
+    if (BillingCycle.isExpird(due, now)) {
+      if (BillingCycle.dateOnly(
+        due,
+      ).isAtSameMomentAs(BillingCycle.dateOnly(now))) {
+        return 'Expired today (12 PM)';
+      }
+      return 'Overdue by ${-days}d';
+    }
+    if (days == 0) return 'Due today (12 PM)';
     if (days <= BillingCycle.renewalWindowDays) return 'Due in ${days}d';
     return DateTimeUtils.formatDate(due);
   }

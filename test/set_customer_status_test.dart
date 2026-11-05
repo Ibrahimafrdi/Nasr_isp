@@ -262,7 +262,7 @@ void main() {
         asOf: DateTime(2026, 8, 7, 14, 30),
       );
 
-      expect(outcome.customer.nextDueDate, DateTime(2026, 9, 7));
+      expect(outcome.customer.nextDueDate, DateTime(2026, 9, 7, 12, 0));
       expect(outcome.customer.isExpiredAt(DateTime(2026, 8, 7)), isFalse);
     });
 
@@ -312,7 +312,7 @@ void main() {
       expect(charge.dueDate, DateTime(2026, 8, 7));
       // The period the charge covers must be the period the customer was
       // actually granted, or the ledger and the expiry tell different stories.
-      expect(charge.periodEnd, DateTime(2026, 9, 7));
+      expect(charge.periodEnd, DateTime(2026, 9, 7, 12, 0));
       expect(charge.periodEnd, outcome.customer.nextDueDate);
       expect(charge.packageCostAtBilling, 1000);
     });
@@ -339,7 +339,7 @@ void main() {
         asOf: DateTime(2026, 1, 31),
       );
 
-      expect(outcome.customer.nextDueDate, DateTime(2026, 2, 28));
+      expect(outcome.customer.nextDueDate, DateTime(2026, 2, 28, 12, 0));
     });
 
     test('normalises away the time component', () async {
@@ -350,7 +350,7 @@ void main() {
         asOf: DateTime(2026, 8, 7, 23, 59, 59),
       );
 
-      expect(outcome.customer.nextDueDate, DateTime(2026, 9, 7));
+      expect(outcome.customer.nextDueDate, DateTime(2026, 9, 7, 12, 0));
     });
 
     test('reactivates without billing when no monthly bill is set', () async {
@@ -365,7 +365,7 @@ void main() {
       // Service is restored — refusing over a missing rate would be worse
       // than an unbilled month the operator is told about.
       expect(outcome.customer.isActive, isTrue);
-      expect(outcome.customer.nextDueDate, DateTime(2026, 9, 7));
+      expect(outcome.customer.nextDueDate, DateTime(2026, 9, 7, 12, 0));
       expect(outcome.billed, isFalse);
       expect(outcome.unbilledReason, UnbilledReason.noMonthlyBill);
       expect(payments.added, isEmpty);

@@ -66,9 +66,9 @@ class CustomerEntity {
   /// preserved so reactivation can resume the old cycle. Use
   /// [billingDueDate] on any surface that renders it.
   DateTime? get effectiveDueDate => BillingCycle.effectiveDueDate(
-        nextDueDate: nextDueDate,
-        createdAt: createdAt,
-      );
+    nextDueDate: nextDueDate,
+    createdAt: createdAt,
+  );
 
   /// The due date to *display*: [effectiveDueDate], or null while the customer
   /// is off service.
@@ -85,7 +85,7 @@ class CustomerEntity {
   bool isExpiredAt(DateTime now) {
     if (!isActive) return false;
     final due = effectiveDueDate;
-    return due != null && BillingCycle.isExpired(due, now);
+    return due != null && BillingCycle.isExpird(due, now);
   }
 
   /// Whether the Renew action should be offered: expired, due today, or
@@ -151,19 +151,19 @@ class CustomerEntity {
     DateTime? joinDate,
     DateTime? nextDueDate,
   }) => CustomerEntity(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        phone: phone ?? this.phone,
-        cnic: cnic ?? this.cnic,
-        address: address ?? this.address,
-        connectionType: connectionType ?? this.connectionType,
-        packageId: packageId ?? this.packageId,
-        monthlyBill: monthlyBill ?? this.monthlyBill,
-        status: status ?? this.status,
-        notes: notes ?? this.notes,
-        userId: userId ?? this.userId,
-        createdAt: createdAt ?? this.createdAt,
-        joinDate: joinDate ?? this.joinDate,
-        nextDueDate: nextDueDate ?? this.nextDueDate,
-      );
+    id: id ?? this.id,
+    name: name ?? this.name,
+    phone: phone ?? this.phone,
+    cnic: cnic ?? this.cnic,
+    address: address ?? this.address,
+    connectionType: connectionType ?? this.connectionType,
+    packageId: packageId ?? this.packageId,
+    monthlyBill: monthlyBill ?? this.monthlyBill,
+    status: status ?? this.status,
+    notes: notes ?? this.notes,
+    userId: userId ?? this.userId,
+    createdAt: createdAt ?? this.createdAt,
+    joinDate: joinDate ?? this.joinDate,
+    nextDueDate: nextDueDate ?? this.nextDueDate,
+  );
 }

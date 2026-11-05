@@ -31,11 +31,33 @@ class AppShell extends StatelessWidget {
           if (route.startsWith(RoutePaths.payments)) return 'Payments';
           if (route.startsWith(RoutePaths.expenses)) return 'Expenses';
           if (route.startsWith(RoutePaths.employees)) return 'Employees';
-          if (route.startsWith(RoutePaths.installations)) return 'Installations';
+          if (route.startsWith(RoutePaths.installations))
+            return 'Installations';
           if (route.startsWith(RoutePaths.inventory)) return 'Inventory';
+          if (route.startsWith(RoutePaths.suppliers)) return 'Suppliers';
           if (route.startsWith(RoutePaths.reports)) return 'Reports';
           if (route.startsWith(RoutePaths.settings)) return 'Settings';
           return 'Dashboard';
+        }
+
+        String? resolveSection(String route) {
+          if (route.startsWith(RoutePaths.customers) ||
+              route.startsWith(RoutePaths.installations) ||
+              route.startsWith(RoutePaths.packages) ||
+              route.startsWith(RoutePaths.inventory) ||
+              route.startsWith(RoutePaths.suppliers)) {
+            return 'Operations';
+          }
+          if (route.startsWith(RoutePaths.payments) ||
+              route.startsWith(RoutePaths.expenses) ||
+              route.startsWith(RoutePaths.reports)) {
+            return 'Finance';
+          }
+          if (route.startsWith(RoutePaths.employees) ||
+              route.startsWith(RoutePaths.settings)) {
+            return 'Admin';
+          }
+          return null;
         }
 
         return LayoutBuilder(
@@ -51,27 +73,28 @@ class AppShell extends StatelessWidget {
 
             if (deviceType != DeviceType.desktop) {
               // ── Mobile & Tablet: AppBar + Drawer ─────────────────────────
-              // A persistent/collapsed sidebar doesn't fit narrower screens
-              // (and hides grouped nav items with no way to reach them), so
-              // both mobile and tablet get the full sidebar inside a Drawer.
               return Scaffold(
                 backgroundColor: AppTheme.veryLightGray,
                 appBar: DashboardTopBar(
                   title: resolveTitle(currentRoute),
+                  section: resolveSection(currentRoute),
                   currentUser: user,
                 ),
                 drawer: Drawer(
+                  width: 248,
+                  backgroundColor: const Color(0xFF101827),
                   child: DashboardSidebar(
                     currentUser: user,
                     currentRoute: currentRoute,
                     forceCollapsed: false,
+                    showCollapseToggle: false,
                     onLogout: handleLogout,
                   ),
                 ),
                 body: SafeArea(child: child),
               );
             } else {
-              // ── Desktop: Full expanded sidebar ───────────────────────────
+              // ── Desktop: dark sidebar + slim context bar ─────────────────
               return Scaffold(
                 backgroundColor: AppTheme.veryLightGray,
                 body: Row(
@@ -79,7 +102,6 @@ class AppShell extends StatelessWidget {
                     DashboardSidebar(
                       currentUser: user,
                       currentRoute: currentRoute,
-                      forceCollapsed: false,
                       onLogout: handleLogout,
                     ),
                     Expanded(
@@ -87,6 +109,7 @@ class AppShell extends StatelessWidget {
                         children: [
                           DashboardTopBar(
                             title: resolveTitle(currentRoute),
+                            section: resolveSection(currentRoute),
                             currentUser: user,
                           ),
                           Expanded(child: child),

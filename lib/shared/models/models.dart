@@ -11,9 +11,17 @@ export 'package:nasr_isp/features/dashboard/data/models/dashboard_stats_model.da
 export 'package:nasr_isp/features/settings/data/models/app_settings_model.dart';
 export 'package:nasr_isp/features/inventory/data/models/inventory_item_model.dart';
 export 'package:nasr_isp/features/inventory/data/models/stock_movement_model.dart';
+export 'package:nasr_isp/features/inventory/data/models/stock_issue_model.dart';
 export 'package:nasr_isp/features/inventory/domain/entities/inventory_item_entity.dart';
 export 'package:nasr_isp/features/inventory/domain/entities/stock_movement_entity.dart';
-
+export 'package:nasr_isp/features/inventory/domain/entities/stock_issue_entity.dart';
+export 'package:nasr_isp/features/suppliers/data/models/supplier_model.dart';
+export 'package:nasr_isp/features/suppliers/data/models/supplier_purchase_model.dart';
+export 'package:nasr_isp/features/suppliers/data/models/supplier_payment_model.dart';
+export 'package:nasr_isp/features/suppliers/domain/entities/supplier_entity.dart';
+export 'package:nasr_isp/features/suppliers/domain/entities/supplier_purchase_entity.dart';
+export 'package:nasr_isp/features/suppliers/domain/entities/supplier_payment_entity.dart';
+export 'package:nasr_isp/features/suppliers/domain/entities/supplier_detail_entity.dart';
 
 /// Generic filter model to hold common filter state
 class FilterModel extends Equatable {

@@ -13,7 +13,6 @@ import 'package:nasr_isp/features/settings/presentation/bloc/user_management_blo
 import 'package:nasr_isp/features/settings/presentation/widgets/user_table.dart';
 import 'package:nasr_isp/features/auth/data/models/user_model.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
-import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 // Colours for the redesigned screen, private to this file.

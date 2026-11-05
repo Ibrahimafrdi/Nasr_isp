@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
@@ -12,7 +11,6 @@ import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart'
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
-import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 // ════════════════════════════════════════════════════════════════════════════

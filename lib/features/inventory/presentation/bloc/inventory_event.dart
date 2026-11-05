@@ -10,10 +10,39 @@ class LoadInventoryItems extends InventoryEvent {}
 
 class AddInventoryItemEvent extends InventoryEvent {
   final InventoryItemEntity item;
+  final String? supplierId;
+  final double? unitCost;
+  final double paidNow;
+  final PaymentMethod paymentMethod;
+  final DateTime? purchaseDate;
+  final String? invoiceNo;
+  final String? purchaseNotes;
   final String? performedBy;
-  const AddInventoryItemEvent(this.item, {this.performedBy});
+
+  const AddInventoryItemEvent(
+    this.item, {
+    this.supplierId,
+    this.unitCost,
+    this.paidNow = 0.0,
+    this.paymentMethod = PaymentMethod.cash,
+    this.purchaseDate,
+    this.invoiceNo,
+    this.purchaseNotes,
+    this.performedBy,
+  });
+
   @override
-  List<Object?> get props => [item, performedBy];
+  List<Object?> get props => [
+    item,
+    supplierId,
+    unitCost,
+    paidNow,
+    paymentMethod,
+    purchaseDate,
+    invoiceNo,
+    purchaseNotes,
+    performedBy,
+  ];
 }
 
 class UpdateInventoryItemEvent extends InventoryEvent {
@@ -33,9 +62,38 @@ class DeleteInventoryItemEvent extends InventoryEvent {
 class AddStockMovementEvent extends InventoryEvent {
   final String itemId;
   final StockMovementEntity movement;
-  const AddStockMovementEvent(this.itemId, this.movement);
+  final String? supplierId;
+  final double? unitCost;
+  final double paidNow;
+  final PaymentMethod paymentMethod;
+  final DateTime? purchaseDate;
+  final String? invoiceNo;
+  final String? purchaseNotes;
+
+  const AddStockMovementEvent(
+    this.itemId,
+    this.movement, {
+    this.supplierId,
+    this.unitCost,
+    this.paidNow = 0.0,
+    this.paymentMethod = PaymentMethod.cash,
+    this.purchaseDate,
+    this.invoiceNo,
+    this.purchaseNotes,
+  });
+
   @override
-  List<Object?> get props => [itemId, movement];
+  List<Object?> get props => [
+    itemId,
+    movement,
+    supplierId,
+    unitCost,
+    paidNow,
+    paymentMethod,
+    purchaseDate,
+    invoiceNo,
+    purchaseNotes,
+  ];
 }
 
 class LoadStockMovements extends InventoryEvent {
@@ -43,4 +101,11 @@ class LoadStockMovements extends InventoryEvent {
   const LoadStockMovements(this.itemId);
   @override
   List<Object?> get props => [itemId];
+}
+
+class IssueStockEvent extends InventoryEvent {
+  final StockIssueEntity issue;
+  const IssueStockEvent(this.issue);
+  @override
+  List<Object?> get props => [issue];
 }

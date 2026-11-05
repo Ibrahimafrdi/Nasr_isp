@@ -18,13 +18,11 @@ abstract class UserManagementRemoteDataSource {
 class UserManagementRemoteDataSourceImpl
     implements UserManagementRemoteDataSource {
   final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
 
   UserManagementRemoteDataSourceImpl({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = firebaseAuth ?? FirebaseAuth.instance;
+  })  : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference get _usersCol => _firestore.collection('users');
 

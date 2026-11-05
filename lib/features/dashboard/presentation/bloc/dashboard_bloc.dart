@@ -10,7 +10,6 @@ import 'package:nasr_isp/features/installations/domain/entities/installation_ent
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
-import 'package:nasr_isp/features/reports/domain/entities/monthly_financial_summary.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
 
 // Dashboard Events
@@ -53,8 +52,8 @@ class DashboardLoaded extends DashboardState {
   final List<ExpenseModel> recentExpenses;
 
   // NEW chart data fields:
-  final List<double> monthlyRevenue6;      // last 6 months revenue
-  final List<double> customerGrowth6;      // customer count per month (last 6)
+  final List<double> monthlyRevenue6; // last 6 months revenue
+  final List<double> customerGrowth6; // customer count per month (last 6)
   final Map<String, int> connectionTypeDist; // {'wireless': X, 'fiber': Y}
   final Map<String, double> paymentByMethod; // {'cash': X, 'bank': Y, etc}
 
@@ -171,8 +170,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       // Customer stats
       final totalCustomers = allCustomers.length;
-      final activeList =
-          allCustomers.where((c) => c.isActive).toList();
+      final activeList = allCustomers.where((c) => c.isActive).toList();
       final activeCustomers = activeList.length;
       // Expired/expiring-soon only make sense for customers still on an
       // active subscription — a cancelled customer with a stale due date
@@ -184,8 +182,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final expiringSoon = activeList.where((c) {
         final due = c.effectiveDueDate;
         if (due == null) return false;
-        final days = BillingCycle.daysUntilDue(due, now);
-        return days >= 0 && days <= BillingCycle.renewalWindowDays;
+        final days = BillingCycle.dayUntilDue(due, now);
+        return !c.isExpiredAt(now) && days <= BillingCycle.renewalWindowDays;
       }).toList();
 
       // Payment stats. Payment status is normalized to just
@@ -198,8 +196,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // cash. PaymentType.subscription is filtered on explicitly rather than
       // assumed, so that folding installations into the ledger later cannot
       // silently contaminate these aggregates.
-      final subscriptionPayments =
-          allPayments.where((p) => p.isSubscription).toList();
+      final subscriptionPayments = allPayments
+          .where((p) => p.isSubscription)
+          .toList();
 
       // CASH BASIS — bucketed by when the money arrived.
       final cashCollectedThisMonth = subscriptionPayments
@@ -219,8 +218,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           .where((p) => p.billingMonth == currentMonthKey)
           .toList();
 
-      final currentMonthOutstanding =
-          currentMonthCharges.fold(0.0, (total, p) => total + p.remainingAmount);
+      final currentMonthOutstanding = currentMonthCharges.fold(
+        0.0,
+        (total, p) => total + p.remainingAmount,
+      );
 
       // Realized margin. Charges written before the cost snapshot existed fall
       // back to the customer's currently-resolved package cost — without that
@@ -245,52 +246,66 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // that have not been started. Disjoint from currentMonthOutstanding,
       // which only covers customers who HAVE been renewed this month, so the
       // two sum without double counting.
-      final billedThisMonth =
-          currentMonthCharges.map((p) => p.customerId).toSet();
+      final billedThisMonth = currentMonthCharges
+          .map((p) => p.customerId)
+          .toSet();
       final unbilledExpired = expiredList
           .where((c) => !billedThisMonth.contains(c.id))
           .toList();
-      final expiredCustomersDue =
-          unbilledExpired.fold(0.0, (total, c) => total + c.monthlyBill);
+      final expiredCustomersDue = unbilledExpired.fold(
+        0.0,
+        (total, c) => total + c.monthlyBill,
+      );
 
       // Pending payments (used for both the KPI total and the overdue list) —
       // all-time arrears, not just this month.
-      final pendingPayments = subscriptionPayments
-          .where((p) => p.status == 'unpaid' || p.status == 'partial')
-          .toList()
-        ..sort((a, b) {
-          final aDate = a.dueDate ?? DateTime(2000);
-          final bDate = b.dueDate ?? DateTime(2000);
-          return aDate.compareTo(bDate);
-        });
+      final pendingPayments =
+          subscriptionPayments
+              .where((p) => p.status == 'unpaid' || p.status == 'partial')
+              .toList()
+            ..sort((a, b) {
+              final aDate = a.dueDate ?? DateTime(2000);
+              final bDate = b.dueDate ?? DateTime(2000);
+              return aDate.compareTo(bDate);
+            });
 
-      final pendingPaymentsAmount = pendingPayments
-          .fold(0.0, (sum, p) => sum + p.remainingAmount);
+      final pendingPaymentsAmount = pendingPayments.fold(
+        0.0,
+        (sum, p) => sum + p.remainingAmount,
+      );
 
       // ACCRUAL RUN RATE for active subscribers:
       // margin per customer = customer.monthlyBill - package.costPrice.
       // A full-month figure, independent of who has actually paid, and the
       // yardstick currentMonthMarginCollected converges on as renewals come in.
       final subscriberMargins = activeList
-          .map((c) => c.monthlyMargin(
-                (c.packageId != null && c.packageId!.isNotEmpty)
-                    ? packageMap[c.packageId]
-                    : null,
-              ))
+          .map(
+            (c) => c.monthlyMargin(
+              (c.packageId != null && c.packageId!.isNotEmpty)
+                  ? packageMap[c.packageId]
+                  : null,
+            ),
+          )
           .toList();
 
-      final subscriberRunRateMargin =
-          subscriberMargins.fold<double>(0.0, (sum, m) => sum + m.money.profit);
+      final subscriberRunRateMargin = subscriberMargins.fold<double>(
+        0.0,
+        (sum, m) => sum + m.money.profit,
+      );
 
       // Full-month billing for active subscribers (before vendor cost).
-      final subscriberRunRateRevenue =
-          activeList.fold<double>(0.0, (sum, c) => sum + c.monthlyBill);
+      final subscriberRunRateRevenue = activeList.fold<double>(
+        0.0,
+        (sum, c) => sum + c.monthlyBill,
+      );
 
       // Installation stats
       final pendingInstallations = allInstallations
-          .where((i) =>
-              i.status == InstallationStatus.pending ||
-              i.status == InstallationStatus.inProgress)
+          .where(
+            (i) =>
+                i.status == InstallationStatus.pending ||
+                i.status == InstallationStatus.inProgress,
+          )
           .length;
       final completedInstallations = allInstallations
           .where((i) => i.status == InstallationStatus.completed)
@@ -299,7 +314,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // ACCRUAL BASIS — these three terms are the three adjacent KPI cards.
       // Cash collected is deliberately excluded: different basis, and it does
       // not include installation billing at all.
-      final netProfit = subscriberRunRateMargin +
+      final netProfit =
+          subscriberRunRateMargin +
           monthlySummary.installationProfit -
           monthlySummary.totalExpenses;
 
@@ -330,14 +346,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       );
 
       // Recent payments (last 5 paid)
-      final recentPayments = allPayments
-          .where((p) => p.status == 'paid')
-          .toList()
-        ..sort((a, b) {
-          final aDate = a.completedDate ?? a.createdAt ?? DateTime(2000);
-          final bDate = b.completedDate ?? b.createdAt ?? DateTime(2000);
-          return bDate.compareTo(aDate);
-        });
+      final recentPayments =
+          allPayments.where((p) => p.status == 'paid').toList()..sort((a, b) {
+            final aDate = a.completedDate ?? a.createdAt ?? DateTime(2000);
+            final bDate = b.completedDate ?? b.createdAt ?? DateTime(2000);
+            return bDate.compareTo(aDate);
+          });
 
       // Recent expenses (last 5)
       final recentExpenses = List<ExpenseModel>.from(allExpenses)
@@ -366,8 +380,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         final target = DateTime(now.year, now.month - (5 - i));
         final endOfMonth = DateTime(target.year, target.month + 1, 0);
         customerGrowth6[i] = allCustomers
-            .where((c) =>
-                c.createdAt != null && c.createdAt!.isBefore(endOfMonth))
+            .where(
+              (c) => c.createdAt != null && c.createdAt!.isBefore(endOfMonth),
+            )
             .length
             .toDouble();
       }
@@ -375,9 +390,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       // ── Connection Type Distribution ─────────────────────
       final Map<String, int> connectionTypeDist = {
         'wireless': allCustomers
-            .where((c) => c.connectionType == 'wireless').length,
-        'fiber': allCustomers
-            .where((c) => c.connectionType == 'fiber').length,
+            .where((c) => c.connectionType == 'wireless')
+            .length,
+        'fiber': allCustomers.where((c) => c.connectionType == 'fiber').length,
       };
 
       // ── Payment by Method (paid payments only) ──────
@@ -385,21 +400,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       for (final p in allPayments) {
         if (p.status != 'paid') continue;
         final method = (p.method ?? 'other').toLowerCase().trim();
-        paymentByMethod[method] =
-            (paymentByMethod[method] ?? 0) + p.paidAmount;
+        paymentByMethod[method] = (paymentByMethod[method] ?? 0) + p.paidAmount;
       }
 
-      emit(DashboardLoaded(
-        stats: stats,
-        recentPayments: recentPayments.take(5).toList(),
-        pendingPayments: pendingPayments.take(5).toList(),
-        expiringCustomers: expiringSoon.take(10).toList(),
-        recentExpenses: recentExpenses.take(5).toList(),
-        monthlyRevenue6: monthlyRevenue6,
-        customerGrowth6: customerGrowth6,
-        connectionTypeDist: connectionTypeDist,
-        paymentByMethod: paymentByMethod,
-      ));
+      emit(
+        DashboardLoaded(
+          stats: stats,
+          recentPayments: recentPayments.take(5).toList(),
+          pendingPayments: pendingPayments.take(5).toList(),
+          expiringCustomers: expiringSoon.take(10).toList(),
+          recentExpenses: recentExpenses.take(5).toList(),
+          monthlyRevenue6: monthlyRevenue6,
+          customerGrowth6: customerGrowth6,
+          connectionTypeDist: connectionTypeDist,
+          paymentByMethod: paymentByMethod,
+        ),
+      );
     } catch (e) {
       emit(DashboardError(message: 'Failed to load dashboard: $e'));
     }

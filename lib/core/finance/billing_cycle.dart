@@ -15,7 +15,16 @@ class BillingCycle {
   /// surfaces tell the operator to chase.
   static const int renewalWindowDays = 7;
 
+  /// Upstream Jazz ISP panel package expiration hour: 12:00 PM (midday / noon).
+  static const int expiryCutoffHour = 12;
+
+  /// Returns the exact expiry cutoff instant on [due]: 12:00 PM (noon) on that date.
+  /// Matches the Jazz panel where packages expire at 12:00 PM.
+  static DateTime expiryInstant(DateTime due) =>
+      DateTime(due.year, due.month, due.day, expiryCutoffHour, 0, 0);
+
   /// [months] after [from], clamped to the last day of the target month.
+  /// Sets the time component to 12:00 PM (noon) to match upstream Jazz ISP panel validity.
   ///
   /// `DateTime(y, m + 1, d)` silently rolls over — Jan 31 becomes Mar 2, or
   /// Mar 3 in a leap year — which would walk a month-end customer's
@@ -29,7 +38,8 @@ class BillingCycle {
     final month = zeroBased % 12 + 1;
     // Day 0 of the *next* month is the last day of this one.
     final lastDayOfTarget = DateTime(year, month + 1, 0).day;
-    return DateTime(year, month, from.day < lastDayOfTarget ? from.day : lastDayOfTarget);
+    final targetDay = from.day < lastDayOfTarget ? from.day : lastDayOfTarget;
+    return DateTime(year, month, targetDay, expiryCutoffHour, 0, 0);
   }
 
   /// The `YYYY-MM` bucket a renewal belongs to. This is half of the
@@ -46,8 +56,18 @@ class BillingCycle {
       final month = int.tryParse(parts[1]);
       if (year != null && month != null && month >= 1 && month <= 12) {
         const monthNames = [
-          'January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
         ];
         return '${monthNames[month - 1]} $year';
       }
@@ -55,8 +75,7 @@ class BillingCycle {
     return key;
   }
 
-  /// Midnight on [date] — the granularity every due-date comparison uses, so
-  /// that "expired" never depends on the time of day a record was written.
+  /// Midnight on [date] — used for calendar day granularity.
   static DateTime dateOnly(DateTime date) =>
       DateTime(date.year, date.month, date.day);
 
@@ -75,20 +94,37 @@ class BillingCycle {
     return null;
   }
 
-  /// Whole days from [now] to [due]. Negative once the subscription has
-  /// lapsed, zero on the due date itself.
-  static int daysUntilDue(DateTime due, DateTime now) =>
-      dateOnly(due).difference(dateOnly(now)).inDays;
-
-  /// True once the paid-for period has fully elapsed.
+  /// Whole days from [now] to the 12:00 PM cutoff on [due].
   ///
-  /// The due date itself is NOT expired: the customer has been billed through
-  /// the end of that day. This is what makes the "Due Today" badge and the
-  /// expired count agree.
-  static bool isExpired(DateTime due, DateTime now) => daysUntilDue(due, now) < 0;
+  /// Matches upstream Jazz ISP panel validity (expires at 12:00 PM noon):
+  /// - Returns > 0 when the expiry date is in the future.
+  /// - Returns 0 on the due date before 12:00 PM noon ("Due today").
+  /// - Returns -1 on the due date once 12:00 PM has passed ("Expired today").
+  /// - Returns < -1 when past the due date.
+  static int dayUntilDue(DateTime due, DateTime now) {
+    final cutoff = expiryInstant(due);
+    if (now.isAfter(cutoff) || now.isAtSameMomentAs(cutoff)) {
+      final dueMidnight = dateOnly(due);
+      final nowMidnight = dateOnly(now);
+      final daysDiff = dueMidnight.difference(nowMidnight).inDays;
+      return daysDiff == 0 ? -1 : daysDiff;
+    }
+
+    final dueMidnight = dateOnly(due);
+    final nowMidnight = dateOnly(now);
+    final daysDiff = dueMidnight.difference(nowMidnight).inDays;
+    return daysDiff >= 0 ? daysDiff : 0;
+  }
+
+  /// True once current time has reached or passed the 12:00 PM cutoff on [due].
+  /// Matches the Jazz panel where subscriber accounts expire at 12:00 PM (noon).
+  static bool isExpird(DateTime due, DateTime now) {
+    final cutoff = expiryInstant(due);
+    return now.isAfter(cutoff) || now.isAtSameMomentAs(cutoff);
+  }
 
   /// True when the operator should be offered the Renew action — expired, due
   /// today, or inside the [renewalWindowDays] warning window.
   static bool isDueForRenewal(DateTime due, DateTime now) =>
-      daysUntilDue(due, now) <= renewalWindowDays;
+      dayUntilDue(due, now) <= renewalWindowDays;
 }

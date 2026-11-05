@@ -61,7 +61,7 @@ class InstallationRemoteDataSourceImpl implements InstallationRemoteDataSource {
 
     // ---- Writes (only after every read above has completed) ----
     if (customerDoc.exists) {
-      final customerData = customerDoc.data() as Map<String, dynamic>? ?? {};
+      final customerData = customerDoc.data() ?? {};
       // We deliberately do NOT mirror installationCost onto the customer doc.
       // CustomerModel neither reads nor writes that key, nothing renders it,
       // and the old first-write-wins guard made it wrong the moment a
@@ -100,20 +100,23 @@ class InstallationRemoteDataSourceImpl implements InstallationRemoteDataSource {
   @override
   Future<void> addInstallation(InstallationModel installation) async {
     final docRef = _col.doc(installation.id.isEmpty ? null : installation.id);
+    final effectiveInstallation = installation.id.isEmpty
+        ? installation.copyWith(id: docRef.id)
+        : installation;
 
     // Check if status is completed on creation
-    if (installation.status == InstallationStatus.completed) {
+    if (effectiveInstallation.status == InstallationStatus.completed) {
       await _firestore.runTransaction((transaction) async {
-        await _syncCustomerAndInventoryForCompletion(transaction, installation);
+        await _syncCustomerAndInventoryForCompletion(transaction, effectiveInstallation);
 
         // Save installation
-        final data = installation.toMap();
+        final data = effectiveInstallation.toMap();
         data['createdAt'] = FieldValue.serverTimestamp();
         data['completedAt'] = FieldValue.serverTimestamp();
         transaction.set(docRef, data);
       });
     } else {
-      final data = installation.toMap();
+      final data = effectiveInstallation.toMap();
       data['createdAt'] = FieldValue.serverTimestamp();
       await docRef.set(data);
     }

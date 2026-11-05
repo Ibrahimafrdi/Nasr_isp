@@ -57,10 +57,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     if (customer == null) return;
 
     final bloc = context.read<CustomersBloc>();
-    final changed = await showCustomerStatusDialog(
-      context,
-      customer: customer,
-    );
+    final changed = await showCustomerStatusDialog(context, customer: customer);
     if (!changed || !mounted) return;
 
     await bloc.stream.firstWhere(
@@ -407,7 +404,8 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                       'Package Cost',
                       _monthlyMargin.isReliable
                           ? DateTimeUtils.formatCurrency(
-                              _monthlyMargin.money.costIncurred)
+                              _monthlyMargin.money.costIncurred,
+                            )
                           : 'Not set',
                       Icons.cloud_download_outlined,
                       _monthlyMargin.isReliable
@@ -551,11 +549,11 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
               final due = _customer!.billingDueDate;
               final diff = due == null
                   ? null
-                  : BillingCycle.daysUntilDue(due, DateTime.now());
+                  : BillingCycle.dayUntilDue(due, DateTime.now());
               return _buildInfoRow(
                 'Next Due Date',
                 due != null
-                    ? DateTimeUtils.formatDate(due)
+                    ? '${DateTimeUtils.formatDate(due)} (12:00 PM)'
                     : (_customer!.isActive ? 'N/A' : 'Not billing — inactive'),
                 Icons.event,
                 isEstimated: due != null && _customer!.nextDueDate == null,
@@ -1092,8 +1090,8 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                                   color: !inst.hasCostData
                                       ? AppTheme.darkGray
                                       : (inst.profit >= 0
-                                          ? AppTheme.successColor
-                                          : AppTheme.errorColor),
+                                            ? AppTheme.successColor
+                                            : AppTheme.errorColor),
                                 ),
                               ),
                             ],

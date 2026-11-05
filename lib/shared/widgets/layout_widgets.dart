@@ -7,35 +7,53 @@ import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'breadcrumbs.dart';
 
-class SidebarSubItem {
-  final String label;
-  final String route;
+// Sidebar palette. Private to this file; the teal matches every redesigned
+// page so the chrome and the content finally agree.
+const Color _kInk = Color(0xFF14213D);
+const Color _kMuted = Color(0xFF5B6472);
+const Color _kFaint = Color(0xFF8A93A1);
+const Color _kBorder = Color(0xFFE3E6EB);
 
-  const SidebarSubItem({required this.label, required this.route});
-}
+// Dark sidebar palette (flat navy, teal accent).
+const Color _kSbBg = Color(0xFF101827);
+const Color _kSbLine = Color(0xFF1C2A40);
+const Color _kSbHover = Color(0xFF162236);
+const Color _kSbText = Color(0xFFB7C0CE);
+const Color _kSbIcon = Color(0xFF8793A6);
+const Color _kSbLabel = Color(0xFF6B7A90);
+const Color _kSbAccent = Color(0xFF2DD4BF);
 
 class SidebarItem {
   final IconData icon;
   final String label;
   final String route;
-  final List<SidebarSubItem> subItems;
 
   const SidebarItem({
     required this.icon,
     required this.label,
     required this.route,
-    this.subItems = const [],
   });
 }
 
+class SidebarSection {
+  final String label;
+  final List<SidebarItem> items;
+
+  const SidebarSection({required this.label, required this.items});
+}
+
+/// Flat, always-visible navigation: every page is one click away, grouped
+/// under small section labels. No collapsible groups to open first.
 class DashboardSidebar extends StatefulWidget {
   final UserModel currentUser;
   final String currentRoute;
   final VoidCallback? onLogout;
 
   /// When true, sidebar is always rendered in icon-only (collapsed) mode.
-  /// Used on tablet breakpoint by [AppShell].
   final bool forceCollapsed;
+
+  /// Hide the collapse / expand control (used inside the mobile drawer).
+  final bool showCollapseToggle;
 
   const DashboardSidebar({
     super.key,
@@ -43,6 +61,7 @@ class DashboardSidebar extends StatefulWidget {
     required this.currentRoute,
     this.onLogout,
     this.forceCollapsed = false,
+    this.showCollapseToggle = true,
   });
 
   @override
@@ -52,495 +71,480 @@ class DashboardSidebar extends StatefulWidget {
 class _DashboardSidebarState extends State<DashboardSidebar> {
   bool _localExpanded = true;
 
-  bool get isExpanded => widget.forceCollapsed ? false : _localExpanded;
+  bool get _expanded => widget.forceCollapsed ? false : _localExpanded;
 
-  List<SidebarItem> _getMenuItems() {
+  List<SidebarSection> _sections() {
     final isAdmin = widget.currentUser.isAdmin;
-
     return [
-      SidebarItem(
-        icon: Icons.dashboard,
-        label: 'Dashboard',
-        route: RoutePaths.dashboard,
+      const SidebarSection(
+        label: 'Overview',
+        items: [
+          SidebarItem(
+            icon: Icons.space_dashboard_outlined,
+            label: 'Dashboard',
+            route: RoutePaths.dashboard,
+          ),
+        ],
       ),
-      SidebarItem(
-        icon: Icons.wifi,
-        label: 'Packages',
-        route: RoutePaths.packages,
-      ),
-      SidebarItem(
-        icon: Icons.alt_route,
+      SidebarSection(
         label: 'Operations',
-        route: RoutePaths.customers,
-        subItems: [
-          const SidebarSubItem(label: 'Customers', route: RoutePaths.customers),
-          const SidebarSubItem(
+        items: [
+          const SidebarItem(
+            icon: Icons.people_alt_outlined,
+            label: 'Customers',
+            route: RoutePaths.customers,
+          ),
+          const SidebarItem(
+            icon: Icons.construction_outlined,
             label: 'Installations',
             route: RoutePaths.installations,
           ),
-          // Inventory — admin only
+          const SidebarItem(
+            icon: Icons.speed_outlined,
+            label: 'Packages',
+            route: RoutePaths.packages,
+          ),
           if (isAdmin)
-            const SidebarSubItem(
+            const SidebarItem(
+              icon: Icons.inventory_2_outlined,
               label: 'Inventory',
               route: RoutePaths.inventory,
             ),
+          if (isAdmin)
+            const SidebarItem(
+              icon: Icons.local_shipping_outlined,
+              label: 'Suppliers',
+              route: RoutePaths.suppliers,
+            ),
         ],
       ),
-      SidebarItem(
-        icon: Icons.account_balance_wallet,
-        label: 'Financials',
-        route: RoutePaths.payments,
-        subItems: [
-          const SidebarSubItem(label: 'Payments', route: RoutePaths.payments),
+      SidebarSection(
+        label: 'Finance',
+        items: [
+          const SidebarItem(
+            icon: Icons.payments_outlined,
+            label: 'Payments',
+            route: RoutePaths.payments,
+          ),
           if (isAdmin)
-            const SidebarSubItem(label: 'Expenses', route: RoutePaths.expenses),
+            const SidebarItem(
+              icon: Icons.receipt_long_outlined,
+              label: 'Expenses',
+              route: RoutePaths.expenses,
+            ),
           if (isAdmin)
-            const SidebarSubItem(label: 'Reports', route: RoutePaths.reports),
+            const SidebarItem(
+              icon: Icons.insights_outlined,
+              label: 'Reports',
+              route: RoutePaths.reports,
+            ),
         ],
       ),
-      // Management group — admin only (employees see no items here)
       if (isAdmin)
-        SidebarItem(
-          icon: Icons.admin_panel_settings,
-          label: 'Management',
-          route: RoutePaths.settings,
-          subItems: [
-            const SidebarSubItem(
+        const SidebarSection(
+          label: 'Admin',
+          items: [
+            SidebarItem(
+              icon: Icons.badge_outlined,
               label: 'Employees',
               route: RoutePaths.employees,
             ),
-            const SidebarSubItem(label: 'Settings', route: RoutePaths.settings),
+            SidebarItem(
+              icon: Icons.settings_outlined,
+              label: 'Settings',
+              route: RoutePaths.settings,
+            ),
           ],
         ),
     ];
   }
 
+  bool _isActive(SidebarItem item) {
+    final r = widget.currentRoute;
+    return r == item.route || r.startsWith('${item.route}/');
+  }
+
+  void _go(String route) {
+    final scaffold = Scaffold.maybeOf(context);
+    if (scaffold != null && scaffold.isDrawerOpen) {
+      Navigator.pop(context);
+    }
+    context.go(route);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final menuItems = _getMenuItems();
+    final sections = _sections();
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      width: isExpanded ? 260 : 80,
-      decoration: const BoxDecoration(color: AppColors.navyDark),
-      child: Column(
-        children: [
-          // ── Logo & Branding Header ────────────────────────────────────────
-          Container(
-            height: 80,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: isExpanded
-                  ? MainAxisAlignment.spaceBetween
-                  : MainAxisAlignment.center,
-              children: [
-                if (isExpanded)
-                  Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          'assets/logo.jpg',
-                          width: 38,
-                          height: 38,
-                          fit: BoxFit.cover,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      width: _expanded ? 248 : 76,
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(color: _kSbBg),
+      // `wide` follows the animated width, so labels never overflow
+      // mid-animation.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 180;
+          return Column(
+            children: [
+              _buildHeader(wide),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                  children: [
+                    for (var s = 0; s < sections.length; s++) ...[
+                      _SectionLabel(
+                        label: sections[s].label,
+                        wide: wide,
+                        first: s == 0,
+                      ),
+                      for (final item in sections[s].items)
+                        _NavTile(
+                          item: item,
+                          active: _isActive(item),
+                          wide: wide,
+                          onTap: () => _go(item.route),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          RichText(
-                            text: TextSpan(
-                              text: 'NASR',
-                              style: AppFonts.bodyLarge.copyWith(
-                                color: AppColors.white,
-                                fontWeight: AppFonts.extraBold,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: ' ISP',
-                                  style: AppFonts.bodyLarge.copyWith(
-                                    color: AppColors.primaryBlue,
-                                    fontWeight: AppFonts.extraBold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            'Connecting Better',
-                            style: AppFonts.labelSmall.copyWith(
-                              color: AppColors.mediumGray,
-                              fontSize: 9,
-                              fontWeight: AppFonts.bold,
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
-                  )
-                else
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.asset(
-                      'assets/logo.jpg',
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                if (isExpanded)
-                  IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left,
-                      color: AppColors.mediumGray,
-                    ),
-                    onPressed: widget.forceCollapsed
-                        ? null
-                        : () => setState(() => _localExpanded = false),
-                  ),
-              ],
-            ),
-          ),
-
-          if (!isExpanded && !widget.forceCollapsed) ...[
-            const SizedBox(height: 12),
-            IconButton(
-              icon: const Icon(Icons.menu, color: AppColors.mediumGray),
-              onPressed: () => setState(() => _localExpanded = true),
-              tooltip: 'Expand Sidebar',
-            ),
-          ],
-
-          // ── Navigation Menu ───────────────────────────────────────────────
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              itemCount: menuItems.length,
-              itemBuilder: (context, i) {
-                final item = menuItems[i];
-                final hasSubItems = item.subItems.isNotEmpty;
-
-                // Determine active state
-                bool isGroupActive = widget.currentRoute.startsWith(item.route);
-                int selectedSubIndex = -1;
-                for (int s = 0; s < item.subItems.length; s++) {
-                  if (widget.currentRoute.startsWith(item.subItems[s].route)) {
-                    isGroupActive = true;
-                    selectedSubIndex = s;
-                  }
-                }
-
-                return _SidebarGroupTile(
-                  item: item,
-                  isExpandedSidebar: isExpanded,
-                  isGroupActive: isGroupActive,
-                  selectedSubIndex: selectedSubIndex >= 0
-                      ? selectedSubIndex
-                      : null,
-                  onGroupTap: () {
-                    // If no sub-items, navigate directly
-                    if (!hasSubItems) {
-                      final scaffoldState = Scaffold.maybeOf(context);
-                      if (scaffoldState != null && scaffoldState.isDrawerOpen) {
-                        Navigator.pop(context);
-                      }
-                      context.go(item.route);
-                    }
-                    // If collapsed sidebar, expand it
-                    if (!isExpanded) {
-                      setState(() => _localExpanded = true);
-                    }
-                  },
-                  onSubTap: (subIndex) {
-                    final scaffoldState = Scaffold.maybeOf(context);
-                    if (scaffoldState != null && scaffoldState.isDrawerOpen) {
-                      Navigator.pop(context);
-                    }
-                    context.go(item.subItems[subIndex].route);
-                  },
-                );
-              },
-            ),
-          ),
-
-          // ── User Info & Logout Footer ─────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  width: 1,
+                  ],
                 ),
               ),
-            ),
-            child: Column(
+              _buildFooter(wide),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(bool wide) {
+    final canToggle = widget.showCollapseToggle && !widget.forceCollapsed;
+
+    final logo = ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        'assets/logo.jpg',
+        width: 36,
+        height: 36,
+        fit: BoxFit.cover,
+      ),
+    );
+
+    return Container(
+      height: 68,
+      padding: EdgeInsets.symmetric(horizontal: wide ? 16 : 0),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _kSbLine)),
+      ),
+      child: wide
+          ? Row(
               children: [
-                if (isExpanded) ...[
-                  Row(
+                logo,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: AppColors.primaryBlue.withValues(
-                          alpha: 0.2,
-                        ),
-                        child: Text(
-                          widget.currentUser.name.characters.first
-                              .toUpperCase(),
-                          style: AppFonts.labelMedium.copyWith(
-                            color: AppColors.primaryBlue,
-                            fontWeight: AppFonts.bold,
+                      Text.rich(
+                        const TextSpan(
+                          text: 'NASR',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              widget.currentUser.name,
-                              style: AppFonts.labelMedium.copyWith(
-                                color: AppColors.white,
-                                fontWeight: AppFonts.semiBold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              widget.currentUser.role.toUpperCase(),
-                              style: AppFonts.labelSmall.copyWith(
-                                color: AppColors.mediumGray,
-                                fontSize: 9,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            TextSpan(
+                              text: ' ISP',
+                              style: TextStyle(color: _kSbAccent),
                             ),
                           ],
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Text(
+                        'Connecting Better',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: _kSbLabel),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: widget.onLogout,
+                ),
+                if (canToggle)
+                  IconButton(
+                    tooltip: 'Collapse sidebar',
                     icon: const Icon(
-                      Icons.logout,
-                      size: 18,
-                      color: AppColors.errorRed,
+                      Icons.keyboard_double_arrow_left,
+                      size: 20,
+                      color: _kSbIcon,
                     ),
-                    label: isExpanded
-                        ? Text(
-                            'Sign Out',
-                            style: AppFonts.bodySmall.copyWith(
-                              color: AppColors.errorRed,
-                              fontWeight: AppFonts.semiBold,
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                    style: TextButton.styleFrom(
-                      alignment: isExpanded
-                          ? Alignment.centerLeft
-                          : Alignment.center,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
+                    onPressed: () => setState(() => _localExpanded = false),
+                  ),
+              ],
+            )
+          : Center(
+              child: canToggle
+                  ? Tooltip(
+                      message: 'Expand sidebar',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setState(() => _localExpanded = true),
+                        child: logo,
+                      ),
+                    )
+                  : logo,
+            ),
+    );
+  }
+
+  Widget _buildFooter(bool wide) {
+    final user = widget.currentUser;
+    final name = user.name.trim();
+    final initial = name.isEmpty ? '?' : name[0].toUpperCase();
+    final roleLabel = user.isAdmin ? 'Administrator' : 'Employee';
+
+    final avatar = CircleAvatar(
+      radius: 17,
+      backgroundColor: _kSbLine,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: _kSbAccent,
+        ),
+      ),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _kSbLine)),
+      ),
+      child: PopupMenuButton<String>(
+        tooltip: 'Account',
+        onSelected: (value) {
+          if (value == 'logout') widget.onLogout?.call();
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            enabled: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? 'Account' : name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _kInk,
                   ),
                 ),
+                Text(
+                  user.email,
+                  style: const TextStyle(fontSize: 12, color: _kMuted),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem<String>(
+            value: 'logout',
+            child: Row(
+              children: [
+                Icon(Icons.logout, size: 18, color: Color(0xFFB42318)),
+                SizedBox(width: 10),
+                Text('Sign out', style: TextStyle(color: Color(0xFFB42318))),
               ],
             ),
           ),
         ],
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: wide ? 8 : 0, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: _kSbHover,
+          ),
+          child: wide
+              ? Row(
+                  children: [
+                    avatar,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name.isEmpty ? 'Account' : name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            roleLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: _kSbLabel,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.unfold_more, size: 18, color: _kSbLabel),
+                  ],
+                )
+              : Center(child: avatar),
+        ),
       ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// _SidebarGroupTile — Always-expanded group tile (no toggle)
-// ══════════════════════════════════════════════════════════════════════════════
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final bool wide;
+  final bool first;
 
-class _SidebarGroupTile extends StatefulWidget {
-  final SidebarItem item;
-  final bool isExpandedSidebar;
-  final bool isGroupActive;
-  final int? selectedSubIndex;
-  final VoidCallback onGroupTap;
-  final Function(int) onSubTap;
-
-  const _SidebarGroupTile({
-    required this.item,
-    required this.isExpandedSidebar,
-    required this.isGroupActive,
-    this.selectedSubIndex,
-    required this.onGroupTap,
-    required this.onSubTap,
+  const _SectionLabel({
+    required this.label,
+    required this.wide,
+    required this.first,
   });
 
   @override
-  State<_SidebarGroupTile> createState() => _SidebarGroupTileState();
+  Widget build(BuildContext context) {
+    if (!wide) {
+      // Icon-only rail: a thin divider stands in for the label.
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: first
+            ? const SizedBox(height: 4)
+            : const Divider(height: 1, color: _kSbLine),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, first ? 12 : 20, 12, 6),
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.9,
+          color: _kSbLabel,
+        ),
+      ),
+    );
+  }
 }
 
-class _SidebarGroupTileState extends State<_SidebarGroupTile> {
-  bool isHovered = false;
-  int? hoveredSubIndex;
+class _NavTile extends StatelessWidget {
+  final SidebarItem item;
+  final bool active;
+  final bool wide;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.item,
+    required this.active,
+    required this.wide,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final hasSubItems = widget.item.subItems.isNotEmpty;
-
-    final Color tileBgColor = widget.isGroupActive
-        ? Colors.white.withValues(alpha: 0.08)
-        : (isHovered
-              ? Colors.white.withValues(alpha: 0.04)
-              : Colors.transparent);
-
-    final Color iconAndTextColor = widget.isGroupActive
-        ? AppColors.primaryBlue
-        : (isHovered ? AppColors.white : AppColors.mediumGray);
-
-    return Column(
+    final tile = Stack(
+      clipBehavior: Clip.none,
       children: [
-        // ── Group header row (no chevron, no toggle) ──────────────────────
-        MouseRegion(
-          onEnter: (_) => setState(() => isHovered = true),
-          onExit: (_) => setState(() => isHovered = false),
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: widget.onGroupTap,
+        Material(
+          color: active ? _kSbLine : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: active ? Colors.transparent : _kSbHover,
+            onTap: onTap,
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: tileBgColor,
-              ),
+              height: 42,
+              padding: EdgeInsets.symmetric(horizontal: wide ? 12 : 0),
               child: Row(
-                mainAxisAlignment: widget.isExpandedSidebar
+                mainAxisAlignment: wide
                     ? MainAxisAlignment.start
                     : MainAxisAlignment.center,
                 children: [
-                  Icon(widget.item.icon, color: iconAndTextColor, size: 20),
-                  if (widget.isExpandedSidebar) ...[
+                  Icon(
+                    item.icon,
+                    size: 20,
+                    color: active ? _kSbAccent : _kSbIcon,
+                  ),
+                  if (wide) ...[
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        widget.item.label,
-                        style: AppFonts.bodyMedium.copyWith(
-                          color: iconAndTextColor,
-                          fontWeight: widget.isGroupActive
-                              ? AppFonts.bold
-                              : AppFonts.medium,
-                          fontSize: 13,
+                        item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: active
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          color: active ? Colors.white : _kSbText,
                         ),
                       ),
                     ),
-                    // ← chevron removed entirely
                   ],
                 ],
               ),
             ),
           ),
         ),
-
-        // ── Sub-items — always visible when sidebar is expanded ───────────
-        if (hasSubItems && widget.isExpandedSidebar)
-          ...widget.item.subItems.asMap().entries.map((entry) {
-            final int subIndex = entry.key;
-            final SidebarSubItem subItem = entry.value;
-
-            final bool subSelected = widget.selectedSubIndex == subIndex;
-            final bool subHovered = hoveredSubIndex == subIndex;
-
-            final Color subBgColor = subSelected
-                ? AppColors.primaryBlue.withValues(alpha: 0.12)
-                : (subHovered
-                      ? Colors.white.withValues(alpha: 0.04)
-                      : Colors.transparent);
-
-            final Color subTextColor = subSelected
-                ? AppColors.primaryBlue
-                : (subHovered
-                      ? AppColors.white
-                      : AppColors.mediumGray.withValues(alpha: 0.8));
-
-            return MouseRegion(
-              onEnter: (_) => setState(() => hoveredSubIndex = subIndex),
-              onExit: (_) => setState(() => hoveredSubIndex = null),
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () => widget.onSubTap(subIndex),
-                child: Container(
-                  margin: const EdgeInsets.only(
-                    left: 36,
-                    right: 16,
-                    bottom: 4,
-                    top: 4,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    color: subBgColor,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.circle, size: 6, color: subTextColor),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          subItem.label,
-                          style: AppFonts.bodySmall.copyWith(
-                            color: subTextColor,
-                            fontWeight: subSelected
-                                ? AppFonts.bold
-                                : AppFonts.normal,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+        if (active)
+          Positioned(
+            left: -12,
+            top: 9,
+            bottom: 9,
+            width: 3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: _kSbAccent,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(3),
                 ),
               ),
-            );
-          }),
-
-        // ── Subtle section divider between groups ─────────────────────────
-        if (widget.isExpandedSidebar)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Divider(
-              color: Colors.white.withValues(alpha: 0.05),
-              height: 1,
             ),
           ),
       ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: wide ? tile : Tooltip(message: item.label, child: tile),
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DashboardTopBar
+// DashboardTopBar — slim context bar: "Section / Page"
 // ══════════════════════════════════════════════════════════════════════════════
 
 class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
+
+  /// Group the page belongs to, shown before the title ("Operations / ...").
+  final String? section;
   final List<Widget>? actions;
   final VoidCallback? onMenuPressed;
   final UserModel? currentUser;
@@ -548,6 +552,7 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
   const DashboardTopBar({
     super.key,
     required this.title,
+    this.section,
     this.actions,
     this.onMenuPressed,
     this.currentUser,
@@ -558,67 +563,38 @@ class DashboardTopBar extends StatelessWidget implements PreferredSizeWidget {
     final isMobile = Responsive.isMobile(context);
     return AppBar(
       elevation: 0,
-      backgroundColor: AppColors.white,
-      foregroundColor: AppColors.black,
-      title: Text(
-        title,
-        style: AppFonts.headlineMedium.copyWith(fontWeight: AppFonts.bold),
-        overflow: TextOverflow.ellipsis,
-      ),
-      actions: [
-        if (actions != null) ...actions!,
-        if (currentUser != null)
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16),
-            child: Center(
-              child: Tooltip(
-                message: '${currentUser!.name} (${currentUser!.role})',
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AppColors.primaryBlue.withValues(
-                        alpha: 0.2,
-                      ),
-                      child: Text(
-                        currentUser!.name.characters.first.toUpperCase(),
-                        style: AppFonts.labelMedium.copyWith(
-                          color: AppColors.primaryBlue,
-                          fontWeight: AppFonts.bold,
-                        ),
-                      ),
-                    ),
-                    // Name/role hidden on mobile — the avatar + tooltip is
-                    // enough, and the space is needed for the title/menu icon.
-                    if (!isMobile) ...[
-                      const SizedBox(width: 10),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            currentUser!.name,
-                            style: AppFonts.labelMedium.copyWith(
-                              fontWeight: AppFonts.semiBold,
-                            ),
-                          ),
-                          Text(
-                            currentUser!.role.toUpperCase(),
-                            style: AppFonts.labelSmall.copyWith(
-                              color: AppColors.mediumGray,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+      scrolledUnderElevation: 0,
+      toolbarHeight: 56,
+      backgroundColor: Colors.white,
+      foregroundColor: _kInk,
+      shape: const Border(bottom: BorderSide(color: _kBorder)),
+      titleSpacing: isMobile ? null : 24,
+      title: Text.rich(
+        TextSpan(
+          children: [
+            if (section != null && !isMobile)
+              TextSpan(
+                text: '$section  /  ',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: _kFaint,
                 ),
               ),
+            TextSpan(
+              text: title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _kInk,
+              ),
             ),
-          ),
-      ],
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      actions: [if (actions != null) ...actions!, const SizedBox(width: 8)],
     );
   }
 

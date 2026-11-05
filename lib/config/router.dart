@@ -1,3 +1,5 @@
+import 'package:nasr_isp/features/suppliers/presentation/pages/suppliers_page.dart';
+import 'package:nasr_isp/features/suppliers/presentation/pages/supplier_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -121,6 +123,23 @@ GoRouter createAppRouter(AuthBloc authBloc) {
             path: RoutePaths.inventory,
             builder: (context, state) => const InventoryPage(),
             redirect: _adminOnlyRedirect,
+          ),
+
+          // Suppliers (admin-only)
+          GoRoute(
+            path: RoutePaths.suppliers,
+            builder: (context, state) => const SuppliersPage(),
+            redirect: _adminOnlyRedirect,
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (context, state) {
+                  final id = state.pathParameters['id'] ?? '';
+                  return SupplierDetailPage(supplierId: id);
+                },
+                redirect: _adminOnlyRedirect,
+              ),
+            ],
           ),
 
           // Settings (admin-only)

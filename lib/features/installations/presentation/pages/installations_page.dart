@@ -19,7 +19,6 @@ import 'package:nasr_isp/features/installations/presentation/utils/installation_
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_card_list.dart';
 import 'package:nasr_isp/features/installations/presentation/widgets/installation_filter_panel.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
-import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/config/service_locator.dart';

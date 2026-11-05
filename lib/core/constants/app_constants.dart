@@ -52,6 +52,8 @@ class RoutePaths {
   static const String settings = '/settings';
   static const String inventory = '/inventory';
   static const String reports = '/reports';
+  static const String suppliers = '/suppliers';
+  static const String supplierDetails = '/suppliers/:id';
 }
 
 /// User roles
@@ -208,6 +210,26 @@ enum StockMovementType {
   }
 }
 
+enum StockIssuePurpose {
+  tower,
+  replacement,
+  damagedLost,
+  other;
+
+  String get label {
+    switch (this) {
+      case StockIssuePurpose.tower:
+        return 'Tower';
+      case StockIssuePurpose.replacement:
+        return 'Replacement';
+      case StockIssuePurpose.damagedLost:
+        return 'Damaged / Lost';
+      case StockIssuePurpose.other:
+        return 'Other';
+    }
+  }
+}
+
 /// Installation status
 enum InstallationStatus {
   pending,
@@ -248,5 +270,63 @@ enum EmployeeStatus {
   String get displayName => label;
 }
 
+/// Supplier payment status
+enum SupplierPaymentStatus {
+  unpaid,
+  partial,
+  paid;
 
+  String get label {
+    switch (this) {
+      case SupplierPaymentStatus.unpaid:
+        return 'Unpaid';
+      case SupplierPaymentStatus.partial:
+        return 'Partial';
+      case SupplierPaymentStatus.paid:
+        return 'Paid';
+    }
+  }
 
+  String get displayName => label;
+
+  /// Normalize unknown strings on read; defaults to [unpaid].
+  static SupplierPaymentStatus fromString(String? value) {
+    if (value == null || value.isEmpty) return SupplierPaymentStatus.unpaid;
+    return SupplierPaymentStatus.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => SupplierPaymentStatus.unpaid,
+    );
+  }
+}
+
+/// Payment method (shared across supplier payments and customer payments)
+enum PaymentMethod {
+  cash,
+  bankTransfer,
+  jazzCash,
+  easyPaisa;
+
+  String get label {
+    switch (this) {
+      case PaymentMethod.cash:
+        return 'Cash';
+      case PaymentMethod.bankTransfer:
+        return 'Bank Transfer';
+      case PaymentMethod.jazzCash:
+        return 'JazzCash';
+      case PaymentMethod.easyPaisa:
+        return 'EasyPaisa';
+    }
+  }
+
+  String get displayName => label;
+
+  /// Normalize unknown strings on read; defaults to [cash].
+  static PaymentMethod fromString(String? value) {
+    if (value == null || value.isEmpty) return PaymentMethod.cash;
+    return PaymentMethod.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => PaymentMethod.cash,
+    );
+  }
+}

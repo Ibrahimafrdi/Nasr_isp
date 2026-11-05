@@ -1,19 +1,16 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
-import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
-import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
-import 'package:nasr_isp/features/customers/presentation/widgets/customer_attention_bar.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_card_list.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_details_side_sheet.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_filter_panel.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_status_dialogs.dart';
+import 'package:nasr_isp/features/customers/presentation/widgets/customer_summary_tiles.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_table.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/renew_subscription_dialog.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
@@ -21,9 +18,7 @@ import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
-import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
-import 'package:nasr_isp/core/theme/app_colors.dart';
 
 class CustomersPage extends StatefulWidget {
   const CustomersPage({Key? key}) : super(key: key);
@@ -146,7 +141,6 @@ class _CustomersPageState extends State<CustomersPage> {
         return BlocBuilder<CustomersBloc, CustomersState>(
           builder: (context, state) {
             if (state is CustomersLoaded) _summary = state.summary;
-            final hasAlerts = _summary.expiringSoon > 0 || _summary.expired > 0;
 
             return ColoredBox(
               color: _kPageBg,
@@ -160,32 +154,24 @@ class _CustomersPageState extends State<CustomersPage> {
                     _buildHeader(),
                     const SizedBox(height: 20),
 
-                    // One bar for every renewal alert.
-                    if (hasAlerts) ...[
-                      CustomerAttentionBar(
-                        summary: _summary,
-                        onShowExpiring: () => _onStatusChanged(
-                          CustomerStatus.expiringSoon.label,
-                        ),
-                        onShowExpired: () =>
-                            _onStatusChanged(CustomerStatus.expired.label),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+                    // Counts double as the status filter: tap a tile to
+                    // filter, tap it again to clear.
+                    CustomerSummaryTiles(
+                      summary: _summary,
+                      selectedStatus: _selectedStatus,
+                      onStatusChanged: _onStatusChanged,
+                    ),
+                    const SizedBox(height: 16),
 
-                    // Search, status chips with counts, and connection type
-                    // in one row.
+                    // Search and connection type.
                     CustomerFilterPanel(
                       searchController: _searchController,
-                      selectedStatus: _selectedStatus,
                       selectedConnectionType: _selectedConnectionType,
                       activeFilterCount:
                           (_selectedStatus != null ? 1 : 0) +
                           (_searchController.text.isNotEmpty ? 1 : 0) +
                           (_selectedConnectionType != null ? 1 : 0),
-                      summary: _summary,
                       onSearchChanged: _onSearchChanged,
-                      onStatusChanged: _onStatusChanged,
                       onConnectionTypeChanged: _onConnectionTypeChanged,
                       onClearFilters: _clearFilters,
                     ),
@@ -253,10 +239,8 @@ class _CustomersPageState extends State<CustomersPage> {
                                     getPackageName: _getPackageName,
                                     footerText:
                                         'Showing ${state.summary.showingFrom}-${state.summary.showingTo} of ${state.summary.filteredTotal} customers',
-                                    onView: (c) => _showDetails(
-                                      c,
-                                      authState.user.isAdmin,
-                                    ),
+                                    onView: (c) =>
+                                        _showDetails(c, authState.user.isAdmin),
                                     onRenew: _renew,
                                     onEdit: (c) => context.go(
                                       '${RoutePaths.customers}/${c.id}/edit',

@@ -645,15 +645,15 @@ class _DashboardPageState extends State<DashboardPage> {
         return PremiumDataRow(
           cells: [
             Text(
-              payment.customerName ?? payment.customerId,
+              payment.customerName.isNotEmpty ? payment.customerName : payment.customerId,
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: AppColors.charcoal,
               ),
             ),
-            Text(payment.method ?? '—'),
+            Text((payment.method != null && payment.method!.isNotEmpty) ? payment.method! : '—'),
             Text(
-              _rs((payment.paidAmount ?? payment.amount).toDouble()),
+              _rs(payment.paidAmount > 0 ? payment.paidAmount : payment.amount),
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: statusType == StatusType.completed
@@ -672,11 +672,11 @@ class _DashboardPageState extends State<DashboardPage> {
             ? StatusType.completed
             : StatusType.pending;
         return MobileDashboardCard(
-          title: payment.customerName ?? payment.customerId,
-          subtitle: payment.method ?? '—',
+          title: payment.customerName.isNotEmpty ? payment.customerName : payment.customerId,
+          subtitle: (payment.method != null && payment.method!.isNotEmpty) ? payment.method! : '—',
           statusBadge: StatusBadge(status: statusType),
           details: {
-            'Amount': _rs((payment.paidAmount ?? payment.amount).toDouble()),
+            'Amount': _rs(payment.paidAmount > 0 ? payment.paidAmount : payment.amount),
             'Date': dateOf(payment),
           },
         );

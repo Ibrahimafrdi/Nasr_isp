@@ -1,3 +1,4 @@
+import 'package:nasr_isp/features/suppliers/presentation/bloc/supplier_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -44,6 +45,7 @@ class MyApp extends StatelessWidget {
           create: (_) => getIt<InstallationBloc>(),
         ),
         BlocProvider<SettingsBloc>(create: (_) => getIt<SettingsBloc>()),
+        BlocProvider<SupplierBloc>(create: (_) => getIt<SupplierBloc>()),
       ],
       child: Builder(
         builder: (context) {
@@ -54,6 +56,7 @@ class MyApp extends StatelessWidget {
             title: 'NASR ISP Management',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
+
             themeMode: ThemeMode.light,
             routerConfig: router,
             debugShowCheckedModeBanner: false,

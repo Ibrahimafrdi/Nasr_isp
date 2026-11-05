@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
@@ -15,7 +14,6 @@ import 'package:nasr_isp/features/employees/presentation/bloc/employees_bloc.dar
 import 'package:nasr_isp/features/employees/presentation/widgets/employee_card_list.dart';
 import 'package:nasr_isp/features/employees/presentation/widgets/employee_metric_cards.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
-import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
 
 class EmployeesPage extends StatefulWidget {

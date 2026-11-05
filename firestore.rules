@@ -14,8 +14,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && currentUserDoc().role == 'admin'
-        && currentUserDoc().isActive == true;
+        && (currentUserDoc().role in ['admin', 'Admin', 'ADMIN'])
+        && (!('isActive' in currentUserDoc()) || currentUserDoc().isActive == true);
     }
 
     // ── users: identity + role. This must be locked down first — every
@@ -31,10 +31,11 @@ service cloud.firestore {
       // initiated this" from here, so self-creation is capped to the
       // 'employee' role and an active account; granting 'admin' must be
       // done directly in the Firebase console.
-      allow create: if isSignedIn()
-        && request.auth.uid == userId
-        && request.resource.data.role == 'employee'
-        && request.resource.data.isActive == true;
+      allow create: if (isAdmin() && request.resource.data.role in ['admin', 'employee'] && request.resource.data.isActive is bool)
+        || (isSignedIn()
+            && request.auth.uid == userId
+            && request.resource.data.role == 'employee'
+            && request.resource.data.isActive == true);
 
       // Admins may change anything (including promoting/demoting roles and
       // toggling isActive). A user editing their own doc may not touch
@@ -88,7 +89,23 @@ service cloud.firestore {
       }
     }
 
+    match /stock_issues/{issueId} {
+      allow read, write: if isAdmin();
+    }
+
     match /expenses/{expenseId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /suppliers/{supplierId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /supplier_purchases/{purchaseId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /supplier_payments/{paymentId} {
       allow read, write: if isAdmin();
     }
 

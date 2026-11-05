@@ -135,8 +135,8 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
           outcome.isPaidInFull
               ? '${widget.customer.name} renewed through $until.'
               : '${widget.customer.name} renewed through $until — '
-                  '${DateTimeUtils.formatCurrency(outcome.outstanding)} '
-                  'still outstanding. Settle it from the Payments page.',
+                    '${DateTimeUtils.formatCurrency(outcome.outstanding)} '
+                    'still outstanding. Settle it from the Payments page.',
         ),
         backgroundColor: outcome.isPaidInFull
             ? AppTheme.successColor
@@ -152,7 +152,10 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
         ? const SizedBox(
             width: 14,
             height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
           )
         : const Icon(Icons.autorenew, size: 16);
     final saveLabel = Text(_isSubmitting ? 'Renewing...' : 'Confirm Renewal');
@@ -252,7 +255,10 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
           decoration: const InputDecoration(labelText: 'Payment Method'),
           items: const [
             DropdownMenuItem(value: 'cash', child: Text('Cash')),
-            DropdownMenuItem(value: 'bankTransfer', child: Text('Bank Transfer')),
+            DropdownMenuItem(
+              value: 'bankTransfer',
+              child: Text('Bank Transfer'),
+            ),
             DropdownMenuItem(value: 'easypaisa', child: Text('EasyPaisa')),
             DropdownMenuItem(value: 'jazzcash', child: Text('JazzCash')),
           ],
@@ -264,7 +270,10 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
 
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.calendar_today, color: AppColors.primaryBlue),
+          leading: const Icon(
+            Icons.calendar_today,
+            color: AppColors.primaryBlue,
+          ),
           title: const Text('Renewal Date', style: TextStyle(fontSize: 13)),
           subtitle: Text(
             DateTimeUtils.formatDate(_renewalDate),
@@ -303,7 +312,7 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
   Widget _currentPeriodSummary() {
     final due = widget.customer.effectiveDueDate;
     final now = widget.clock();
-    final days = due == null ? null : BillingCycle.daysUntilDue(due, now);
+    final days = due == null ? null : BillingCycle.dayUntilDue(due, now);
 
     final String expiryLabel;
     final Color expiryColor;
@@ -331,8 +340,12 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
           'Monthly Bill',
           DateTimeUtils.formatCurrency(widget.customer.monthlyBill),
         ),
-        _summaryRow(Icons.event_busy, 'Current Expiry', expiryLabel,
-            valueColor: expiryColor),
+        _summaryRow(
+          Icons.event_busy,
+          'Current Expiry',
+          expiryLabel,
+          valueColor: expiryColor,
+        ),
       ],
     );
   }
@@ -380,12 +393,17 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
       decoration: BoxDecoration(
         color: AppTheme.successColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.successColor.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: AppTheme.successColor.withValues(alpha: 0.35),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.event_available,
-              size: 18, color: AppTheme.successColor),
+          const Icon(
+            Icons.event_available,
+            size: 18,
+            color: AppTheme.successColor,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

@@ -41,9 +41,7 @@ Future<bool> showCustomerStatusDialog(
         isDestructive: true,
         onConfirm: () {
           Navigator.of(ctx).pop(true);
-          bloc.add(
-            SetCustomerStatusEvent(customer: customer, active: false),
-          );
+          bloc.add(SetCustomerStatusEvent(customer: customer, active: false));
         },
         onCancel: () => Navigator.of(ctx).pop(false),
       ),
@@ -161,7 +159,7 @@ class _ReactivateCustomerDialogState extends State<_ReactivateCustomerDialog> {
     if (existingDue == null) {
       resumeSubtitle = 'No expiry on record for this customer.';
     } else {
-      final days = BillingCycle.daysUntilDue(existingDue, now);
+      final days = BillingCycle.dayUntilDue(existingDue, now);
       final standing = days < 0
           ? 'already overdue by ${-days} days'
           : (days == 0 ? 'due today' : 'due in $days days');

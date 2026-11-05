@@ -24,6 +24,8 @@ import 'package:nasr_isp/features/inventory/domain/usecases/addstock_inventory_i
 import 'package:nasr_isp/features/inventory/domain/usecases/delete_inventory_item.dart';
 import 'package:nasr_isp/features/inventory/domain/usecases/get_inventory_items.dart';
 import 'package:nasr_isp/features/inventory/domain/usecases/getstock_inventory.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/issue_stock.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/get_stock_issues.dart';
 import 'package:nasr_isp/features/inventory/domain/usecases/update_inventory_item.dart';
 import 'package:nasr_isp/features/inventory/presentation/bloc/inventory_bloc.dart';
 
@@ -91,6 +93,17 @@ import 'package:nasr_isp/features/settings/domain/usecases/update_user_role.dart
 import 'package:nasr_isp/features/settings/domain/usecases/toggle_user_status.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/user_management_bloc.dart';
+import 'package:nasr_isp/features/suppliers/data/datasources/supplier_remote_data_source.dart';
+import 'package:nasr_isp/features/suppliers/data/repositories/supplier_repository_impl.dart';
+import 'package:nasr_isp/features/suppliers/domain/repositories/supplier_repository.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/add_supplier.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/update_supplier.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/deactivate_supplier.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/get_suppliers.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/get_supplier_detail.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/add_supplier_payment.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/cancel_purchase.dart';
+import 'package:nasr_isp/features/suppliers/presentation/bloc/supplier_bloc.dart';
 
 final getIt = GetIt.instance;
 
@@ -221,7 +234,7 @@ void setupServiceLocator() {
       deleteExpense: getIt(),
     ),
   );
-  
+
   // Employees Clean Architecture stack
   getIt.registerLazySingleton<EmployeeRemoteDataSource>(
     () => EmployeeRemoteDataSourceImpl(firestore: getIt()),
@@ -240,7 +253,7 @@ void setupServiceLocator() {
       getInstallations: getIt(),
     ),
   );
-  
+
   // Installations clean architecture stack
   getIt.registerLazySingleton<InstallationRemoteDataSource>(
     () => InstallationRemoteDataSourceImpl(firestore: getIt()),
@@ -306,7 +319,10 @@ void setupServiceLocator() {
     () => SettingsRemoteDataSourceImpl(firestore: getIt()),
   );
   getIt.registerLazySingleton<UserManagementRemoteDataSource>(
-    () => UserManagementRemoteDataSourceImpl(firestore: getIt(), firebaseAuth: getIt()),
+    () => UserManagementRemoteDataSourceImpl(
+      firestore: getIt(),
+      firebaseAuth: getIt(),
+    ),
   );
 
   getIt.registerLazySingleton<SettingsRepository>(
@@ -336,7 +352,11 @@ void setupServiceLocator() {
   );
 
   getIt.registerLazySingleton<InventoryRemoteDataSource>(
-    () => InventoryRemoteDataSourceImpl(),
+    () => InventoryRemoteDataSourceImpl(
+      firestore: getIt(),
+      firebaseAuth: getIt(),
+      supplierRemoteDataSource: getIt(),
+    ),
   );
   getIt.registerLazySingleton<InventoryRepository>(
     () => InventoryRepositoryImpl(remoteDataSource: getIt()),
@@ -347,6 +367,8 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(() => DeleteInventoryItem(getIt()));
   getIt.registerLazySingleton(() => AddStockMovement(getIt()));
   getIt.registerLazySingleton(() => GetStockMovements(getIt()));
+  getIt.registerLazySingleton(() => IssueStock(getIt()));
+  getIt.registerLazySingleton(() => GetStockIssues(getIt()));
   getIt.registerFactory(
     () => InventoryBloc(
       getInventoryItems: getIt(),
@@ -355,6 +377,35 @@ void setupServiceLocator() {
       deleteInventoryItem: getIt(),
       addStockMovement: getIt(),
       getStockMovements: getIt(),
+      issueStock: getIt(),
+      getStockIssues: getIt(),
+    ),
+  );
+
+  // Suppliers Clean Architecture stack
+  getIt.registerLazySingleton<SupplierRemoteDataSource>(
+    () => SupplierRemoteDataSourceImpl(firestore: getIt()),
+  );
+  getIt.registerLazySingleton<SupplierRepository>(
+    () => SupplierRepositoryImpl(remoteDataSource: getIt()),
+  );
+  getIt.registerLazySingleton(() => AddSupplier(getIt()));
+  getIt.registerLazySingleton(() => UpdateSupplier(getIt()));
+  getIt.registerLazySingleton(() => DeactivateSupplier(getIt()));
+  getIt.registerLazySingleton(() => GetSuppliers(getIt()));
+  getIt.registerLazySingleton(() => GetSupplierDetail(getIt()));
+  getIt.registerLazySingleton(() => AddSupplierPayment(getIt()));
+  getIt.registerLazySingleton(() => CancelPurchase(getIt()));
+
+  getIt.registerFactory<SupplierBloc>(
+    () => SupplierBloc(
+      addSupplier: getIt(),
+      updateSupplier: getIt(),
+      deactivateSupplier: getIt(),
+      getSuppliers: getIt(),
+      getSupplierDetail: getIt(),
+      addSupplierPayment: getIt(),
+      cancelPurchase: getIt(),
     ),
   );
 }

@@ -1,32 +1,73 @@
+import 'package:nasr_isp/features/suppliers/data/datasources/supplier_remote_data_source.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/features/inventory/data/models/inventory_item_model.dart';
 import 'package:nasr_isp/features/inventory/data/models/stock_movement_model.dart';
+import 'package:nasr_isp/features/inventory/data/models/stock_issue_model.dart';
 
 abstract class InventoryRemoteDataSource {
-  Future<void> addInventoryItem(InventoryItemModel item, {String? performedBy});
+  Future<void> addInventoryItem(
+    InventoryItemModel item, {
+    String? supplierId,
+    double? unitCost,
+    double paidNow = 0.0,
+    PaymentMethod paymentMethod = PaymentMethod.cash,
+    DateTime? purchaseDate,
+    String? invoiceNo,
+    String? purchaseNotes,
+    String? performedBy,
+  });
   Future<List<InventoryItemModel>> getInventoryItems();
   Future<void> updateInventoryItem(InventoryItemModel item);
   Future<void> deleteInventoryItem(String itemId);
-  Future<void> addStockMovement(String itemId, StockMovementModel movement);
+  Future<void> addStockMovement(
+    String itemId,
+    StockMovementModel movement, {
+    String? supplierId,
+    double? unitCost,
+    double paidNow = 0.0,
+    PaymentMethod paymentMethod = PaymentMethod.cash,
+    DateTime? purchaseDate,
+    String? invoiceNo,
+    String? purchaseNotes,
+  });
   Future<List<StockMovementModel>> getStockMovements(String itemId);
+  Future<void> issueStock(StockIssueModel issue);
+  Future<List<StockIssueModel>> getStockIssues();
 }
 
 class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final SupplierRemoteDataSource _supplierRemoteDataSource;
 
   InventoryRemoteDataSourceImpl({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = firebaseAuth ?? FirebaseAuth.instance;
+    SupplierRemoteDataSource? supplierRemoteDataSource,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = firebaseAuth ?? FirebaseAuth.instance,
+       _supplierRemoteDataSource =
+           supplierRemoteDataSource ??
+           SupplierRemoteDataSourceImpl(
+             firestore: firestore ?? FirebaseFirestore.instance,
+           );
 
   CollectionReference get _col => _firestore.collection('inventory');
 
   @override
-  Future<void> addInventoryItem(InventoryItemModel item, {String? performedBy}) async {
+  Future<void> addInventoryItem(
+    InventoryItemModel item, {
+    String? supplierId,
+    double? unitCost,
+    double paidNow = 0.0,
+    PaymentMethod paymentMethod = PaymentMethod.cash,
+    DateTime? purchaseDate,
+    String? invoiceNo,
+    String? purchaseNotes,
+    String? performedBy,
+  }) async {
     final querySnapshot = await _col.get();
     DocumentSnapshot? existingDoc;
 
@@ -40,10 +81,39 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
       }
     }
 
+    final user = _auth.currentUser;
+    final effectiveActor = (performedBy != null && performedBy.isNotEmpty)
+        ? performedBy
+        : (user?.displayName != null && user!.displayName!.isNotEmpty
+              ? user.displayName!
+              : (user?.email ?? user?.uid ?? 'Admin'));
+    final effectiveCost = unitCost ?? item.unitCost;
+
+    if (supplierId != null && supplierId.isNotEmpty) {
+      final targetId =
+          existingDoc?.id ?? (item.id.isNotEmpty ? item.id : _col.doc().id);
+      await _supplierRemoteDataSource.recordStockPurchase(
+        supplierId: supplierId,
+        itemId: targetId,
+        itemName: item.name,
+        quantity: item.quantityInStock,
+        unitCost: effectiveCost,
+        paidNow: paidNow,
+        paymentMethod: paymentMethod,
+        date: purchaseDate,
+        invoiceNo: invoiceNo,
+        notes: purchaseNotes,
+        performedBy: effectiveActor,
+        inventoryItem: item.copyWith(id: targetId),
+        isNewItem: existingDoc == null,
+      );
+      return;
+    }
+
     if (existingDoc != null) {
-      // Item with matching name exists! Update stock of existing item instead of creating duplicate entry.
       final existingData = existingDoc.data() as Map<String, dynamic>? ?? {};
-      final currentQty = (existingData['quantityInStock'] as num?)?.toInt() ?? 0;
+      final currentQty =
+          (existingData['quantityInStock'] as num?)?.toInt() ?? 0;
       final newQty = currentQty + item.quantityInStock;
 
       final updatedData = item.toFirestore();
@@ -54,16 +124,10 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
 
       await _col.doc(existingDoc.id).update(updatedData);
 
-      // Resolve actor for the stock movement
-      final user = _auth.currentUser;
-      final actor = (performedBy != null && performedBy.isNotEmpty)
-          ? performedBy
-          : (user?.displayName != null && user!.displayName!.isNotEmpty
-              ? user.displayName!
-              : (user?.email ?? user?.uid ?? 'Admin'));
-
-      // Record stock-in movement for the restock
-      final movementDocRef = _col.doc(existingDoc.id).collection('movements').doc();
+      final movementDocRef = _col
+          .doc(existingDoc.id)
+          .collection('movements')
+          .doc();
       await movementDocRef.set({
         'id': movementDocRef.id,
         'itemId': existingDoc.id,
@@ -71,13 +135,13 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
         'quantity': item.quantityInStock,
         'reason': 'Restocked via Add Item',
         'date': FieldValue.serverTimestamp(),
-        'performedBy': actor,
+        'performedBy': effectiveActor,
       });
     } else {
       final data = item.toFirestore();
       data['createdAt'] = FieldValue.serverTimestamp();
       data['updatedAt'] = FieldValue.serverTimestamp();
-      await _col.doc(item.id).set(data);
+      await _col.doc(item.id.isNotEmpty ? item.id : null).set(data);
     }
   }
 
@@ -115,7 +179,46 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
   }
 
   @override
-  Future<void> addStockMovement(String itemId, StockMovementModel movement) async {
+  Future<void> addStockMovement(
+    String itemId,
+    StockMovementModel movement, {
+    String? supplierId,
+    double? unitCost,
+    double paidNow = 0.0,
+    PaymentMethod paymentMethod = PaymentMethod.cash,
+    DateTime? purchaseDate,
+    String? invoiceNo,
+    String? purchaseNotes,
+  }) async {
+    if (movement.type == StockMovementType.stockIn &&
+        supplierId != null &&
+        supplierId.isNotEmpty) {
+      final itemDoc = await _col.doc(itemId).get();
+      if (!itemDoc.exists) {
+        throw Exception('Inventory item with ID $itemId does not exist.');
+      }
+      final itemData = itemDoc.data() as Map<String, dynamic>? ?? {};
+      final itemName = itemData['name'] as String? ?? 'Item';
+      final effectiveCost =
+          unitCost ?? (itemData['unitCost'] as num?)?.toDouble() ?? 0.0;
+
+      await _supplierRemoteDataSource.recordStockPurchase(
+        supplierId: supplierId,
+        itemId: itemId,
+        itemName: itemName,
+        quantity: movement.quantity,
+        unitCost: effectiveCost,
+        paidNow: paidNow,
+        paymentMethod: paymentMethod,
+        date: purchaseDate ?? movement.date,
+        invoiceNo: invoiceNo,
+        notes: purchaseNotes ?? movement.reason,
+        performedBy: movement.performedBy,
+        isNewItem: false,
+      );
+      return;
+    }
+
     final itemDocRef = _col.doc(itemId);
     final movementDocRef = itemDocRef.collection('movements').doc(movement.id);
 
@@ -136,17 +239,16 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
         if (updatedQty < 0) {
           final itemName = itemData['name'] as String? ?? 'this item';
           throw Exception(
-              'Insufficient stock for $itemName. Available: $currentQty, Requested: ${movement.quantity}');
+            'Insufficient stock for $itemName. Available: $currentQty, Requested: ${movement.quantity}',
+          );
         }
       }
 
-      // Add movement document
       transaction.set(movementDocRef, {
         ...movement.toFirestore(),
         'date': FieldValue.serverTimestamp(),
       });
 
-      // Update parent document quantityInStock and updatedAt
       transaction.update(itemDocRef, {
         'quantityInStock': updatedQty,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -165,5 +267,46 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
     return movementsSnapshot.docs
         .map((doc) => StockMovementModel.fromFirestore(doc))
         .toList();
+  }
+
+  @override
+  Future<void> issueStock(StockIssueModel issue) async {
+    final itemRef = _col.doc(issue.itemId);
+    final issueRef = _firestore.collection('stock_issues').doc(issue.id);
+    await _firestore.runTransaction((transaction) async {
+      issue.validate();
+      final itemSnapshot = await transaction.get(itemRef);
+      if (!itemSnapshot.exists) {
+        throw StateError('Inventory item "${issue.itemId}" no longer exists.');
+      }
+
+      final data = itemSnapshot.data() as Map<String, dynamic>? ?? {};
+      final currentStock = (data['quantityInStock'] as num?)?.toInt() ?? 0;
+      if (issue.quantity > currentStock) {
+        final itemName = data['name'] as String? ?? 'item';
+        throw StateError(
+          'Cannot issue ${issue.quantity} units of $itemName; only $currentStock are currently in stock.',
+        );
+      }
+
+      final issueSnapshot = issue.copyWith(
+        itemName: data['name'] as String? ?? issue.itemName,
+        unitCost: (data['unitCost'] as num?)?.toDouble() ?? 0,
+      );
+      transaction.update(itemRef, {
+        'quantityInStock': currentStock - issue.quantity,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(issueRef, {
+        ...issueSnapshot.toFirestore(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  @override
+  Future<List<StockIssueModel>> getStockIssues() async {
+    final snapshot = await _firestore.collection('stock_issues').get();
+    return snapshot.docs.map(StockIssueModel.fromFirestore).toList();
   }
 }

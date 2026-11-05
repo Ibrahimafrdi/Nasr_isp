@@ -193,8 +193,8 @@ void main() {
     test('sets the new expiry one month from the RENEWAL date', () {
       // Not from the old due date (Aug 5) — a customer paying late gets a full
       // month from the day they paid.
-      expect(outcome.renewedUntil, DateTime(2026, 9, 10));
-      expect(customers.updated.single.nextDueDate, DateTime(2026, 9, 10));
+      expect(outcome.renewedUntil, DateTime(2026, 9, 10, 12, 0));
+      expect(customers.updated.single.nextDueDate, DateTime(2026, 9, 10, 12, 0));
     });
 
     test('writes one charge keyed to the renewal month', () {
@@ -219,7 +219,7 @@ void main() {
       // The old code stored the NEXT due date here, which made the payments
       // table's date column mean the opposite of its label.
       expect(payments.added.single.dueDate, DateTime(2026, 8, 5));
-      expect(payments.added.single.periodEnd, DateTime(2026, 9, 10));
+      expect(payments.added.single.periodEnd, DateTime(2026, 9, 10, 12, 0));
     });
 
     test('snapshots the upstream cost onto the charge', () {
@@ -249,7 +249,7 @@ void main() {
     test('still renews the subscription', () {
       // The operator has granted the month; the shortfall is a receivable, not
       // a reason to leave the customer disconnected.
-      expect(outcome.renewedUntil, DateTime(2026, 9, 10));
+      expect(outcome.renewedUntil, DateTime(2026, 9, 10, 12, 0));
     });
 
     test('leaves the balance outstanding and the charge open', () {
@@ -367,7 +367,7 @@ void main() {
 
       expect(payments.added.single.paidAmount, 3000);
       expect(payments.added.single.packageCostAtBilling, isNull);
-      expect(customers.updated.single.nextDueDate, DateTime(2026, 9, 10));
+      expect(customers.updated.single.nextDueDate, DateTime(2026, 9, 10, 12, 0));
     });
   });
 
@@ -428,6 +428,6 @@ void main() {
       method: 'cash',
     );
 
-    expect(outcome.renewedUntil, DateTime(2026, 2, 28));
+    expect(outcome.renewedUntil, DateTime(2026, 2, 28, 12, 0));
   });
 }
