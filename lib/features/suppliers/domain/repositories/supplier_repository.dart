@@ -17,6 +17,13 @@ abstract class SupplierRepository {
     DateTime? date,
     String? notes,
   });
+  Future<void> paySupplierDues({
+    required String supplierId,
+    required double amount,
+    required PaymentMethod method,
+    DateTime? date,
+    String? notes,
+  });
   Future<void> cancelPurchase(String purchaseId, {String? performedBy});
   Future<void> recordStockPurchase({
     required String supplierId,
@@ -34,4 +41,3 @@ abstract class SupplierRepository {
     bool isNewItem = false,
   });
 }
-

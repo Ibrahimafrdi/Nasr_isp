@@ -145,9 +145,24 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       await issueStock(event.issue);
       await _emitInventory(emit);
     } catch (e) {
-      emit(InventoryError(e.toString()));
+      emit(InventoryError(_readableError(e)));
     }
   }
+
+  /// On web, errors thrown inside a Firestore transaction arrive boxed
+  /// ("Dart exception thrown from converted Future..."). Unwrap the real one.
+  String _readableError(Object e) {
+    try {
+      final inner = (e as dynamic).error;
+      if (inner != null) return _clean(inner.toString());
+    } catch (_) {}
+    return _clean(e.toString());
+  }
+
+  String _clean(String message) => message
+      .replaceFirst('Bad state: ', '')
+      .replaceFirst('Invalid argument(s): ', '')
+      .replaceFirst('Exception: ', '');
 
   Future<void> _emitInventory(Emitter<InventoryState> emit) async {
     final results = await Future.wait([getInventoryItems(), getStockIssues()]);

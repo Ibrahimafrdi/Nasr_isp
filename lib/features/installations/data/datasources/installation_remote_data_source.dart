@@ -147,10 +147,34 @@ class InstallationRemoteDataSourceImpl implements InstallationRemoteDataSource {
     // Sort in-memory by createdAt descending
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // Filter in-memory by customer name if searchQuery is provided
+    // Filter in-memory by customer name, customer ID, or customer userId
     if (searchQuery != null && searchQuery.isNotEmpty) {
-      final queryLower = searchQuery.toLowerCase();
-      list = list.where((inst) => inst.customerName.toLowerCase().contains(queryLower)).toList();
+      final queryLower = searchQuery.toLowerCase().trim();
+      Set<String> matchingCustomerIds = {};
+      try {
+        final custSnap = await _firestore.collection('customers').get();
+        matchingCustomerIds = custSnap.docs
+            .where((doc) {
+              final d = doc.data();
+              final uid = (d['userId'] ?? d['user_id'] ?? d['username'])
+                      ?.toString()
+                      .toLowerCase() ??
+                  '';
+              final name = (d['name'] ?? '').toString().toLowerCase();
+              final phone = (d['phone'] ?? '').toString().toLowerCase();
+              return uid.contains(queryLower) ||
+                  name.contains(queryLower) ||
+                  phone.contains(queryLower);
+            })
+            .map((doc) => doc.id)
+            .toSet();
+      } catch (_) {}
+
+      list = list.where((inst) {
+        return inst.customerName.toLowerCase().contains(queryLower) ||
+            inst.customerId.toLowerCase().contains(queryLower) ||
+            matchingCustomerIds.contains(inst.customerId);
+      }).toList();
     }
 
     return list;

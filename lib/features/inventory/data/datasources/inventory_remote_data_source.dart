@@ -272,9 +272,12 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
   @override
   Future<void> issueStock(StockIssueModel issue) async {
     final itemRef = _col.doc(issue.itemId);
+    // Validate BEFORE the transaction: on web, an error thrown inside a
+    // transaction is boxed and its real message is lost.
+    issue.validate();
     final issueRef = _firestore.collection('stock_issues').doc(issue.id);
+    final movementRef = itemRef.collection('movements').doc();
     await _firestore.runTransaction((transaction) async {
-      issue.validate();
       final itemSnapshot = await transaction.get(itemRef);
       if (!itemSnapshot.exists) {
         throw StateError('Inventory item "${issue.itemId}" no longer exists.');
@@ -300,6 +303,18 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
       transaction.set(issueRef, {
         ...issueSnapshot.toFirestore(),
         'createdAt': FieldValue.serverTimestamp(),
+      });
+      final buyer = issue.buyerName?.trim() ?? '';
+      transaction.set(movementRef, {
+        'id': movementRef.id,
+        'itemId': issue.itemId,
+        'type': StockMovementType.stockOut.name,
+        'quantity': issue.quantity,
+        'reason': issue.purpose == StockIssuePurpose.sale
+            ? 'Sold to ${buyer.isEmpty ? 'customer' : buyer}'
+            : 'Issued: ${issue.purpose.label}',
+        'date': FieldValue.serverTimestamp(),
+        'performedBy': issue.issuedBy,
       });
     });
   }

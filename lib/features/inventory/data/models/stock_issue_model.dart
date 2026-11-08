@@ -15,6 +15,10 @@ class StockIssueModel extends StockIssueEntity {
     required super.date,
     required super.issuedBy,
     super.createdAt,
+    super.salePrice,
+    super.buyerName,
+    super.customerId,
+    super.paymentMethod,
   });
 
   factory StockIssueModel.fromMap(Map<String, dynamic> data, {String id = ''}) {
@@ -30,6 +34,12 @@ class StockIssueModel extends StockIssueEntity {
       date: _parseDate(data['date']) ?? DateTime.now(),
       issuedBy: data['issuedBy'] as String? ?? '',
       createdAt: _parseDate(data['createdAt']),
+      salePrice: (data['salePrice'] as num?)?.toDouble(),
+      buyerName: data['buyerName'] as String?,
+      customerId: data['customerId'] as String?,
+      paymentMethod: data['paymentMethod'] == null
+          ? null
+          : PaymentMethod.fromString(data['paymentMethod'] as String?),
     );
   }
 
@@ -63,6 +73,10 @@ class StockIssueModel extends StockIssueEntity {
     'notes': notes,
     'date': Timestamp.fromDate(date),
     'issuedBy': issuedBy,
+    if (salePrice != null) 'salePrice': salePrice,
+    if (buyerName != null) 'buyerName': buyerName,
+    if (customerId != null) 'customerId': customerId,
+    if (paymentMethod != null) 'paymentMethod': paymentMethod!.name,
     if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
   };
 
@@ -78,6 +92,10 @@ class StockIssueModel extends StockIssueEntity {
     date: date,
     issuedBy: issuedBy,
     createdAt: createdAt,
+    salePrice: salePrice,
+    buyerName: buyerName,
+    customerId: customerId,
+    paymentMethod: paymentMethod,
   );
 
   StockIssueModel copyWith({String? itemName, double? unitCost}) =>
@@ -93,5 +111,9 @@ class StockIssueModel extends StockIssueEntity {
         date: date,
         issuedBy: issuedBy,
         createdAt: createdAt,
+        salePrice: salePrice,
+        buyerName: buyerName,
+        customerId: customerId,
+        paymentMethod: paymentMethod,
       );
 }

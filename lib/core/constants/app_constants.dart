@@ -1,7 +1,7 @@
 /// App constants
 class AppConstants {
   // App info
-  static const String appName = 'NASR ISP Management';
+  static const String appName = 'ISP NASR';
   static const String appVersion = '1.0.0';
 
   // Pagination
@@ -214,7 +214,8 @@ enum StockIssuePurpose {
   tower,
   replacement,
   damagedLost,
-  other;
+  other,
+  sale;
 
   String get label {
     switch (this) {
@@ -226,6 +227,8 @@ enum StockIssuePurpose {
         return 'Damaged / Lost';
       case StockIssuePurpose.other:
         return 'Other';
+      case StockIssuePurpose.sale:
+        return 'Sold';
     }
   }
 }

@@ -371,21 +371,56 @@ void main() {
     });
   });
 
-  group('guards', () {
-    test('rejects collecting more than the monthly bill', () {
-      expect(
-        () => _useCase(
-          payments: _FakePaymentRepository(),
-          customers: _FakeCustomerRepository(),
-        )(
-          customer: _customer(monthlyBill: 3000),
-          amountReceived: 3500,
-          renewalDate: DateTime(2026, 8, 10),
-          method: 'cash',
-        ),
-        throwsArgumentError,
+  group('collecting more than the monthly bill', () {
+    test('records full amount collected and renews customer', () async {
+      final payments = _FakePaymentRepository();
+      final customers = _FakeCustomerRepository();
+      final outcome = await _useCase(
+        payments: payments,
+        customers: customers,
+      )(
+        customer: _customer(monthlyBill: 4250),
+        amountReceived: 5000,
+        renewalDate: DateTime(2026, 8, 10),
+        method: 'cash',
       );
+
+      expect(outcome.renewedUntil, DateTime(2026, 9, 10, 12, 0));
+      expect(outcome.isPaidInFull, isTrue);
+      expect(outcome.outstanding, 0);
+
+      final charge = payments.added.single;
+      expect(charge.amount, 5000);
+      expect(charge.paidAmount, 5000);
+      expect(charge.status, 'paid');
+      expect(charge.remainingAmount, 0);
+
+      // Customer's regular monthlyBill remains 4250 when updateMonthlyBill is false
+      expect(customers.updated.single.monthlyBill, 4250);
     });
+
+    test('updates customer monthlyBill when updateMonthlyBill is true', () async {
+      final payments = _FakePaymentRepository();
+      final customers = _FakeCustomerRepository();
+      final outcome = await _useCase(
+        payments: payments,
+        customers: customers,
+      )(
+        customer: _customer(monthlyBill: 4250),
+        amountReceived: 5000,
+        renewalDate: DateTime(2026, 8, 10),
+        method: 'cash',
+        updateMonthlyBill: true,
+      );
+
+      expect(outcome.isPaidInFull, isTrue);
+      expect(customers.updated.single.monthlyBill, 5000);
+      expect(payments.added.single.amount, 5000);
+      expect(payments.added.single.paidAmount, 5000);
+    });
+  });
+
+  group('guards', () {
 
     test('rejects a negative amount', () {
       expect(

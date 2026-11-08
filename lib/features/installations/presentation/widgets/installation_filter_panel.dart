@@ -47,7 +47,7 @@ class InstallationFilterPanel extends StatelessWidget {
       controller: searchController,
       onChanged: onSearchChanged,
       decoration: InputDecoration(
-        hintText: 'Search customer or installer',
+        hintText: 'Search customer by name, user ID or installer...',
         prefixIcon: const Icon(Icons.search, size: 20),
         isDense: true,
         filled: true,

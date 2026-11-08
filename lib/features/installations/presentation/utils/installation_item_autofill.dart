@@ -17,6 +17,7 @@ List<InstallationItemRow> autoSelectInstallationItems(
   List<InventoryItemEntity> inventoryItems,
 ) {
   final matches = inventoryItems.where((invItem) {
+    if (invItem.quantityInStock <= 0) return false;
     if (invItem.connectionType == InventoryConnectionType.both) {
       return true;
     }
@@ -28,7 +29,7 @@ List<InstallationItemRow> autoSelectInstallationItems(
   return matches
       .map((invItem) => <String, dynamic>{
             'itemId': invItem.id,
-            'qty': 1,
+            'qty': 1 > invItem.quantityInStock ? invItem.quantityInStock : 1,
             'unitCost': invItem.unitCost,
             'sellPrice': invItem.sellPrice,
           })

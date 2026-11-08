@@ -12,6 +12,10 @@ class StockIssueEntity {
   final DateTime date;
   final String issuedBy;
   final DateTime? createdAt;
+  final double? salePrice;
+  final String? buyerName;
+  final String? customerId;
+  final PaymentMethod? paymentMethod;
 
   const StockIssueEntity({
     required this.id,
@@ -25,6 +29,10 @@ class StockIssueEntity {
     required this.date,
     required this.issuedBy,
     this.createdAt,
+    this.salePrice,
+    this.buyerName,
+    this.customerId,
+    this.paymentMethod,
   });
 
   void validate() {
@@ -40,6 +48,17 @@ class StockIssueEntity {
       throw ArgumentError(
         'Tower name is required when issuing stock to a tower.',
       );
+    }
+    if (purpose == StockIssuePurpose.sale) {
+      if (salePrice == null || salePrice! < 0) {
+        throw ArgumentError('Sale price is required for a sale.');
+      }
+      final hasBuyer =
+          (buyerName != null && buyerName!.trim().isNotEmpty) ||
+          (customerId != null && customerId!.isNotEmpty);
+      if (!hasBuyer) {
+        throw ArgumentError('Buyer name is required for a sale.');
+      }
     }
   }
 }

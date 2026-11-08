@@ -5,6 +5,7 @@ import 'package:nasr_isp/features/suppliers/data/models/supplier_model.dart';
 import 'package:nasr_isp/features/suppliers/data/models/supplier_payment_model.dart';
 import 'package:nasr_isp/features/suppliers/data/models/supplier_purchase_model.dart';
 import 'package:nasr_isp/features/suppliers/domain/entities/supplier_detail_entity.dart';
+import 'package:nasr_isp/features/suppliers/domain/utils/supplier_payment_allocator.dart';
 
 abstract class SupplierRemoteDataSource {
   Future<String> addSupplier(SupplierModel supplier);
@@ -15,6 +16,13 @@ abstract class SupplierRemoteDataSource {
   Future<void> addSupplierPayment({
     required String supplierId,
     required String purchaseId,
+    required double amount,
+    required PaymentMethod method,
+    DateTime? date,
+    String? notes,
+  });
+  Future<void> paySupplierDues({
+    required String supplierId,
     required double amount,
     required PaymentMethod method,
     DateTime? date,
@@ -42,16 +50,20 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
   final FirebaseFirestore _firestore;
 
   SupplierRemoteDataSourceImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference get _suppliersCol => _firestore.collection('suppliers');
-  CollectionReference get _purchasesCol => _firestore.collection('supplier_purchases');
-  CollectionReference get _paymentsCol => _firestore.collection('supplier_payments');
+  CollectionReference get _purchasesCol =>
+      _firestore.collection('supplier_purchases');
+  CollectionReference get _paymentsCol =>
+      _firestore.collection('supplier_payments');
   CollectionReference get _inventoryCol => _firestore.collection('inventory');
 
   @override
   Future<String> addSupplier(SupplierModel supplier) async {
-    final docRef = _suppliersCol.doc(supplier.id.isNotEmpty ? supplier.id : null);
+    final docRef = _suppliersCol.doc(
+      supplier.id.isNotEmpty ? supplier.id : null,
+    );
     final data = supplier.toMap();
     data['id'] = docRef.id;
     data['createdAt'] = FieldValue.serverTimestamp();
@@ -110,8 +122,10 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         .map((d) => SupplierPurchaseModel.fromFirestore(d))
         .toList();
     purchases.sort((a, b) {
-      final aDate = a.date ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = b.date ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final aDate =
+          a.date ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          b.date ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
 
@@ -122,8 +136,10 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         .map((d) => SupplierPaymentModel.fromFirestore(d))
         .toList();
     payments.sort((a, b) {
-      final aDate = a.date ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = b.date ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final aDate =
+          a.date ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          b.date ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
 
@@ -162,8 +178,10 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         throw Exception('Cannot record payment for a cancelled purchase.');
       }
 
-      final totalAmount = (purchaseData['totalAmount'] as num?)?.toDouble() ?? 0.0;
-      final paidAmount = (purchaseData['paidAmount'] as num?)?.toDouble() ?? 0.0;
+      final totalAmount =
+          (purchaseData['totalAmount'] as num?)?.toDouble() ?? 0.0;
+      final paidAmount =
+          (purchaseData['paidAmount'] as num?)?.toDouble() ?? 0.0;
       final remaining = totalAmount - paidAmount;
 
       if (amount > remaining + 0.0001) {
@@ -182,11 +200,13 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
       final newPurchasePaid = paidAmount + amount;
       final SupplierPaymentStatus newStatus =
           (newPurchasePaid >= totalAmount - 0.0001)
-              ? SupplierPaymentStatus.paid
-              : SupplierPaymentStatus.partial;
+          ? SupplierPaymentStatus.paid
+          : SupplierPaymentStatus.partial;
 
-      final currentTotalPurchased = (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
-      final currentTotalPaid = (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
+      final currentTotalPurchased =
+          (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
+      final currentTotalPaid =
+          (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
       final newSupplierPaid = currentTotalPaid + amount;
       final newPendingBalance = currentTotalPurchased - newSupplierPaid;
 
@@ -196,7 +216,9 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         'supplierId': supplierId,
         'purchaseId': purchaseId,
         'amount': amount,
-        'date': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
+        'date': date != null
+            ? Timestamp.fromDate(date)
+            : FieldValue.serverTimestamp(),
         'method': method.name,
         'notes': notes ?? '',
         'createdAt': FieldValue.serverTimestamp(),
@@ -216,6 +238,111 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
     });
   }
 
+  /// Pays a supplier against their whole outstanding balance. The amount is
+  /// applied to the oldest unpaid purchases first; one payment record is
+  /// written per purchase it touches, so each invoice keeps its own history.
+  @override
+  Future<void> paySupplierDues({
+    required String supplierId,
+    required double amount,
+    required PaymentMethod method,
+    DateTime? date,
+    String? notes,
+  }) async {
+    if (amount <= 0) {
+      throw Exception('Payment amount must be greater than zero.');
+    }
+
+    // Firestore transactions cannot run queries, so find the unpaid invoices
+    // first and then re-read each one inside the transaction.
+    final snap = await _purchasesCol
+        .where('supplierId', isEqualTo: supplierId)
+        .get();
+    final candidateRefs = snap.docs
+        .where((d) {
+          final data = d.data() as Map<String, dynamic>? ?? {};
+          if (data['isCancelled'] == true) return false;
+          final total = (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
+          final paid = (data['paidAmount'] as num?)?.toDouble() ?? 0.0;
+          return total - paid > 0.0001;
+        })
+        .map((d) => d.reference)
+        .toList();
+
+    if (candidateRefs.isEmpty) {
+      throw Exception('This supplier has no pending purchases.');
+    }
+
+    final supplierDocRef = _suppliersCol.doc(supplierId);
+
+    await _firestore.runTransaction((transaction) async {
+      // 1. Reads (all reads before any write)
+      final fresh = <SupplierPurchaseModel>[];
+      for (final ref in candidateRefs) {
+        final purchaseSnap = await transaction.get(ref);
+        if (purchaseSnap.exists) {
+          fresh.add(SupplierPurchaseModel.fromFirestore(purchaseSnap));
+        }
+      }
+      final supplierSnap = await transaction.get(supplierDocRef);
+      if (!supplierSnap.exists) {
+        throw Exception('Supplier not found.');
+      }
+      final supplierData = supplierSnap.data() as Map<String, dynamic>? ?? {};
+
+      // 2. Calculations
+      final totalDue = SupplierPaymentAllocator.totalDue(fresh);
+      if (amount > totalDue + 0.0001) {
+        throw Exception(
+          'Payment amount (Rs. ${amount.toStringAsFixed(0)}) exceeds total pending (Rs. ${totalDue.toStringAsFixed(0)}).',
+        );
+      }
+      final allocations = SupplierPaymentAllocator.allocate(fresh, amount);
+      final byId = {for (final p in fresh) p.id: p};
+
+      final currentTotalPurchased =
+          (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
+      final currentTotalPaid =
+          (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
+      final newSupplierPaid = currentTotalPaid + amount;
+      final newPendingBalance = currentTotalPurchased - newSupplierPaid;
+
+      // 3. Writes
+      for (final a in allocations) {
+        final purchase = byId[a.purchaseId]!;
+        final newPaid = purchase.paidAmount + a.amount;
+        final newStatus = newPaid >= purchase.totalAmount - 0.0001
+            ? SupplierPaymentStatus.paid
+            : SupplierPaymentStatus.partial;
+
+        final paymentDocRef = _paymentsCol.doc();
+        transaction.set(paymentDocRef, {
+          'id': paymentDocRef.id,
+          'supplierId': supplierId,
+          'purchaseId': purchase.id,
+          'amount': a.amount,
+          'date': date != null
+              ? Timestamp.fromDate(date)
+              : FieldValue.serverTimestamp(),
+          'method': method.name,
+          'notes': notes ?? '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        transaction.update(_purchasesCol.doc(purchase.id), {
+          'paidAmount': newPaid,
+          'status': newStatus.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      transaction.update(supplierDocRef, {
+        'totalPaid': newSupplierPaid,
+        'pendingBalance': newPendingBalance,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   @override
   Future<void> cancelPurchase(String purchaseId, {String? performedBy}) async {
     // Check if payments exist
@@ -224,7 +351,9 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         .limit(1)
         .get();
     if (paymentsSnap.docs.isNotEmpty) {
-      throw Exception('Cannot cancel purchase with recorded payments. Please reverse payments first.');
+      throw Exception(
+        'Cannot cancel purchase with recorded payments. Please reverse payments first.',
+      );
     }
 
     final purchaseDocRef = _purchasesCol.doc(purchaseId);
@@ -240,15 +369,19 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         throw Exception('Purchase is already cancelled.');
       }
 
-      final paidAmount = (purchaseData['paidAmount'] as num?)?.toDouble() ?? 0.0;
+      final paidAmount =
+          (purchaseData['paidAmount'] as num?)?.toDouble() ?? 0.0;
       if (paidAmount > 0) {
-        throw Exception('Cannot cancel purchase with paid amount greater than 0.');
+        throw Exception(
+          'Cannot cancel purchase with paid amount greater than 0.',
+        );
       }
 
       final supplierId = purchaseData['supplierId'] as String? ?? '';
       final itemId = purchaseData['itemId'] as String? ?? '';
       final qty = (purchaseData['quantity'] as num?)?.toInt() ?? 0;
-      final totalAmount = (purchaseData['totalAmount'] as num?)?.toDouble() ?? 0.0;
+      final totalAmount =
+          (purchaseData['totalAmount'] as num?)?.toDouble() ?? 0.0;
 
       final supplierDocRef = _suppliersCol.doc(supplierId);
       final supplierSnap = await transaction.get(supplierDocRef);
@@ -259,7 +392,8 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
       // 2. Calculations & assertions
       if (itemSnap.exists) {
         final itemData = itemSnap.data() as Map<String, dynamic>? ?? {};
-        final currentStock = (itemData['quantityInStock'] as num?)?.toInt() ?? 0;
+        final currentStock =
+            (itemData['quantityInStock'] as num?)?.toInt() ?? 0;
         if (currentStock - qty < 0) {
           throw Exception(
             'Cannot cancel purchase: reversing $qty units would result in negative stock ($currentStock available).',
@@ -284,10 +418,14 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
 
       if (supplierSnap.exists) {
         final supplierData = supplierSnap.data() as Map<String, dynamic>? ?? {};
-        final currentTotalPurchased = (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
-        final currentTotalPaid = (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
+        final currentTotalPurchased =
+            (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
+        final currentTotalPaid =
+            (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
         final newTotalPurchased = currentTotalPurchased - totalAmount;
-        final newPendingBalance = (newTotalPurchased < 0 ? 0.0 : newTotalPurchased) - currentTotalPaid;
+        final newPendingBalance =
+            (newTotalPurchased < 0 ? 0.0 : newTotalPurchased) -
+            currentTotalPaid;
 
         transaction.update(supplierDocRef, {
           'totalPurchased': newTotalPurchased < 0 ? 0.0 : newTotalPurchased,
@@ -322,7 +460,9 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
   }) async {
     final double totalAmount = quantity * unitCost;
     if (paidNow < 0 || paidNow > totalAmount + 0.0001) {
-      throw Exception('Paid now (Rs. $paidNow) must be between 0 and total amount (Rs. $totalAmount).');
+      throw Exception(
+        'Paid now (Rs. $paidNow) must be between 0 and total amount (Rs. $totalAmount).',
+      );
     }
 
     final itemDocRef = _inventoryCol.doc(itemId);
@@ -369,8 +509,10 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         purchaseStatus = SupplierPaymentStatus.unpaid;
       }
 
-      final double currentTotalPurchased = (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
-      final double currentTotalPaid = (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
+      final double currentTotalPurchased =
+          (supplierData['totalPurchased'] as num?)?.toDouble() ?? 0.0;
+      final double currentTotalPaid =
+          (supplierData['totalPaid'] as num?)?.toDouble() ?? 0.0;
       final double newTotalPurchased = currentTotalPurchased + totalAmount;
       final double newTotalPaid = currentTotalPaid + paidNow;
       final double newPendingBalance = newTotalPurchased - newTotalPaid;
@@ -387,11 +529,15 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
-        final newItemData = inventoryItem != null ? inventoryItem.toFirestore() : <String, dynamic>{};
+        final newItemData = inventoryItem != null
+            ? inventoryItem.toFirestore()
+            : <String, dynamic>{};
         newItemData['name'] = itemName;
         newItemData['quantityInStock'] = newQty;
         newItemData['unitCost'] = weightedCost;
-        newItemData['supplier'] = supplierName.isNotEmpty ? supplierName : supplierId;
+        newItemData['supplier'] = supplierName.isNotEmpty
+            ? supplierName
+            : supplierId;
         newItemData['createdAt'] = FieldValue.serverTimestamp();
         newItemData['updatedAt'] = FieldValue.serverTimestamp();
         transaction.set(itemDocRef, newItemData);
@@ -401,15 +547,17 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
       final movementReason = (notes != null && notes.isNotEmpty)
           ? notes
           : ((invoiceNo != null && invoiceNo.isNotEmpty)
-              ? 'Purchased via Invoice #$invoiceNo'
-              : 'Restocked from $supplierName');
+                ? 'Purchased via Invoice #$invoiceNo'
+                : 'Restocked from $supplierName');
       transaction.set(movementDocRef, {
         'id': movementDocRef.id,
         'itemId': itemId,
         'type': StockMovementType.stockIn.name,
         'quantity': quantity,
         'reason': movementReason,
-        'date': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
+        'date': date != null
+            ? Timestamp.fromDate(date)
+            : FieldValue.serverTimestamp(),
         'performedBy': performedBy ?? 'Admin',
       });
 
@@ -426,7 +574,9 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
         'status': purchaseStatus.name,
         'invoiceNo': invoiceNo ?? '',
         'notes': notes ?? '',
-        'date': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
+        'date': date != null
+            ? Timestamp.fromDate(date)
+            : FieldValue.serverTimestamp(),
         'isCancelled': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -438,7 +588,9 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
           'supplierId': supplierId,
           'purchaseId': purchaseDocRef.id,
           'amount': paidNow,
-          'date': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
+          'date': date != null
+              ? Timestamp.fromDate(date)
+              : FieldValue.serverTimestamp(),
           'method': paymentMethod.name,
           'notes': notes ?? 'Initial payment on purchase',
           'createdAt': FieldValue.serverTimestamp(),
@@ -455,4 +607,3 @@ class SupplierRemoteDataSourceImpl implements SupplierRemoteDataSource {
     });
   }
 }
-

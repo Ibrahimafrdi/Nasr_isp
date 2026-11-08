@@ -97,6 +97,7 @@ import 'package:nasr_isp/features/suppliers/data/datasources/supplier_remote_dat
 import 'package:nasr_isp/features/suppliers/data/repositories/supplier_repository_impl.dart';
 import 'package:nasr_isp/features/suppliers/domain/repositories/supplier_repository.dart';
 import 'package:nasr_isp/features/suppliers/domain/usecases/add_supplier.dart';
+import 'package:nasr_isp/features/suppliers/domain/usecases/pay_supplier_dues.dart';
 import 'package:nasr_isp/features/suppliers/domain/usecases/update_supplier.dart';
 import 'package:nasr_isp/features/suppliers/domain/usecases/deactivate_supplier.dart';
 import 'package:nasr_isp/features/suppliers/domain/usecases/get_suppliers.dart';
@@ -396,7 +397,7 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(() => GetSupplierDetail(getIt()));
   getIt.registerLazySingleton(() => AddSupplierPayment(getIt()));
   getIt.registerLazySingleton(() => CancelPurchase(getIt()));
-
+  getIt.registerLazySingleton(() => PaySupplierDues(getIt()));
   getIt.registerFactory<SupplierBloc>(
     () => SupplierBloc(
       addSupplier: getIt(),

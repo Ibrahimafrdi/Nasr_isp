@@ -65,6 +65,7 @@ class RenewSubscription {
     required DateTime renewalDate,
     required String method,
     String? notes,
+    bool updateMonthlyBill = false,
   }) async {
     if (amountReceived < 0) {
       throw ArgumentError.value(
@@ -77,13 +78,6 @@ class RenewSubscription {
       throw StateError(
         'Customer ${customer.id} has no monthly bill set — assign a package or '
         'a negotiated rate before renewing.',
-      );
-    }
-    if (amountReceived > customer.monthlyBill) {
-      throw ArgumentError.value(
-        amountReceived,
-        'amountReceived',
-        'Cannot collect more than the monthly bill of ${customer.monthlyBill}',
       );
     }
 
@@ -103,11 +97,13 @@ class RenewSubscription {
       // Top it up in place; creating a second row would break the
       // (customerId, billingMonth) key that every monthly aggregate relies on.
       final paid = existing.paidAmount + amountReceived;
-      final isPaidInFull = paid >= existing.amount;
+      final billed = paid > existing.amount ? paid : existing.amount;
+      final isPaidInFull = paid >= billed;
       charge = existing.copyWith(
+        amount: billed,
         paidAmount: paid,
         status: PaymentEntity.statusFor(
-          amount: existing.amount,
+          amount: billed,
           paidAmount: paid,
         ),
         completedDate: isPaidInFull ? renewalDate : null,
@@ -118,17 +114,20 @@ class RenewSubscription {
         packageCostAtBilling: existing.packageCostAtBilling ?? packageCost,
       );
     } else {
-      final isPaidInFull = amountReceived >= customer.monthlyBill;
+      final billed = amountReceived > customer.monthlyBill
+          ? amountReceived
+          : customer.monthlyBill;
+      final isPaidInFull = amountReceived >= billed;
       charge = PaymentEntity(
         // Discarded by the datasource, which assigns a collision-safe
         // Firestore auto-ID on insert.
         id: '',
         customerId: customer.id,
         customerName: customer.name,
-        amount: customer.monthlyBill,
+        amount: billed,
         paidAmount: amountReceived,
         status: PaymentEntity.statusFor(
-          amount: customer.monthlyBill,
+          amount: billed,
           paidAmount: amountReceived,
         ),
         // The date this charge fell due — the expiry it cures — not the next
@@ -146,7 +145,12 @@ class RenewSubscription {
       );
     }
 
-    final renewed = customer.copyWith(nextDueDate: periodEnd);
+    final renewed = customer.copyWith(
+      nextDueDate: periodEnd,
+      monthlyBill: (updateMonthlyBill && amountReceived > customer.monthlyBill)
+          ? amountReceived
+          : null,
+    );
     await customerRepository.updateCustomerWithPayment(
       customer: renewed,
       payment: charge,

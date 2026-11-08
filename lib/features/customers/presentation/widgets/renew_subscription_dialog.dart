@@ -63,6 +63,7 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
   String _method = 'cash';
   String _notes = '';
   bool _isSubmitting = false;
+  bool _updateMonthlyBill = false;
 
   @override
   void initState() {
@@ -101,6 +102,7 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
         renewalDate: _renewalDate,
         method: _method,
         notes: _notes.trim().isEmpty ? null : _notes.trim(),
+        updateMonthlyBill: _updateMonthlyBill,
       ),
     );
 
@@ -129,15 +131,22 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
     }
 
     final until = DateTimeUtils.formatDate(outcome.renewedUntil ?? _newExpiry);
+    final String message;
+    if (outcome.isPaidInFull) {
+      if (_enteredAmount > widget.customer.monthlyBill) {
+        message = '${widget.customer.name} renewed through $until '
+            'with ${DateTimeUtils.formatCurrency(_enteredAmount)} collected.';
+      } else {
+        message = '${widget.customer.name} renewed through $until.';
+      }
+    } else {
+      message = '${widget.customer.name} renewed through $until — '
+          '${DateTimeUtils.formatCurrency(outcome.outstanding)} '
+          'still outstanding. Settle it from the Payments page.';
+    }
     messenger.showSnackBar(
       SnackBar(
-        content: Text(
-          outcome.isPaidInFull
-              ? '${widget.customer.name} renewed through $until.'
-              : '${widget.customer.name} renewed through $until — '
-                    '${DateTimeUtils.formatCurrency(outcome.outstanding)} '
-                    'still outstanding. Settle it from the Payments page.',
-        ),
+        content: Text(message),
         backgroundColor: outcome.isPaidInFull
             ? AppTheme.successColor
             : Colors.orange.shade800,
@@ -218,6 +227,7 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
   Widget _form() {
     final bill = widget.customer.monthlyBill;
     final shortfall = (bill - _enteredAmount).clamp(0.0, double.infinity);
+    final extra = (_enteredAmount - bill).clamp(0.0, double.infinity);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -230,7 +240,7 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
           controller: _amountController,
           decoration: InputDecoration(
             labelText: 'Amount Received (PKR)',
-            hintText: 'Full month: ${DateTimeUtils.formatCurrency(bill)}',
+            hintText: 'Standard bill: ${DateTimeUtils.formatCurrency(bill)}',
             prefixText: 'PKR ',
           ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -240,11 +250,7 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
             if (v == null || v.trim().isEmpty) return 'Please enter an amount';
             final val = double.tryParse(v.trim());
             if (val == null) return 'Enter a valid number';
-            if (val <= 0) return 'Amount must be greater than zero';
-            if (val > bill) {
-              return 'Cannot exceed the monthly bill '
-                  '(${DateTimeUtils.formatCurrency(bill)})';
-            }
+            if (val < 0) return 'Amount cannot be negative';
             return null;
           },
         ),
@@ -304,6 +310,12 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
         if (shortfall > 0) ...[
           const SizedBox(height: 10),
           _shortfallNotice(shortfall),
+        ],
+        if (extra > 0) ...[
+          const SizedBox(height: 10),
+          _extraNotice(extra),
+          const SizedBox(height: 8),
+          _updateRateOption(),
         ],
       ],
     );
@@ -453,6 +465,85 @@ class _RenewSubscriptionDialogState extends State<_RenewSubscriptionDialog> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _extraNotice(double extra) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.primaryBlue.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.add_circle_outline,
+            size: 16,
+            color: AppColors.primaryBlue,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Extra Collection: +${DateTimeUtils.formatCurrency(extra)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryBlue,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Collecting ${DateTimeUtils.formatCurrency(_enteredAmount)} against standard monthly bill of ${DateTimeUtils.formatCurrency(widget.customer.monthlyBill)}. The full ${DateTimeUtils.formatCurrency(_enteredAmount)} will be recorded as collected revenue.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.primaryBlue.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _updateRateOption() {
+    return InkWell(
+      onTap: () => setState(() => _updateMonthlyBill = !_updateMonthlyBill),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        child: Row(
+          children: [
+            SizedBox(
+              height: 24,
+              width: 24,
+              child: Checkbox(
+                value: _updateMonthlyBill,
+                onChanged: (val) {
+                  setState(() => _updateMonthlyBill = val ?? false);
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Also update standard monthly bill to ${DateTimeUtils.formatCurrency(_enteredAmount)} for future renewals',
+                style: const TextStyle(fontSize: 12, color: AppTheme.darkGray),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

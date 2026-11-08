@@ -75,6 +75,7 @@ class RenewCustomerEvent extends CustomersEvent {
   final DateTime renewalDate;
   final String method;
   final String? notes;
+  final bool updateMonthlyBill;
 
   const RenewCustomerEvent({
     required this.customer,
@@ -82,6 +83,7 @@ class RenewCustomerEvent extends CustomersEvent {
     required this.renewalDate,
     required this.method,
     this.notes,
+    this.updateMonthlyBill = false,
   });
 
   @override
@@ -91,6 +93,7 @@ class RenewCustomerEvent extends CustomersEvent {
     renewalDate,
     method,
     notes,
+    updateMonthlyBill,
   ];
 }
 
@@ -266,6 +269,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
         renewalDate: event.renewalDate,
         method: event.method,
         notes: event.notes,
+        updateMonthlyBill: event.updateMonthlyBill,
       );
       // Re-read rather than patching the cached row: the renewal wrote both a
       // customer and a payment, and the list must reflect the persisted state.
@@ -354,6 +358,7 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
         return CustomerModel(
           id: e.id,
           name: e.name,
+          userId: e.userId,
           phone: e.phone,
           cnic: e.cnic,
           address: e.address,
@@ -461,11 +466,20 @@ class CustomersBloc extends Bloc<CustomersEvent, CustomersState> {
     var result = List<CustomerModel>.from(customers);
 
     if (searchQuery != null && searchQuery.isNotEmpty) {
+      final query = searchQuery.trim().toLowerCase();
       result = result.where((c) {
-        return c.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
-            c.phone.contains(searchQuery) ||
-            c.cnic.contains(searchQuery) ||
-            c.address.toLowerCase().contains(searchQuery.toLowerCase());
+        final name = c.name.toLowerCase();
+        final phone = c.phone.toLowerCase();
+        final cnic = c.cnic.toLowerCase();
+        final address = c.address.toLowerCase();
+        final uid = (c.userId ?? '').toLowerCase();
+        final id = c.id.toLowerCase();
+        return name.contains(query) ||
+            phone.contains(query) ||
+            cnic.contains(query) ||
+            address.contains(query) ||
+            uid.contains(query) ||
+            id.contains(query);
       }).toList();
     }
 

@@ -31,7 +31,7 @@ class CustomerModel extends CustomerEntity {
       monthlyBill: (map['monthlyBill'] as num?)?.toDouble() ?? 0.0,
       status: map['status'] as String? ?? '',
       notes: map['notes'] as String? ?? '',
-      userId: map['userId'] as String?,
+      userId: (map['userId'] ?? map['user_id'] ?? map['username'])?.toString(),
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
           : (map['createdAt'] != null

@@ -30,38 +30,68 @@ class CustomerFilterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final search = TextField(
-      controller: searchController,
-      onChanged: onSearchChanged,
-      style: const TextStyle(fontSize: 14, color: _kInk),
-      decoration: InputDecoration(
-        hintText: 'Search name, phone, CNIC or address',
-        hintStyle: const TextStyle(fontSize: 14, color: _kMuted),
-        prefixIcon: const Icon(Icons.search, size: 20, color: _kMuted),
-        suffixIcon: searchController.text.isEmpty
-            ? null
-            : IconButton(
-                tooltip: 'Clear search',
-                icon: const Icon(Icons.close, size: 18, color: _kMuted),
-                onPressed: () {
-                  searchController.clear();
-                  onSearchChanged('');
-                },
-              ),
-        filled: true,
-        fillColor: Colors.white,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 14,
+    final search = Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: searchController,
+        onChanged: onSearchChanged,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: _kInk,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _kBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _kTeal, width: 1.5),
+        decoration: InputDecoration(
+          hintText: 'Search by User ID, Name, Phone, CNIC or Address...',
+          hintStyle: const TextStyle(
+            fontSize: 13.5,
+            color: Color(0xFF64748B),
+          ),
+          prefixIcon: const Icon(
+            Icons.search,
+            size: 22,
+            color: Color(0xFF0F62FE),
+          ),
+          suffixIcon: searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  icon: const Icon(Icons.close, size: 18, color: Color(0xFF64748B)),
+                  onPressed: () {
+                    searchController.clear();
+                    onSearchChanged('');
+                  },
+                ),
+          filled: true,
+          fillColor: Colors.white,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(
+              color: Color(0xFF94A3B8),
+              width: 1.2,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(
+              color: Color(0xFF0F62FE),
+              width: 2.0,
+            ),
+          ),
         ),
       ),
     );
@@ -97,7 +127,7 @@ class CustomerFilterPanel extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 460),
+                    constraints: const BoxConstraints(maxWidth: 540),
                     child: search,
                   ),
                 ),

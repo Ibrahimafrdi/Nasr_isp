@@ -241,9 +241,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         // put them back on service. That is the status dialog's job.
         status: _existingStatus ?? CustomerEntity.statusActive,
         notes: _notesController.text.trim(),
-        userId: _userIdController.text.trim().isEmpty
-            ? null
-            : _userIdController.text.trim(),
+        userId: _userIdController.text.trim(),
         createdAt: _existingCreatedAt ?? DateTime.now(),
         joinDate: _joinDate,
         nextDueDate: nextDueDate,
@@ -500,8 +498,15 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                                   const SizedBox(height: 16),
                                   AppFormField(
                                     label: 'User ID',
-                                    hintText: 'Optional external / portal user ID',
+                                    hintText: 'e.g. user_pppoe_101',
                                     controller: _userIdController,
+                                    isRequired: true,
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty) {
+                                        return 'User ID is required';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 16),
                                   // Join Date picker

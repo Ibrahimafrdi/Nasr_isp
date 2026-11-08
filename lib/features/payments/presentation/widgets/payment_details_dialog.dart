@@ -145,7 +145,10 @@ class _PaymentDetailsContent extends StatelessWidget {
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.close_rounded, color: AppColors.darkGray),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: AppColors.darkGray,
+                ),
                 onPressed: () => Navigator.pop(context),
                 splashRadius: 20,
               ),
@@ -160,15 +163,15 @@ class _PaymentDetailsContent extends StatelessWidget {
               color: isPaid
                   ? AppColors.successGreen.withValues(alpha: 0.08)
                   : (hasBalance
-                      ? AppColors.warningOrange.withValues(alpha: 0.08)
-                      : AppColors.errorRed.withValues(alpha: 0.08)),
+                        ? AppColors.warningOrange.withValues(alpha: 0.08)
+                        : AppColors.errorRed.withValues(alpha: 0.08)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isPaid
                     ? AppColors.successGreen.withValues(alpha: 0.25)
                     : (hasBalance
-                        ? AppColors.warningOrange.withValues(alpha: 0.25)
-                        : AppColors.errorRed.withValues(alpha: 0.25)),
+                          ? AppColors.warningOrange.withValues(alpha: 0.25)
+                          : AppColors.errorRed.withValues(alpha: 0.25)),
               ),
             ),
             child: Row(
@@ -190,15 +193,17 @@ class _PaymentDetailsContent extends StatelessWidget {
                     Text(
                       isPaid
                           ? 'Settled in Full'
-                          : (hasBalance ? 'Partially Paid' : 'Payment Overdue / Open'),
+                          : (hasBalance
+                                ? 'Partially Paid'
+                                : 'Payment Overdue / Open'),
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: isPaid
                             ? AppColors.successGreen
                             : (hasBalance
-                                ? AppColors.warningOrange
-                                : AppColors.errorRed),
+                                  ? AppColors.warningOrange
+                                  : AppColors.errorRed),
                       ),
                     ),
                   ],
@@ -221,7 +226,9 @@ class _PaymentDetailsContent extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.12),
+                  backgroundColor: AppColors.primaryBlue.withValues(
+                    alpha: 0.12,
+                  ),
                   child: Text(
                     payment.customerName.isNotEmpty
                         ? payment.customerName[0].toUpperCase()
@@ -369,15 +376,25 @@ class _PaymentDetailsContent extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     final buffer = StringBuffer();
-                    buffer.writeln('--- NASR ISP PAYMENT RECEIPT ---');
+                    buffer.writeln('---ISP NASR PAYMENT RECEIPT ---');
                     buffer.writeln('Customer: ${payment.customerName}');
                     buffer.writeln('Cycle: ${payment.billingMonth ?? "N/A"}');
-                    buffer.writeln('Billed: ${DateTimeUtils.formatCurrency(payment.amount)}');
-                    buffer.writeln('Collected: ${DateTimeUtils.formatCurrency(payment.paidAmount)}');
-                    buffer.writeln('Balance Due: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}');
+                    buffer.writeln(
+                      'Billed: ${DateTimeUtils.formatCurrency(payment.amount)}',
+                    );
+                    buffer.writeln(
+                      'Collected: ${DateTimeUtils.formatCurrency(payment.paidAmount)}',
+                    );
+                    buffer.writeln(
+                      'Balance Due: ${DateTimeUtils.formatCurrency(payment.remainingAmount)}',
+                    );
                     buffer.writeln('Method: ${_methodDisplay(payment.method)}');
                     buffer.writeln('Status: ${payment.status.toUpperCase()}');
-                    _copyToClipboard(context, buffer.toString(), 'Receipt details');
+                    _copyToClipboard(
+                      context,
+                      buffer.toString(),
+                      'Receipt details',
+                    );
                   },
                   icon: const Icon(Icons.copy_rounded, size: 16),
                   label: const Text('Copy Receipt'),
@@ -469,4 +486,3 @@ class _ReceiptRow extends StatelessWidget {
     );
   }
 }
-

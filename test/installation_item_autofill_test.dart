@@ -51,5 +51,25 @@ void main() {
       final rows = autoSelectInstallationItems(ConnectionType.wireless, inventory);
       expect(rows.single['unitCost'], 100.0);
     });
+
+    test('skips out-of-stock items (quantityInStock <= 0)', () {
+      final inventory = [
+        _item('w1', InventoryConnectionType.wireless),
+        InventoryItemEntity(
+          id: 'w2',
+          name: 'w2',
+          category: InventoryCategory.equipment,
+          unit: 'pcs',
+          quantityInStock: 0,
+          reorderLevel: 1,
+          unitCost: 100,
+          sellPrice: 150,
+          connectionType: InventoryConnectionType.wireless,
+        ),
+      ];
+      final rows = autoSelectInstallationItems(ConnectionType.wireless, inventory);
+      expect(rows.length, 1);
+      expect(rows.single['itemId'], 'w1');
+    });
   });
 }

@@ -80,8 +80,28 @@ class SupplierRepositoryImpl implements SupplierRepository {
   }
 
   @override
+  Future<void> paySupplierDues({
+    required String supplierId,
+    required double amount,
+    required PaymentMethod method,
+    DateTime? date,
+    String? notes,
+  }) {
+    return remoteDataSource.paySupplierDues(
+      supplierId: supplierId,
+      amount: amount,
+      method: method,
+      date: date,
+      notes: notes,
+    );
+  }
+
+  @override
   Future<void> cancelPurchase(String purchaseId, {String? performedBy}) {
-    return remoteDataSource.cancelPurchase(purchaseId, performedBy: performedBy);
+    return remoteDataSource.cancelPurchase(
+      purchaseId,
+      performedBy: performedBy,
+    );
   }
 
   @override
@@ -117,4 +137,3 @@ class SupplierRepositoryImpl implements SupplierRepository {
     );
   }
 }
-

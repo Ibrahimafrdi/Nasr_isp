@@ -1315,7 +1315,12 @@ class _InventoryViewState extends State<_InventoryView> {
     final quantityController = TextEditingController();
     final towerController = TextEditingController();
     final notesController = TextEditingController();
+    final salePriceController = TextEditingController(
+      text: item.sellPrice > 0 ? item.sellPrice.toStringAsFixed(0) : '',
+    );
+    final buyerController = TextEditingController();
     var purpose = StockIssuePurpose.tower;
+    var paymentMethod = PaymentMethod.cash;
     var issueDate = DateTime.now();
     var isSaving = false;
 
@@ -1396,6 +1401,49 @@ class _InventoryViewState extends State<_InventoryView> {
                         : null,
                   ),
                 ],
+                if (purpose == StockIssuePurpose.sale) ...[
+                  const SizedBox(height: 14),
+                  AppFormField(
+                    label: 'Sale price per ${item.unit}',
+                    controller: salePriceController,
+                    keyboardType: TextInputType.number,
+                    isRequired: true,
+                    validator: (value) {
+                      final price = double.tryParse(value?.trim() ?? '');
+                      if (price == null || price < 0) {
+                        return 'Enter a valid sale price';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  AppFormField(
+                    label: 'Buyer name',
+                    controller: buyerController,
+                    isRequired: true,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Buyer name is required'
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<PaymentMethod>(
+                    initialValue: paymentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment method',
+                    ),
+                    items: PaymentMethod.values
+                        .map(
+                          (m) =>
+                              DropdownMenuItem(value: m, child: Text(m.label)),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => paymentMethod = value);
+                      }
+                    },
+                  ),
+                ],
                 const SizedBox(height: 14),
                 InkWell(
                   onTap: () async {
@@ -1455,6 +1503,15 @@ class _InventoryViewState extends State<_InventoryView> {
                             notes: notesController.text.trim().isEmpty
                                 ? null
                                 : notesController.text.trim(),
+                            salePrice: purpose == StockIssuePurpose.sale
+                                ? double.parse(salePriceController.text.trim())
+                                : null,
+                            buyerName: purpose == StockIssuePurpose.sale
+                                ? buyerController.text.trim()
+                                : null,
+                            paymentMethod: purpose == StockIssuePurpose.sale
+                                ? paymentMethod
+                                : null,
                             date: issueDate,
                             issuedBy: user.id,
                           ),
@@ -1996,8 +2053,8 @@ class _InventoryViewState extends State<_InventoryView> {
                         cell('Item', heading: true),
                         cell('Qty', heading: true),
                         cell('Purpose', heading: true),
-                        cell('Tower', heading: true),
-                        cell('Cost value', heading: true),
+                        cell('Tower / Buyer', heading: true),
+                        cell('Value', heading: true),
                       ],
                     ),
                     for (final issue in filteredIssues)
@@ -2007,8 +2064,16 @@ class _InventoryViewState extends State<_InventoryView> {
                           cell(issue.itemName),
                           cell('${issue.quantity}'),
                           cell(issue.purpose.label),
-                          cell(issue.towerName ?? '-'),
-                          cell(_rs(issue.quantity * issue.unitCost)),
+                          cell(
+                            issue.purpose == StockIssuePurpose.sale
+                                ? (issue.buyerName ?? '-')
+                                : (issue.towerName ?? '-'),
+                          ),
+                          cell(
+                            issue.purpose == StockIssuePurpose.sale
+                                ? 'Sold ${_rs((issue.salePrice ?? 0) * issue.quantity)}'
+                                : _rs(issue.quantity * issue.unitCost),
+                          ),
                         ],
                       ),
                   ],

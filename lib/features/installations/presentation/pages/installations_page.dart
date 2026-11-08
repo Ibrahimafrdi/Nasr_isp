@@ -666,14 +666,22 @@ class _InstallationsPageState extends State<InstallationsPage> {
                     if (textEditingValue.text.isEmpty) {
                       return _allCustomers;
                     }
+                    final query = textEditingValue.text.trim().toLowerCase();
                     return _allCustomers.where((CustomerEntity customer) {
-                      return customer.name.toLowerCase().contains(
-                        textEditingValue.text.toLowerCase(),
-                      );
+                      final name = customer.name.toLowerCase();
+                      final phone = customer.phone.toLowerCase();
+                      final uid = (customer.userId ?? '').toLowerCase();
+                      final cnic = customer.cnic.toLowerCase();
+                      return name.contains(query) ||
+                          uid.contains(query) ||
+                          phone.contains(query) ||
+                          cnic.contains(query);
                     });
                   },
                   displayStringForOption: (CustomerEntity option) =>
-                      option.name,
+                      (option.userId != null && option.userId!.isNotEmpty)
+                          ? '${option.name} (${option.userId})'
+                          : option.name,
                   fieldViewBuilder:
                       (context, textController, focusNode, onFieldSubmitted) {
                         // Sync autocomplete text controller on creation/edit
@@ -685,7 +693,9 @@ class _InstallationsPageState extends State<InstallationsPage> {
                           controller: textController,
                           focusNode: focusNode,
                           decoration: const InputDecoration(
-                            labelText: 'Search Subscriber Account / Name',
+                            labelText:
+                                'Search Customer by User ID, Name or Phone *',
+                            hintText: 'Type User ID (e.g. user_101) or Name...',
                             suffixIcon: Icon(Icons.search, size: 18),
                           ),
                           validator: (v) {

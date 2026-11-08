@@ -458,6 +458,8 @@ class AppFormField extends StatelessWidget {
   final Widget? suffixIcon;
   final void Function(String)? onChanged;
   final List<TextInputFormatter>? inputFormatters;
+  final TextInputAction? textInputAction;
+  final bool autofocus;
 
   const AppFormField({
     Key? key,
@@ -473,6 +475,8 @@ class AppFormField extends StatelessWidget {
     this.suffixIcon,
     this.onChanged,
     this.inputFormatters,
+    this.textInputAction,
+    this.autofocus = false,
   }) : super(key: key);
 
   @override
@@ -505,6 +509,8 @@ class AppFormField extends StatelessWidget {
           maxLines: isPassword ? 1 : maxLines,
           minLines: minLines,
           inputFormatters: inputFormatters,
+          textInputAction: textInputAction,
+          autofocus: autofocus,
           decoration: InputDecoration(
             hintText: hintText,
             suffixIcon: suffixIcon,

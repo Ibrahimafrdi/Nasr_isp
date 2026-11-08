@@ -523,6 +523,8 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
               Icons.receipt_long,
             ),
             _buildInfoRow('Contact Phone', _customer!.phone, Icons.phone),
+            if (_customer!.userId != null && _customer!.userId!.isNotEmpty)
+              _buildInfoRow('User ID', _customer!.userId!, Icons.account_circle_outlined),
             _buildInfoRow('CNIC / National ID', _customer!.cnic, Icons.badge),
             _buildInfoRow(
               'Physical Address',

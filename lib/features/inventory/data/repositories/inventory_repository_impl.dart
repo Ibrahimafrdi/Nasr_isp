@@ -137,6 +137,10 @@ class InventoryRepositoryImpl implements InventoryRepository {
         date: issue.date,
         issuedBy: issue.issuedBy,
         createdAt: issue.createdAt,
+        salePrice: issue.salePrice,
+        buyerName: issue.buyerName,
+        customerId: issue.customerId,
+        paymentMethod: issue.paymentMethod,
       ),
     );
   }
