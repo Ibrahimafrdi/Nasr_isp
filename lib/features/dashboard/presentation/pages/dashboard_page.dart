@@ -136,8 +136,8 @@ class _DashboardPageState extends State<DashboardPage> {
                             const SizedBox(height: 4),
                             Text(
                               isAdmin
-                                  ? '       Here is how your internet business is doing this month.'
-                                  : '       Employee Performance Metrics',
+                                  ? 'Here is how your internet business is doing this month.'
+                                  : 'Employee Performance Metrics',
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 color: _kMuted,
@@ -188,6 +188,13 @@ class _DashboardPageState extends State<DashboardPage> {
                           value: _rs(stats.currentMonthCollected),
                           progress: stats.marginCollectionRate ?? 0,
                           note: _collectionSubtitle(stats),
+                        ),
+                        _StatCard(
+                          label: 'Product sales',
+                          value: _rs(stats.monthlyProductSalesProfit),
+                          valueColor: _kAccent,
+                          note:
+                              'Revenue: ${_rs(stats.monthlyProductSalesRevenue)} · ${stats.monthlyProductSalesCount} sales',
                         ),
                       ]),
                       const SizedBox(height: 32),
@@ -522,6 +529,7 @@ class _DashboardPageState extends State<DashboardPage> {
               Text(
                 '= margin ${_rs(stats.subscriberRunRateMargin)}'
                 ' + installations ${_rs(stats.monthlyInstallationProfit)}'
+                ' + product sales ${_rs(stats.monthlyProductSalesProfit)}'
                 ' − expenses ${_rs(stats.monthlyExpenses)}',
                 style: GoogleFonts.inter(fontSize: 14, color: soft),
               ),
@@ -645,13 +653,19 @@ class _DashboardPageState extends State<DashboardPage> {
         return PremiumDataRow(
           cells: [
             Text(
-              payment.customerName.isNotEmpty ? payment.customerName : payment.customerId,
+              payment.customerName.isNotEmpty
+                  ? payment.customerName
+                  : payment.customerId,
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 color: AppColors.charcoal,
               ),
             ),
-            Text((payment.method != null && payment.method!.isNotEmpty) ? payment.method! : '—'),
+            Text(
+              (payment.method != null && payment.method!.isNotEmpty)
+                  ? payment.method!
+                  : '—',
+            ),
             Text(
               _rs(payment.paidAmount > 0 ? payment.paidAmount : payment.amount),
               style: GoogleFonts.inter(
@@ -672,11 +686,17 @@ class _DashboardPageState extends State<DashboardPage> {
             ? StatusType.completed
             : StatusType.pending;
         return MobileDashboardCard(
-          title: payment.customerName.isNotEmpty ? payment.customerName : payment.customerId,
-          subtitle: (payment.method != null && payment.method!.isNotEmpty) ? payment.method! : '—',
+          title: payment.customerName.isNotEmpty
+              ? payment.customerName
+              : payment.customerId,
+          subtitle: (payment.method != null && payment.method!.isNotEmpty)
+              ? payment.method!
+              : '—',
           statusBadge: StatusBadge(status: statusType),
           details: {
-            'Amount': _rs(payment.paidAmount > 0 ? payment.paidAmount : payment.amount),
+            'Amount': _rs(
+              payment.paidAmount > 0 ? payment.paidAmount : payment.amount,
+            ),
             'Date': dateOf(payment),
           },
         );

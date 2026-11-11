@@ -9,25 +9,25 @@ class CustomerRepositoryImpl implements CustomerRepository {
   final CustomerRemoteDataSource remoteDataSource;
 
   CustomerRepositoryImpl({required this.remoteDataSource});
-
   @override
   Future<void> addCustomer(CustomerEntity customer) async {
-    final model = CustomerModel(
-      id: customer.id,
-      name: customer.name,
-      phone: customer.phone,
-      cnic: customer.cnic,
-      address: customer.address,
-      connectionType: customer.connectionType,
-      packageId: customer.packageId,
-      monthlyBill: customer.monthlyBill,
-      status: customer.status,
-      notes: customer.notes,
-      createdAt: customer.createdAt,
-      joinDate: customer.joinDate,
-      nextDueDate: customer.nextDueDate,
+    await remoteDataSource.addCustomer(CustomerModel.fromEntity(customer));
+  }
+
+  @override
+  Future<void> updateCustomer(CustomerEntity customer) async {
+    await remoteDataSource.updateCustomer(CustomerModel.fromEntity(customer));
+  }
+
+  @override
+  Future<void> updateCustomerWithPayment({
+    required CustomerEntity customer,
+    PaymentEntity? payment,
+  }) async {
+    await remoteDataSource.updateCustomerWithPayment(
+      customer: CustomerModel.fromEntity(customer),
+      payment: payment != null ? PaymentModel.from(payment) : null,
     );
-    await remoteDataSource.addCustomer(model);
   }
 
   @override
@@ -36,54 +36,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
   }
 
   @override
-  Future<void> updateCustomer(CustomerEntity customer) async {
-    final model = CustomerModel(
-      id: customer.id,
-      name: customer.name,
-      phone: customer.phone,
-      cnic: customer.cnic,
-      address: customer.address,
-      connectionType: customer.connectionType,
-      packageId: customer.packageId,
-      monthlyBill: customer.monthlyBill,
-      status: customer.status,
-      notes: customer.notes,
-      createdAt: customer.createdAt,
-      joinDate: customer.joinDate,
-      nextDueDate: customer.nextDueDate,
-    );
-    await remoteDataSource.updateCustomer(model);
-  }
-
-  @override
   Future<void> deleteCustomer(String id) async {
     await remoteDataSource.deleteCustomer(id);
-  }
-
-  @override
-  Future<void> updateCustomerWithPayment({
-    required CustomerEntity customer,
-    PaymentEntity? payment,
-  }) async {
-    final customerModel = CustomerModel(
-      id: customer.id,
-      name: customer.name,
-      phone: customer.phone,
-      cnic: customer.cnic,
-      address: customer.address,
-      connectionType: customer.connectionType,
-      packageId: customer.packageId,
-      monthlyBill: customer.monthlyBill,
-      status: customer.status,
-      notes: customer.notes,
-      createdAt: customer.createdAt,
-      joinDate: customer.joinDate,
-      nextDueDate: customer.nextDueDate,
-    );
-    final paymentModel = payment != null ? PaymentModel.from(payment) : null;
-    await remoteDataSource.updateCustomerWithPayment(
-      customer: customerModel,
-      payment: paymentModel,
-    );
   }
 }

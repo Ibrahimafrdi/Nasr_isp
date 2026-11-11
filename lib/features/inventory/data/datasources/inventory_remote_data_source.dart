@@ -34,7 +34,10 @@ abstract class InventoryRemoteDataSource {
   });
   Future<List<StockMovementModel>> getStockMovements(String itemId);
   Future<void> issueStock(StockIssueModel issue);
-  Future<List<StockIssueModel>> getStockIssues();
+  Future<List<StockIssueModel>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  });
 }
 
 class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
@@ -320,8 +323,24 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
   }
 
   @override
-  Future<List<StockIssueModel>> getStockIssues() async {
-    final snapshot = await _firestore.collection('stock_issues').get();
+  Future<List<StockIssueModel>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    Query query = _firestore.collection('stock_issues');
+    if (startDate != null) {
+      query = query.where(
+        'date',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
+    }
+    if (endDate != null) {
+      query = query.where(
+        'date',
+        isLessThan: Timestamp.fromDate(endDate),
+      );
+    }
+    final snapshot = await query.get();
     return snapshot.docs.map(StockIssueModel.fromFirestore).toList();
   }
 }

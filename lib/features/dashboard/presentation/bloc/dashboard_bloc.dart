@@ -8,6 +8,7 @@ import 'package:nasr_isp/features/payments/domain/usecases/get_all_payments.dart
 import 'package:nasr_isp/features/expenses/domain/usecases/get_expenses.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/get_stock_issues.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
@@ -98,6 +99,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetExpenses getExpenses;
   final GetInstallations getInstallations;
   final GetPackages getPackages;
+  final GetStockIssues getStockIssues;
   final GetMonthlyFinancialSummary getMonthlyFinancialSummary;
 
   /// Injectable clock so month-boundary aggregation is testable. Production
@@ -110,6 +112,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     required this.getExpenses,
     required this.getInstallations,
     required this.getPackages,
+    required this.getStockIssues,
     required this.getMonthlyFinancialSummary,
     this.clock = DateTime.now,
   }) : super(const DashboardInitial()) {
@@ -138,6 +141,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     try {
       final now = clock();
 
+      final monthStart = DateTime(now.year, now.month, 1);
+      final nextMonthStart = DateTime(now.year, now.month + 1, 1);
+
       // Fetch all data in parallel. Payments and installations are fetched
       // unbounded (no limit) so aggregate stats never silently drop older
       // records once a collection grows past an arbitrary page size.
@@ -147,6 +153,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         getExpenses(),
         getInstallations(),
         getPackages(),
+        getStockIssues(startDate: monthStart, endDate: nextMonthStart),
       ]);
 
       final allCustomers = (results[0] as List).cast<CustomerModel>();
@@ -154,6 +161,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final allExpenses = (results[2] as List).cast<ExpenseModel>();
       final allInstallations = (results[3] as List).cast<InstallationEntity>();
       final allPackages = (results[4] as List).cast<PackageEntity>();
+      final allStockIssues = (results[5] as List).cast<StockIssueEntity>();
 
       // Compute monthly summary reusing already-fetched collections to eliminate
       // duplicate Firestore queries.
@@ -164,6 +172,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         expenses: allExpenses,
         installations: allInstallations,
         packages: allPackages,
+        stockIssues: allStockIssues,
       );
 
       final packageMap = {for (final p in allPackages) p.id: p};
@@ -311,12 +320,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           .where((i) => i.status == InstallationStatus.completed)
           .length;
 
-      // ACCRUAL BASIS — these three terms are the three adjacent KPI cards.
+      // ACCRUAL BASIS — these four terms are the adjacent KPI cards.
       // Cash collected is deliberately excluded: different basis, and it does
       // not include installation billing at all.
       final netProfit =
           subscriberRunRateMargin +
-          monthlySummary.installationProfit -
+          monthlySummary.installationProfit +
+          monthlySummary.productSalesProfit -
           monthlySummary.totalExpenses;
 
       final stats = DashboardStatsModel(
@@ -336,6 +346,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         monthlyInstallationRevenue: monthlySummary.installationRevenue,
         monthlyInstallationCost: monthlySummary.installationCost,
         monthlyInstallationProfit: monthlySummary.installationProfit,
+        monthlyProductSalesRevenue: monthlySummary.productSalesRevenue,
+        monthlyProductSalesCost: monthlySummary.productSalesCost,
+        monthlyProductSalesProfit: monthlySummary.productSalesProfit,
+        monthlyProductSalesCount: monthlySummary.productSalesCount,
+        monthlyProductSalesUnits: monthlySummary.productSalesUnits,
         unpricedCustomerCount: monthlySummary.unpricedCustomerCount,
         currentMonthBilled: monthlySummary.subscriptionBilled,
         currentMonthCollected: monthlySummary.subscriptionCollected,

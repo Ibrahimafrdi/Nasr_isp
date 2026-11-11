@@ -6,5 +6,9 @@ class GetStockIssues {
 
   GetStockIssues(this.repository);
 
-  Future<List<StockIssueEntity>> call() => repository.getStockIssues();
+  Future<List<StockIssueEntity>> call({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      repository.getStockIssues(startDate: startDate, endDate: endDate);
 }

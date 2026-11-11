@@ -146,6 +146,9 @@ class InventoryRepositoryImpl implements InventoryRepository {
   }
 
   @override
-  Future<List<StockIssueEntity>> getStockIssues() async =>
-      remoteDataSource.getStockIssues();
+  Future<List<StockIssueEntity>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async =>
+      remoteDataSource.getStockIssues(startDate: startDate, endDate: endDate);
 }

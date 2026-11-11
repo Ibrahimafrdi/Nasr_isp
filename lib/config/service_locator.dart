@@ -278,7 +278,7 @@ void setupServiceLocator() {
     ),
   );
 
-  // Reports usecases (registered before DashboardBloc so Dashboard can inject them)
+  // Reports usecases
   getIt.registerLazySingleton(
     () => GetMonthlyFinancialSummary(
       getCustomers: getIt(),
@@ -286,6 +286,7 @@ void setupServiceLocator() {
       getExpenses: getIt(),
       getInstallations: getIt(),
       getPackages: getIt(),
+      getStockIssues: getIt(),
     ),
   );
   getIt.registerLazySingleton(
@@ -293,25 +294,6 @@ void setupServiceLocator() {
       getCustomers: getIt(),
       getEarliestPaymentDate: getIt(),
       getExpenses: getIt(),
-    ),
-  );
-
-  // Dashboard (depends on Payments + Installations + Packages + Reports use cases registered above)
-  getIt.registerSingleton<DashboardBloc>(
-    DashboardBloc(
-      getCustomers: getIt<GetCustomers>(),
-      getAllPayments: getIt<GetAllPayments>(),
-      getExpenses: getIt<GetExpenses>(),
-      getInstallations: getIt<GetInstallations>(),
-      getPackages: getIt<GetPackages>(),
-      getMonthlyFinancialSummary: getIt<GetMonthlyFinancialSummary>(),
-    ),
-  );
-
-  getIt.registerSingleton<ReportsBloc>(
-    ReportsBloc(
-      getMonthlyFinancialSummary: getIt(),
-      getAvailableReportMonths: getIt(),
     ),
   );
 
@@ -407,6 +389,26 @@ void setupServiceLocator() {
       getSupplierDetail: getIt(),
       addSupplierPayment: getIt(),
       cancelPurchase: getIt(),
+    ),
+  );
+
+  // Dashboard & Reports Blocs
+  getIt.registerSingleton<DashboardBloc>(
+    DashboardBloc(
+      getCustomers: getIt<GetCustomers>(),
+      getAllPayments: getIt<GetAllPayments>(),
+      getExpenses: getIt<GetExpenses>(),
+      getInstallations: getIt<GetInstallations>(),
+      getPackages: getIt<GetPackages>(),
+      getStockIssues: getIt<GetStockIssues>(),
+      getMonthlyFinancialSummary: getIt<GetMonthlyFinancialSummary>(),
+    ),
+  );
+
+  getIt.registerSingleton<ReportsBloc>(
+    ReportsBloc(
+      getMonthlyFinancialSummary: getIt(),
+      getAvailableReportMonths: getIt(),
     ),
   );
 }

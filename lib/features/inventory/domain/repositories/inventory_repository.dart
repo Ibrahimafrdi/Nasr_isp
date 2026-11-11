@@ -31,5 +31,8 @@ abstract class InventoryRepository {
   });
   Future<List<StockMovementEntity>> getStockMovements(String itemId);
   Future<void> issueStock(StockIssueEntity issue);
-  Future<List<StockIssueEntity>> getStockIssues();
+  Future<List<StockIssueEntity>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  });
 }

@@ -76,6 +76,7 @@ class DashboardStatsModel extends Equatable {
 
   /// ACCRUAL: netProfit = subscriberRunRateMargin
   ///                    + monthlyInstallationProfit
+  ///                    + monthlyProductSalesProfit
   ///                    - monthlyExpenses
   ///
   /// Does NOT reconcile against [cashCollectedThisMonth] — different basis.
@@ -107,6 +108,23 @@ class DashboardStatsModel extends Equatable {
   /// Second term of [netProfit]. Same scope as the two figures above.
   final double monthlyInstallationProfit;
 
+  /// ACCRUAL, direct stock sales bucketed into the current month by `date`.
+  /// Total billed to buyers: quantity * salePrice.
+  final double monthlyProductSalesRevenue;
+
+  /// Total cost of materials sold directly in this month (at time-of-sale cost snapshot).
+  final double monthlyProductSalesCost;
+
+  /// Third term of [netProfit]. Same scope as the two figures above:
+  /// monthlyProductSalesRevenue - monthlyProductSalesCost.
+  final double monthlyProductSalesProfit;
+
+  /// Number of direct product sale transactions in this month.
+  final int monthlyProductSalesCount;
+
+  /// Total quantity of units sold directly in this month.
+  final int monthlyProductSalesUnits;
+
   /// How many active customers have no usable package cost — either no
   /// package assigned, or a packageId that no longer resolves.
   ///
@@ -131,6 +149,11 @@ class DashboardStatsModel extends Equatable {
     required this.monthlyInstallationRevenue,
     required this.monthlyInstallationCost,
     required this.monthlyInstallationProfit,
+    this.monthlyProductSalesRevenue = 0,
+    this.monthlyProductSalesCost = 0,
+    this.monthlyProductSalesProfit = 0,
+    this.monthlyProductSalesCount = 0,
+    this.monthlyProductSalesUnits = 0,
     this.subscriberRunRateRevenue = 0,
     this.unpricedCustomerCount = 0,
     this.currentMonthBilled = 0,
@@ -180,6 +203,11 @@ class DashboardStatsModel extends Equatable {
     monthlyInstallationRevenue,
     monthlyInstallationCost,
     monthlyInstallationProfit,
+    monthlyProductSalesRevenue,
+    monthlyProductSalesCost,
+    monthlyProductSalesProfit,
+    monthlyProductSalesCount,
+    monthlyProductSalesUnits,
     unpricedCustomerCount,
     currentMonthBilled,
     currentMonthCollected,

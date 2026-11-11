@@ -50,6 +50,156 @@
     }
   },
   {
+    "id": "3e556114-f7db-4650-bc53-63b479bded25",
+    "name": "Rahmat ullah s/o Dunya Gul",
+    "phone": "03269113545",
+    "cnic": "2120397295119",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "t3qFBA75mi0VIU2cS5cy",
+    "monthlyBill": 3500,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793894885,
+      "_nanoseconds": 931000000
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793895249,
+      "_nanoseconds": 895000000
+    }
+  },
+  {
+    "id": "7717e8eb-1b03-44e5-b92f-c66abd3500eb",
+    "name": "Muhammad Suleman s/o Hamish Gul",
+    "phone": "03329727960",
+    "cnic": "2120172512649",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "monthlyBill": 4250,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793300400,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1796022000,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793806640,
+      "_nanoseconds": 63000000
+    }
+  },
+  {
+    "id": "78f842dd-83d0-4c5b-b7a6-af8c52ee1a29",
+    "name": "Surat Amin Factory Fan",
+    "phone": "03323936282",
+    "cnic": "2120164863937",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "73gB6paNLzYVVN65CFbN",
+    "monthlyBill": 6000,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793214000,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1795935600,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793806320,
+      "_nanoseconds": 758000000
+    }
+  },
+  {
+    "id": "825102bb-5efd-40e3-b25f-1310d4f612c0",
+    "name": "Zubair Khan s/o Tiladar Khan",
+    "phone": "03349222488",
+    "cnic": "2120350607737",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "t3qFBA75mi0VIU2cS5cy",
+    "monthlyBill": 3500,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793041200,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1795762800,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793806181,
+      "_nanoseconds": 792000000
+    }
+  },
+  {
+    "id": "833d11a1-ef05-4365-9888-153a250c77a3",
+    "name": "Shahid PCO Bara",
+    "phone": "03311111111",
+    "cnic": "2111111111111",
+    "address": "",
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793300400,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1796022000,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793807375,
+      "_nanoseconds": 959000000
+    },
+    "monthlyBill": 3000,
+    "packageId": "ljflungsVPeaSPnH7YzC",
+    "connectionType": "fiber"
+  },
+  {
+    "id": "83ef34ab-039a-4311-84c9-eafc6eb9e73f",
+    "name": "Sabir Khan s/o Abdul Wahid",
+    "phone": "03109986161",
+    "cnic": "1730118027363",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "monthlyBill": 4250,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793300400,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1796022000,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793807189,
+      "_nanoseconds": 79000000
+    }
+  },
+  {
     "id": "843c1517-3943-4091-a230-db55bca7febf",
     "name": "Liaquat Khan s/o Nagroz khan",
     "phone": "03119319010",
@@ -75,6 +225,106 @@
     }
   },
   {
+    "id": "9218bd53-520c-4a64-bb4f-0d338d0aeb4e",
+    "name": "Shah Azam Merikhel",
+    "phone": "03322837219",
+    "cnic": "2120373832211",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "monthlyBill": 4250,
+    "status": "active",
+    "notes": "",
+    "userId": "user.bw0567",
+    "joinDate": {
+      "_seconds": 1794329877,
+      "_nanoseconds": 194000000
+    },
+    "nextDueDate": {
+      "_seconds": 1796886000,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1794329933,
+      "_nanoseconds": 890000000
+    }
+  },
+  {
+    "id": "9564d9fe-6d5c-4a50-af5d-bb21dd06995e",
+    "name": "Azam Khan s/o Sheraz khan",
+    "phone": "03169554744",
+    "cnic": "2120149002673",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "t3qFBA75mi0VIU2cS5cy",
+    "monthlyBill": 3500,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793041200,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1795762800,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793805457,
+      "_nanoseconds": 891000000
+    }
+  },
+  {
+    "id": "99d08671-ca75-4ce6-bce7-f4261e464bde",
+    "name": "Muneeb Shah s/o Muqarab Shah",
+    "phone": "03365562360",
+    "cnic": "2120109133369",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "NoJHimLohL4Nh82R7pc6",
+    "monthlyBill": 3000,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793041200,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1795762800,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793805575,
+      "_nanoseconds": 120000000
+    }
+  },
+  {
+    "id": "9fa89fc2-f039-4816-9877-50707cd9da1f",
+    "name": "Rasheed Pco 2",
+    "phone": "03358004006",
+    "cnic": "2120125237391",
+    "address": "",
+    "connectionType": "fiber",
+    "packageId": "3JQTYJsZ9x6gyGQvslcx",
+    "monthlyBill": 2000,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793300400,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1796022000,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793806892,
+      "_nanoseconds": 836000000
+    }
+  },
+  {
     "id": "a11bb707-3717-4932-8799-8a4f9b658941",
     "name": "Muhammad Ismail Khan",
     "phone": "03339366394",
@@ -97,6 +347,31 @@
     "createdAt": {
       "_seconds": 1793612305,
       "_nanoseconds": 689000000
+    }
+  },
+  {
+    "id": "ab511576-68ce-4ac5-8ab9-187d998d439e",
+    "name": "M Ismail s/o Firdous khan",
+    "phone": "03111111111",
+    "cnic": "2111111111111",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "NoJHimLohL4Nh82R7pc6",
+    "monthlyBill": 3000,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793473200,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1796108400,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793807492,
+      "_nanoseconds": 359000000
     }
   },
   {
@@ -231,22 +506,26 @@
   {
     "id": "anwarsaid0511_frontierbb9",
     "name": "Anwar Said",
-    "phone": "",
-    "cnic": "",
     "address": "",
-    "connectionType": "wireless",
-    "packageId": "eqvt79bClPwGPRP6HZDj",
-    "monthlyBill": 2500,
     "status": "active",
     "notes": "Username: anwarsaid0511@frontierbb9; Panel: NASR (old panel); IP: 100.99.115.78; Old plan 5 Mbps, mapped to 8 Mbps",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793905200,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 1600,
+    "joinDate": {
+      "_seconds": 1794140044,
+      "_nanoseconds": 697000000
+    },
+    "phone": "03111111111",
+    "packageId": "3JQTYJsZ9x6gyGQvslcx",
+    "cnic": "2120111111111",
+    "connectionType": "fiber",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
     }
   },
   {
@@ -316,22 +595,26 @@
   {
     "id": "asifalikhan0513",
     "name": "Asif Ali Khan",
-    "phone": "",
-    "cnic": "",
     "address": "",
     "connectionType": "wireless",
-    "packageId": "NoJHimLohL4Nh82R7pc6",
-    "monthlyBill": 3000,
     "status": "active",
     "notes": "Username: asifalikhan0513; Panel: Jazz",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 3500,
+    "joinDate": {
+      "_seconds": 1794130594,
+      "_nanoseconds": 762000000
+    },
+    "phone": "03154554544",
+    "packageId": "t3qFBA75mi0VIU2cS5cy",
+    "cnic": "2120222222222",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
     }
   },
   {
@@ -389,14 +672,15 @@
     "status": "active",
     "notes": "Username: baseer0500@frontierbb9; Panel: NASR (old panel); IP: 100.99.59.30",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793818800,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "bismillah065_frontierbb9",
@@ -410,14 +694,15 @@
     "status": "active",
     "notes": "Username: bismillah065@frontierbb9; Panel: NASR (old panel); IP: 100.99.124.70",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "burhan092_frontierbb9",
@@ -441,24 +726,128 @@
     }
   },
   {
-    "id": "daudmirbara086_frontierbb9",
-    "name": "Daud Mir Bara",
-    "phone": "",
-    "cnic": "",
+    "id": "c3fdb521-87cd-4c98-a7ed-9c4011f40e35",
+    "name": "Zia Shahid s/o Khanim ullah",
+    "phone": "03139121352",
+    "cnic": "1730148008069",
     "address": "",
     "connectionType": "wireless",
     "packageId": "73gB6paNLzYVVN65CFbN",
     "monthlyBill": 6000,
     "status": "active",
-    "notes": "Username: daudmirbara086@frontierbb9; Panel: NASR (old panel); IP: 100.99.61.20",
-    "joinDate": null,
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1793041200,
+      "_nanoseconds": 0
+    },
     "nextDueDate": {
-      "_seconds": 1794164400,
+      "_seconds": 1795762800,
       "_nanoseconds": 0
     },
     "createdAt": {
+      "_seconds": 1793805691,
+      "_nanoseconds": 163000000
+    }
+  },
+  {
+    "id": "c5ccfb3c-0cee-4ae4-bfab-310bca0e0849",
+    "name": "Israfeel s/o alif khan",
+    "phone": "03111111111",
+    "cnic": "2111111111111",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "NoJHimLohL4Nh82R7pc6",
+    "monthlyBill": 3000,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796367600,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793807769,
+      "_nanoseconds": 827000000
+    },
+    "joinDate": {
+      "_seconds": 1793559600,
+      "_nanoseconds": 0
+    }
+  },
+  {
+    "id": "c7538d69-99be-4734-9830-f25b08f1c5a2",
+    "name": "Muhammad Imran s/o misal khan",
+    "phone": "03348320637",
+    "cnic": "2120184498145",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "monthlyBill": 4250,
+    "status": "active",
+    "notes": "",
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1792954800,
+      "_nanoseconds": 0
+    },
+    "nextDueDate": {
+      "_seconds": 1795676400,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1793805300,
+      "_nanoseconds": 42000000
+    }
+  },
+  {
+    "id": "daudmirbara086_frontierbb9",
+    "name": "Daud Mir Bara",
+    "address": "",
+    "status": "active",
+    "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 3000,
+    "joinDate": {
+      "_seconds": 1794208142,
+      "_nanoseconds": 237000000
+    },
+    "notes": "",
+    "phone": "03349105158",
+    "packageId": "ljflungsVPeaSPnH7YzC",
+    "cnic": "2120136022015",
+    "connectionType": "fiber",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796799600,
+      "_nanoseconds": 0
+    }
+  },
+  {
+    "id": "e765b3e3-154d-43ea-a2b4-0ac0f6577c4f",
+    "name": "Munawar Khan s/o Gul Wali",
+    "phone": "03377007094",
+    "cnic": "1730158674221",
+    "address": "",
+    "connectionType": "wireless",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "monthlyBill": 10000,
+    "status": "active",
+    "notes": "",
+    "userId": "user.bw0566",
+    "nextDueDate": {
+      "_seconds": 1796799600,
+      "_nanoseconds": 0
+    },
+    "createdAt": {
+      "_seconds": 1794327032,
+      "_nanoseconds": 663000000
+    },
+    "joinDate": {
+      "_seconds": 1791486000,
+      "_nanoseconds": 0
     }
   },
   {
@@ -473,14 +862,15 @@
     "status": "active",
     "notes": "Username: fahad05002@frontierbb9; Panel: NASR (old panel); IP: 100.99.56.21",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793991600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796626800,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "faheem023_frontierbb9",
@@ -512,7 +902,6 @@
     "connectionType": "wireless",
     "packageId": "NoJHimLohL4Nh82R7pc6",
     "monthlyBill": 3000,
-    "status": "active",
     "notes": "Username: faizullah037@frontierbb9; Panel: Jazz",
     "joinDate": null,
     "nextDueDate": {
@@ -522,7 +911,9 @@
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "userId": null,
+    "status": "inactive"
   },
   {
     "id": "fawad056_frontierbb9",
@@ -591,23 +982,27 @@
   {
     "id": "gulzali0514_frontierbb9",
     "name": "Gul Zali Bara",
-    "phone": "",
-    "cnic": "",
     "address": "",
-    "connectionType": "wireless",
-    "packageId": "1l1bY3cw2LssPpCFeLtp",
-    "monthlyBill": 4250,
     "status": "active",
-    "notes": "Username: gulzali0514@frontierbb9; Panel: NASR (old panel); IP: 100.99.45.231",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
+    },
+    "userId": null,
+    "joinDate": {
+      "_seconds": 1794165508,
+      "_nanoseconds": 335000000
+    },
+    "notes": "old id: gulzali0514@frontierbb9",
+    "phone": "03323464681",
+    "cnic": "2120114345745",
+    "monthlyBill": 3000,
+    "packageId": "ljflungsVPeaSPnH7YzC",
+    "connectionType": "fiber"
   },
   {
     "id": "haleemabara_frontierbb9",
@@ -681,7 +1076,6 @@
     "connectionType": "wireless",
     "packageId": "eqvt79bClPwGPRP6HZDj",
     "monthlyBill": 2500,
-    "status": "active",
     "notes": "Username: hussain003@frontierbb9; Panel: NASR (old panel); IP: 100.99.121.84; Old plan 7 Mbps, mapped to 8 Mbps",
     "joinDate": null,
     "nextDueDate": {
@@ -691,7 +1085,9 @@
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "userId": null,
+    "status": "inactive"
   },
   {
     "id": "ibrahim030_frontierbb9",
@@ -747,34 +1143,39 @@
     "status": "active",
     "notes": "Username: ibrar051@frontierbb9; Panel: NASR (old panel); IP: 100.99.97.65",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793818800,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "ibrarahmad_frontierbb9",
     "name": "Ibrarahmad",
-    "phone": "",
-    "cnic": "",
     "address": "",
     "connectionType": "wireless",
-    "packageId": "1l1bY3cw2LssPpCFeLtp",
-    "monthlyBill": 4250,
     "status": "active",
-    "notes": "Username: ibrarahmad@frontierbb9; Panel: Jazz",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794164400,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 3500,
+    "joinDate": {
+      "_seconds": 1794241439,
+      "_nanoseconds": 101000000
+    },
+    "notes": "Username: ; Panel: Jazz",
+    "phone": "03444444444",
+    "packageId": "t3qFBA75mi0VIU2cS5cy",
+    "cnic": "2222222222222",
+    "userId": "ibrarahmad@frontierbb9",
+    "nextDueDate": {
+      "_seconds": 1796799600,
+      "_nanoseconds": 0
     }
   },
   {
@@ -832,14 +1233,15 @@
     "status": "active",
     "notes": "Username: iqbalbrother013@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793991600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796799600,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "iqbalbrother035_frontierbb9",
@@ -853,14 +1255,15 @@
     "status": "active",
     "notes": "Username: iqbalbrother035@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793991600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796799600,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "jahangir0503_frontierbb9",
@@ -874,14 +1277,15 @@
     "status": "active",
     "notes": "Username: jahangir0503@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "janm064_frontierbb9",
@@ -963,14 +1367,15 @@
     "status": "active",
     "notes": "Username: kashif039@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793991600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796626800,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "kashif_frontierbb9",
@@ -1023,7 +1428,6 @@
     "connectionType": "wireless",
     "packageId": "NoJHimLohL4Nh82R7pc6",
     "monthlyBill": 3000,
-    "status": "active",
     "notes": "Username: kohicollage042@frontierbb9; Panel: NASR (old panel); IP: 100.99.108.214",
     "joinDate": null,
     "nextDueDate": {
@@ -1033,7 +1437,9 @@
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "userId": null,
+    "status": "inactive"
   },
   {
     "id": "komailbujree_frontierbb9",
@@ -1131,14 +1537,15 @@
     "status": "active",
     "notes": "Username: marwan0516; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "masud099_frontierbb9",
@@ -1228,22 +1635,26 @@
   {
     "id": "mrehan0512",
     "name": "Mrehan0512",
-    "phone": "",
-    "cnic": "",
     "address": "",
     "connectionType": "wireless",
-    "packageId": "t3qFBA75mi0VIU2cS5cy",
-    "monthlyBill": 3500,
     "status": "active",
     "notes": "Username: Mrehan0512; Panel: Jazz",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793991600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 4250,
+    "joinDate": {
+      "_seconds": 1794139776,
+      "_nanoseconds": 756000000
+    },
+    "phone": "03111111111",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "cnic": "2120111111111",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
     }
   },
   {
@@ -1356,22 +1767,26 @@
   {
     "id": "mzahid048_frontierbb9",
     "name": "Mzahid048",
-    "phone": "",
-    "cnic": "",
     "address": "",
     "connectionType": "wireless",
-    "packageId": "t3qFBA75mi0VIU2cS5cy",
-    "monthlyBill": 3500,
     "status": "active",
     "notes": "Username: mzahid048@frontierbb9; Panel: Jazz",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793732400,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 4250,
+    "joinDate": {
+      "_seconds": 1793804773,
+      "_nanoseconds": 472000000
+    },
+    "phone": "03111111111",
+    "packageId": "1l1bY3cw2LssPpCFeLtp",
+    "cnic": "2111111111111",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796367600,
+      "_nanoseconds": 0
     }
   },
   {
@@ -1407,34 +1822,39 @@
     "status": "active",
     "notes": "Username: naqib08@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793559600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796194800,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "nasr001_frontierbb9",
-    "name": "Luqman",
-    "phone": "",
-    "cnic": "",
     "address": "",
-    "connectionType": "wireless",
-    "packageId": "NoJHimLohL4Nh82R7pc6",
-    "monthlyBill": 3000,
     "status": "active",
-    "notes": "Username: nasr001@frontierbb9; Panel: NASR (old panel); IP: 100.99.9.124",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794164400,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "joinDate": {
+      "_seconds": 1794220551,
+      "_nanoseconds": 972000000
+    },
+    "notes": "Username: ; Panel: NASR (old panel); IP: 100.99.9.124",
+    "phone": "03719099009",
+    "name": "M Sherin s/o Ghilaf shah",
+    "cnic": "2120188706959",
+    "userId": null,
+    "monthlyBill": 2000,
+    "packageId": "3JQTYJsZ9x6gyGQvslcx",
+    "connectionType": "fiber",
+    "nextDueDate": {
+      "_seconds": 1796886000,
+      "_nanoseconds": 0
     }
   },
   {
@@ -1619,14 +2039,15 @@
     "status": "active",
     "notes": "Username: qadeer041@frontierbb9; Panel: NASR (old panel); IP: 100.99.10.166",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793818800,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "qadoos078_frontierbb9",
@@ -1729,14 +2150,15 @@
     "status": "active",
     "notes": "Username: raham0507@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793732400,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796367600,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "rahamsher0508_frontierbb9",
@@ -1772,14 +2194,15 @@
     "status": "active",
     "notes": "Username: rahmat025@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793991600,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796626800,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "rashid047_frontierbb9",
@@ -1996,22 +2419,26 @@
   {
     "id": "saqib053_frontierbb9",
     "name": "Saqib053",
-    "phone": "",
-    "cnic": "",
     "address": "",
     "connectionType": "wireless",
-    "packageId": "1l1bY3cw2LssPpCFeLtp",
-    "monthlyBill": 4250,
     "status": "active",
     "notes": "Username: saqib053@frontierbb9; Panel: Jazz",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 3500,
+    "joinDate": {
+      "_seconds": 1794138252,
+      "_nanoseconds": 188000000
+    },
+    "phone": "03111111111",
+    "packageId": "t3qFBA75mi0VIU2cS5cy",
+    "cnic": "2120111111111",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
     }
   },
   {
@@ -2038,22 +2465,26 @@
   {
     "id": "shaheenshah0510_frontierbb9",
     "name": "Shaheenshah Bujree",
-    "phone": "",
-    "cnic": "",
     "address": "",
-    "connectionType": "wireless",
-    "packageId": "eqvt79bClPwGPRP6HZDj",
-    "monthlyBill": 2500,
     "status": "active",
     "notes": "Username: shaheenshah0510@frontierbb9; Panel: NASR (old panel); IP: 100.99.30.54; Old plan 5 Mbps, mapped to 8 Mbps",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793905200,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
+    },
+    "monthlyBill": 1600,
+    "joinDate": {
+      "_seconds": 1793989680,
+      "_nanoseconds": 3000000
+    },
+    "phone": "03427262827",
+    "packageId": "OOzIJuW6ghandPIDnP5t",
+    "cnic": "1730183828272",
+    "connectionType": "fiber",
+    "userId": null,
+    "nextDueDate": {
+      "_seconds": 1796540400,
+      "_nanoseconds": 0
     }
   },
   {
@@ -2110,14 +2541,15 @@
     "status": "active",
     "notes": "Username: shahjahan05001@frontierbb9; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793818800,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "shakeel010_frontierbb9",
@@ -2194,14 +2626,15 @@
     "status": "active",
     "notes": "Username: ssstellmill034@frontierbb9; Panel: NASR (old panel); IP: 100.99.27.212",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793905200,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796540400,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "suleman089_frontierbb9",
@@ -2255,7 +2688,6 @@
     "connectionType": "wireless",
     "packageId": "73gB6paNLzYVVN65CFbN",
     "monthlyBill": 6000,
-    "status": "active",
     "notes": "Username: surat066@frontierbb9; Panel: NASR (old panel); IP: 100.99.100.30",
     "joinDate": null,
     "nextDueDate": {
@@ -2265,7 +2697,9 @@
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "userId": null,
+    "status": "inactive"
   },
   {
     "id": "suratcctv067_frontierbb9",
@@ -2276,7 +2710,6 @@
     "connectionType": "wireless",
     "packageId": "NoJHimLohL4Nh82R7pc6",
     "monthlyBill": 3000,
-    "status": "active",
     "notes": "Username: suratcctv067@frontierbb9; Panel: NASR (old panel); IP: 100.99.52.1",
     "joinDate": null,
     "nextDueDate": {
@@ -2286,7 +2719,9 @@
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "userId": null,
+    "status": "inactive"
   },
   {
     "id": "tariq004_frontierbb9",
@@ -2342,14 +2777,15 @@
     "status": "active",
     "notes": "Username: umairkhan0515; Panel: Jazz",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794078000,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796713200,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "user.bw0501",
@@ -3360,27 +3796,6 @@
     }
   },
   {
-    "id": "userbw0512_frontierbb9",
-    "name": "Shah Azam",
-    "phone": "",
-    "cnic": "",
-    "address": "",
-    "connectionType": "wireless",
-    "packageId": "1l1bY3cw2LssPpCFeLtp",
-    "monthlyBill": 4250,
-    "status": "active",
-    "notes": "Username: userbw0512@frontierbb9; Panel: Jazz; IP: 100.99.6.249",
-    "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1795546800,
-      "_nanoseconds": 0
-    },
-    "createdAt": {
-      "_seconds": 1793193994,
-      "_nanoseconds": 987000000
-    }
-  },
-  {
     "id": "userbw0535_frontierbb9",
     "name": "M Alam s/o Ghazi Marjan",
     "phone": "",
@@ -3413,14 +3828,15 @@
     "status": "active",
     "notes": "Username: wajid054@frontierbb9; Panel: Jazz; IP: 100.99.80.46",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1794164400,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796799600,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "wajidnaseer051_frontierbb9",
@@ -3434,14 +3850,15 @@
     "status": "active",
     "notes": "Username: wajidnaseer051@frontierbb9; Panel: NASR (old panel); IP: 100.99.2.74",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793818800,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "walajan032_frontierbb9",
@@ -3477,14 +3894,15 @@
     "status": "active",
     "notes": "Username: wali049@frontierbb9; Panel: NASR (old panel); IP: 100.99.77.149",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793732400,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796367600,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "waseembara0504_frontierbb9",
@@ -3540,14 +3958,15 @@
     "status": "active",
     "notes": "Username: yaseen015@frontierbb9; Panel: Jazz; IP: 100.99.13.150",
     "joinDate": null,
-    "nextDueDate": {
-      "_seconds": 1793818800,
-      "_nanoseconds": 0
-    },
     "createdAt": {
       "_seconds": 1793193994,
       "_nanoseconds": 987000000
-    }
+    },
+    "nextDueDate": {
+      "_seconds": 1796454000,
+      "_nanoseconds": 0
+    },
+    "userId": null
   },
   {
     "id": "yasir016_frontierbb9",

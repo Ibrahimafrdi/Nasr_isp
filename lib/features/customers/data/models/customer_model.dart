@@ -2,6 +2,26 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nasr_isp/features/customers/domain/entities/customer_entity.dart';
 
 class CustomerModel extends CustomerEntity {
+  // customer_model.dart
+  factory CustomerModel.fromEntity(CustomerEntity e) {
+    if (e is CustomerModel) return e;
+    return CustomerModel(
+      id: e.id,
+      name: e.name,
+      phone: e.phone,
+      cnic: e.cnic,
+      address: e.address,
+      connectionType: e.connectionType,
+      packageId: e.packageId,
+      monthlyBill: e.monthlyBill,
+      status: e.status,
+      notes: e.notes,
+      userId: e.userId,
+      createdAt: e.createdAt,
+      joinDate: e.joinDate,
+      nextDueDate: e.nextDueDate,
+    );
+  }
   const CustomerModel({
     required super.id,
     required super.name,
@@ -108,5 +128,4 @@ class CustomerModel extends CustomerEntity {
       nextDueDate: nextDueDate ?? this.nextDueDate,
     );
   }
-
 }

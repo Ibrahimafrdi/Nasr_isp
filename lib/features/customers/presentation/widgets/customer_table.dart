@@ -40,6 +40,7 @@ class CustomerTable extends StatelessWidget {
   final String? footerText;
   final void Function(CustomerModel customer) onView;
   final void Function(CustomerModel customer) onRenew;
+  final void Function(CustomerModel customer) onRemind;
   final void Function(CustomerModel customer) onEdit;
   final void Function(CustomerModel customer) onToggleStatus;
   final void Function(CustomerModel customer) onDelete;
@@ -51,6 +52,7 @@ class CustomerTable extends StatelessWidget {
     required this.getPackageName,
     required this.onView,
     required this.onRenew,
+    required this.onRemind,
     required this.onEdit,
     required this.onToggleStatus,
     required this.onDelete,
@@ -77,6 +79,7 @@ class CustomerTable extends StatelessWidget {
             packageName: getPackageName(c.packageId),
             onView: onView,
             onRenew: onRenew,
+            onRemind: onRemind,
             onEdit: onEdit,
             onToggleStatus: onToggleStatus,
             onDelete: onDelete,
@@ -213,6 +216,7 @@ class _CustomerRow extends StatelessWidget {
   final String packageName;
   final void Function(CustomerModel customer) onView;
   final void Function(CustomerModel customer) onRenew;
+  final void Function(CustomerModel customer) onRemind;
   final void Function(CustomerModel customer) onEdit;
   final void Function(CustomerModel customer) onToggleStatus;
   final void Function(CustomerModel customer) onDelete;
@@ -224,6 +228,7 @@ class _CustomerRow extends StatelessWidget {
     required this.packageName,
     required this.onView,
     required this.onRenew,
+    required this.onRemind,
     required this.onEdit,
     required this.onToggleStatus,
     required this.onDelete,
@@ -422,6 +427,16 @@ class _CustomerRow extends StatelessWidget {
                           ),
                         ),
                         child: const Text('Renew'),
+                      ),
+                    ),
+                  if (isDue)
+                    IconButton(
+                      tooltip: 'Send WhatsApp reminder',
+                      onPressed: () => onRemind(c),
+                      icon: const Icon(
+                        Icons.chat_outlined,
+                        size: 20,
+                        color: _kTeal,
                       ),
                     ),
                   const SizedBox(width: 4),

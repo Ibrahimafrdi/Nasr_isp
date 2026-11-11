@@ -4,7 +4,6 @@ import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/finance/index.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
-import 'package:nasr_isp/features/customers/data/models/customer_model.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/info_chip.dart';
 import 'package:nasr_isp/shared/widgets/status_badge.dart';
@@ -25,6 +24,7 @@ class CustomerCardList extends StatelessWidget {
   /// Called when the user taps "Renew" on a card whose subscription is
   /// expired or inside the renewal window.
   final void Function(CustomerModel customer) onRenew;
+  final void Function(CustomerModel customer)? onRemind;
 
   /// Called when the user taps "Deactivate" / "Reactivate".
   final void Function(CustomerModel customer) onToggleStatus;
@@ -36,6 +36,7 @@ class CustomerCardList extends StatelessWidget {
     required this.getPackageName,
     required this.onDelete,
     required this.onRenew,
+    this.onRemind,
     required this.onToggleStatus,
   });
 
@@ -52,6 +53,7 @@ class CustomerCardList extends StatelessWidget {
               getPackageName: getPackageName,
               onDelete: onDelete,
               onRenew: onRenew,
+              onRemind: onRemind,
               onToggleStatus: onToggleStatus,
               now: now,
             ),
@@ -67,6 +69,7 @@ class _CustomerCard extends StatelessWidget {
   final String Function(String? packageId) getPackageName;
   final void Function(CustomerModel customer) onDelete;
   final void Function(CustomerModel customer) onRenew;
+  final void Function(CustomerModel customer)? onRemind;
   final void Function(CustomerModel customer) onToggleStatus;
   final DateTime now;
 
@@ -76,6 +79,7 @@ class _CustomerCard extends StatelessWidget {
     required this.getPackageName,
     required this.onDelete,
     required this.onRenew,
+    this.onRemind,
     required this.onToggleStatus,
     required this.now,
   });
@@ -233,6 +237,12 @@ class _CustomerCard extends StatelessWidget {
                         : Colors.orange.shade700,
                   ),
                   onPressed: () => onRenew(customer),
+                ),
+              if (isDueForRenewal && onRemind != null)
+                TextButton.icon(
+                  icon: const Icon(Icons.chat_outlined, size: 16),
+                  label: const Text('Remind', style: TextStyle(fontSize: 12)),
+                  onPressed: () => onRemind!(customer),
                 ),
               TextButton.icon(
                 icon: const Icon(Icons.visibility, size: 16),

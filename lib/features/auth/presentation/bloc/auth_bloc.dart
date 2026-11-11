@@ -75,7 +75,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
 
   /// How long an admin stays logged in after signing in.
-  static const Duration sessionDuration = Duration(hours: 8);
+  static const Duration sessionDuration = Duration(hours: 1);
 
   Timer? _sessionTimer;
 

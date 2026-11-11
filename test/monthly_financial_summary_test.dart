@@ -11,6 +11,9 @@ import 'package:nasr_isp/features/expenses/domain/usecases/get_expenses.dart';
 import 'package:nasr_isp/features/installations/domain/entities/installation_entity.dart';
 import 'package:nasr_isp/features/installations/domain/repositories/installation_repository.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
+import 'package:nasr_isp/features/inventory/domain/entities/stock_issue_entity.dart';
+import 'package:nasr_isp/features/inventory/domain/repositories/inventory_repository.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/get_stock_issues.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/repositories/package_repository.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
@@ -82,6 +85,26 @@ class _FakePackageRepository implements PackageRepository {
     bool? activeOnly,
   }) async =>
       packages;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeInventoryRepository implements InventoryRepository {
+  final List<StockIssueEntity> issues;
+  _FakeInventoryRepository(this.issues);
+
+  @override
+  Future<List<StockIssueEntity>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    return issues.where((s) {
+      if (startDate != null && s.date.isBefore(startDate)) return false;
+      if (endDate != null && !s.date.isBefore(endDate)) return false;
+      return true;
+    }).toList();
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -171,12 +194,41 @@ void main() {
         ),
       ];
 
+      final stockIssues = <StockIssueEntity>[
+        // Direct sale: 1 item, salePrice 6500, unitCost 5000 -> rev: 6500, cost: 5000, profit: 1500
+        StockIssueEntity(
+          id: 's1',
+          itemId: 'item1',
+          itemName: 'Fiber Router',
+          quantity: 1,
+          unitCost: 5000,
+          salePrice: 6500,
+          purpose: StockIssuePurpose.sale,
+          buyerName: 'John',
+          date: DateTime(2026, 9, 8),
+          issuedBy: 'Admin',
+        ),
+        // Tower issue: should be ignored in sales revenue and profit
+        StockIssueEntity(
+          id: 's2',
+          itemId: 'item2',
+          itemName: 'Patch Cord',
+          quantity: 3,
+          unitCost: 200,
+          purpose: StockIssuePurpose.tower,
+          towerName: 'North Tower',
+          date: DateTime(2026, 9, 9),
+          issuedBy: 'Admin',
+        ),
+      ];
+
       final usecase = GetMonthlyFinancialSummary(
         getCustomers: GetCustomers(_FakeCustomerRepository(customers)),
         getAllPayments: GetAllPayments(_FakePaymentRepository(payments)),
         getExpenses: GetExpenses(_FakeExpenseRepository(expenses)),
         getInstallations: GetInstallations(_FakeInstallationRepository(installations)),
         getPackages: GetPackages(_FakePackageRepository(packages)),
+        getStockIssues: GetStockIssues(_FakeInventoryRepository(stockIssues)),
       );
 
       final summary = await usecase(DateTime(2026, 9, 15));
@@ -187,9 +239,14 @@ void main() {
       expect(summary.installationRevenue, 5000.0);
       expect(summary.installationCost, 2000.0);    // 1000 labour + 1000 equipment
       expect(summary.installationProfit, 3000.0);  // 5000 - 2000
+      expect(summary.productSalesRevenue, 6500.0);
+      expect(summary.productSalesCost, 5000.0);
+      expect(summary.productSalesProfit, 1500.0);
+      expect(summary.productSalesCount, 1);
+      expect(summary.productSalesUnits, 1);
       expect(summary.totalExpenses, 1200.0);
-      // Net Profit = subscriptionCollected (3000) + installationProfit (3000) - totalExpenses (1200) = 4800
-      expect(summary.netProfit, 4800.0);
+      // Net Profit = subscriptionCollected (3000) + installationProfit (3000) + productSalesProfit (1500) - totalExpenses (1200) = 6300
+      expect(summary.netProfit, 6300.0);
       expect(summary.expensesByCategory[ExpenseCategory.electricity], 1200.0);
       expect(summary.unpricedCustomerCount, 0);
     });

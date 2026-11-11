@@ -34,6 +34,8 @@ import 'package:nasr_isp/features/installations/domain/usecases/get_installation
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations_by_customer.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/update_installation.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/inventory/domain/repositories/inventory_repository.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/get_stock_issues.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/repositories/package_repository.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/add_package.dart';
@@ -225,6 +227,26 @@ class FakeEmployeeRepository implements EmployeeRepository {
   Future<void> updateEmployee(EmployeeEntity employee) async {}
 }
 
+class FakeInventoryRepository implements InventoryRepository {
+  final List<StockIssueEntity> stockIssues;
+  FakeInventoryRepository([this.stockIssues = const []]);
+
+  @override
+  Future<List<StockIssueEntity>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    return stockIssues.where((s) {
+      if (startDate != null && s.date.isBefore(startDate)) return false;
+      if (endDate != null && !s.date.isBefore(endDate)) return false;
+      return true;
+    }).toList();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 /// Resets [getIt] and registers every bloc the app's `MultiBlocProvider`
 /// expects, backed by the in-memory `Fake*Repository` implementations above.
 ///
@@ -245,6 +267,7 @@ Future<void> registerFakeDependencies() async {
   final settingsRepo = FakeSettingsRepository();
   final userManagementRepo = FakeUserManagementRepository();
   final employeeRepo = FakeEmployeeRepository();
+  final inventoryRepo = FakeInventoryRepository();
 
   final getCustomers = GetCustomers(customerRepo);
   final addCustomer = AddCustomer(customerRepo);
@@ -286,6 +309,7 @@ Future<void> registerFakeDependencies() async {
   final getEmployees = GetEmployees(employeeRepo);
   final addEmployee = AddEmployee(employeeRepo);
   final updateEmployee = UpdateEmployee(employeeRepo);
+  final getStockIssues = GetStockIssues(inventoryRepo);
 
   final getMonthlyFinancialSummary = GetMonthlyFinancialSummary(
     getCustomers: getCustomers,
@@ -293,6 +317,7 @@ Future<void> registerFakeDependencies() async {
     getExpenses: getExpenses,
     getInstallations: getInstallations,
     getPackages: getPackages,
+    getStockIssues: getStockIssues,
   );
   final getEarliestPaymentDate = GetEarliestPaymentDate(paymentRepo);
   final getAvailableReportMonths = GetAvailableReportMonths(
@@ -311,6 +336,7 @@ Future<void> registerFakeDependencies() async {
       getExpenses: getExpenses,
       getInstallations: getInstallations,
       getPackages: getPackages,
+      getStockIssues: getStockIssues,
       getMonthlyFinancialSummary: getMonthlyFinancialSummary,
     ),
   );

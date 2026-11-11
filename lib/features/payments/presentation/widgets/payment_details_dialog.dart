@@ -5,7 +5,12 @@ import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/payments/data/models/payment_model.dart';
+import 'package:nasr_isp/features/settings/utils/load_app_settings.dart';
 import 'package:nasr_isp/shared/widgets/status_badge.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nasr_isp/features/payments/presentation/utils/payment_receipt_pdf.dart';
+import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.dart';
+import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
 
 /// Displays a comprehensive, clean receipt slip & metadata modal for a payment.
 Future<void> showPaymentDetailsDialog({
@@ -60,6 +65,19 @@ class _PaymentDetailsContent extends StatelessWidget {
         return 'JazzCash Mobile Wallet';
       default:
         return method?.isNotEmpty == true ? method! : 'Unspecified';
+    }
+  }
+
+  Future<void> _openPdf(BuildContext context) async {
+    final settings = await loadAppSettings(context);
+    if (!context.mounted) return;
+    try {
+      await PaymentReceiptPdf.printOrSave(payment: payment, settings: settings);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not create the PDF receipt.')),
+      );
     }
   }
 
@@ -370,6 +388,26 @@ class _PaymentDetailsContent extends StatelessWidget {
           const SizedBox(height: AppSpacing.xl),
 
           // Action Button Row
+          if (payment.paidAmount > 0) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openPdf(context),
+                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                label: const Text('Print / Save PDF Receipt'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.charcoal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           Row(
             children: [
               Expanded(

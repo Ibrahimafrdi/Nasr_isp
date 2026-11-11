@@ -35,6 +35,23 @@ class MonthlyFinancialSummary extends Equatable {
   /// installationRevenue − installationCost
   double get installationProfit => installationRevenue - installationCost;
 
+  // ── Product Sales ────────────────────────────────────────────────────────────
+
+  /// Total billed to buyers for direct stock sales in this month.
+  final double productSalesRevenue;
+
+  /// Total cost of materials sold directly in this month (at time-of-sale cost snapshot).
+  final double productSalesCost;
+
+  /// Number of direct sale transactions in this month.
+  final int productSalesCount;
+
+  /// Total quantity of units sold directly in this month.
+  final int productSalesUnits;
+
+  /// productSalesRevenue − productSalesCost
+  double get productSalesProfit => productSalesRevenue - productSalesCost;
+
   // ── Expenses ─────────────────────────────────────────────────────────────────
 
   /// Sum of all expenses whose `date` falls in this month.
@@ -46,7 +63,7 @@ class MonthlyFinancialSummary extends Equatable {
   // ── Summary ──────────────────────────────────────────────────────────────────
 
   /// Cash-collected net profit:
-  ///   subscriptionCollected + installationProfit − totalExpenses
+  ///   subscriptionCollected + installationProfit + productSalesProfit − totalExpenses
   final double netProfit;
 
   /// Number of active subscribers whose package cost cannot be resolved.
@@ -60,6 +77,10 @@ class MonthlyFinancialSummary extends Equatable {
     required this.subscriptionCollected,
     required this.installationRevenue,
     required this.installationCost,
+    this.productSalesRevenue = 0,
+    this.productSalesCost = 0,
+    this.productSalesCount = 0,
+    this.productSalesUnits = 0,
     required this.totalExpenses,
     required this.expensesByCategory,
     required this.netProfit,
@@ -73,6 +94,10 @@ class MonthlyFinancialSummary extends Equatable {
         subscriptionCollected,
         installationRevenue,
         installationCost,
+        productSalesRevenue,
+        productSalesCost,
+        productSalesCount,
+        productSalesUnits,
         totalExpenses,
         expensesByCategory,
         netProfit,

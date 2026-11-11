@@ -15,6 +15,9 @@ import 'package:nasr_isp/features/installations/domain/entities/installation_ent
 import 'package:nasr_isp/features/installations/domain/entities/installation_item_used_entity.dart';
 import 'package:nasr_isp/features/installations/domain/repositories/installation_repository.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations.dart';
+import 'package:nasr_isp/features/inventory/domain/entities/stock_issue_entity.dart';
+import 'package:nasr_isp/features/inventory/domain/repositories/inventory_repository.dart';
+import 'package:nasr_isp/features/inventory/domain/usecases/get_stock_issues.dart';
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/repositories/package_repository.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
@@ -156,6 +159,26 @@ class _FakePackageRepository implements PackageRepository {
   Future<void> deletePackage(String id) async => throw UnimplementedError();
 }
 
+class _FakeInventoryRepository implements InventoryRepository {
+  _FakeInventoryRepository(this.issues);
+  final List<StockIssueEntity> issues;
+
+  @override
+  Future<List<StockIssueEntity>> getStockIssues({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    return issues.where((s) {
+      if (startDate != null && s.date.isBefore(startDate)) return false;
+      if (endDate != null && !s.date.isBefore(endDate)) return false;
+      return true;
+    }).toList();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 // ── Builders ─────────────────────────────────────────────────────
 
 final _fixedNow = DateTime(2026, 7, 15);
@@ -166,12 +189,14 @@ DashboardBloc _bloc({
   List<ExpenseModel> expenses = const [],
   List<InstallationEntity> installations = const [],
   List<PackageEntity> packages = const [],
+  List<StockIssueEntity> stockIssues = const [],
 }) {
   final getCustomers = GetCustomers(_FakeCustomerRepository(customers));
   final getAllPayments = GetAllPayments(_FakePaymentRepository(payments));
   final getExpenses = GetExpenses(_FakeExpenseRepository(expenses));
   final getInstallations = GetInstallations(_FakeInstallationRepository(installations));
   final getPackages = GetPackages(_FakePackageRepository(packages));
+  final getStockIssues = GetStockIssues(_FakeInventoryRepository(stockIssues));
 
   return DashboardBloc(
     getCustomers: getCustomers,
@@ -179,12 +204,14 @@ DashboardBloc _bloc({
     getExpenses: getExpenses,
     getInstallations: getInstallations,
     getPackages: getPackages,
+    getStockIssues: getStockIssues,
     getMonthlyFinancialSummary: GetMonthlyFinancialSummary(
       getCustomers: getCustomers,
       getAllPayments: getAllPayments,
       getExpenses: getExpenses,
       getInstallations: getInstallations,
       getPackages: getPackages,
+      getStockIssues: getStockIssues,
     ),
     // Fixed clock: month bucketing would otherwise be flaky on the first and
     // last days of a real month.
@@ -359,6 +386,48 @@ void main() {
               stats.monthlyExpenses,
         );
       });
+    });
+
+    test('includes product sales profit in net profit and stats', () async {
+      final bloc = _bloc(
+        customers: [_customer(packageId: 'pkg1')],
+        packages: [_package()],
+        stockIssues: [
+          StockIssueEntity(
+            id: 's1',
+            itemId: 'item1',
+            itemName: 'Fiber Router',
+            quantity: 1,
+            unitCost: 5000,
+            salePrice: 6500,
+            purpose: StockIssuePurpose.sale,
+            buyerName: 'John',
+            date: DateTime(2026, 7, 10),
+            issuedBy: 'Admin',
+          ),
+          StockIssueEntity(
+            id: 's2',
+            itemId: 'item2',
+            itemName: 'Patch Cord',
+            quantity: 3,
+            unitCost: 200,
+            purpose: StockIssuePurpose.tower,
+            towerName: 'North Tower',
+            date: DateTime(2026, 7, 12),
+            issuedBy: 'Admin',
+          ),
+        ],
+      );
+
+      final stats = await _statsFrom(bloc);
+      expect(stats.subscriberRunRateMargin, 2000.0);
+      expect(stats.monthlyProductSalesRevenue, 6500.0);
+      expect(stats.monthlyProductSalesCost, 5000.0);
+      expect(stats.monthlyProductSalesProfit, 1500.0);
+      expect(stats.monthlyProductSalesCount, 1);
+      expect(stats.monthlyProductSalesUnits, 1);
+      // netProfit = 2000 + 0 (installations) + 1500 (sales) - 0 (expenses) = 3500
+      expect(stats.netProfit, 3500.0);
     });
 
     test('recurring margin does not depend on who has paid', () async {

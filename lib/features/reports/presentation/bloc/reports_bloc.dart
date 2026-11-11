@@ -225,6 +225,10 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     double subscriptionCollected = 0;
     double installationRevenue = 0;
     double installationCost = 0;
+    double productSalesRevenue = 0;
+    double productSalesCost = 0;
+    int productSalesCount = 0;
+    int productSalesUnits = 0;
     double totalExpenses = 0;
     double netProfit = 0;
     final expensesByCategory = <ExpenseCategory, double>{};
@@ -234,6 +238,10 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
       subscriptionCollected += s.subscriptionCollected;
       installationRevenue += s.installationRevenue;
       installationCost += s.installationCost;
+      productSalesRevenue += s.productSalesRevenue;
+      productSalesCost += s.productSalesCost;
+      productSalesCount += s.productSalesCount;
+      productSalesUnits += s.productSalesUnits;
       totalExpenses += s.totalExpenses;
       netProfit += s.netProfit;
       s.expensesByCategory.forEach((cat, amount) {
@@ -247,6 +255,10 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
       subscriptionCollected: subscriptionCollected,
       installationRevenue: installationRevenue,
       installationCost: installationCost,
+      productSalesRevenue: productSalesRevenue,
+      productSalesCost: productSalesCost,
+      productSalesCount: productSalesCount,
+      productSalesUnits: productSalesUnits,
       totalExpenses: totalExpenses,
       expensesByCategory: expensesByCategory,
       netProfit: netProfit,

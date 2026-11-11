@@ -50,6 +50,18 @@ class _ReportsPageState extends State<ReportsPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (!authState.user.isAdmin) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Text(
+                'Access Denied. Financial reports are available to administrators only.',
+                style: TextStyle(color: _kMuted, fontSize: 16),
+              ),
+            ),
+          );
+        }
+
         return BlocBuilder<ReportsBloc, ReportsState>(
           builder: (context, state) {
             // Month list + current selection, available once loaded.
@@ -344,6 +356,7 @@ class _ReportsPageState extends State<ReportsPage> {
           Text(
             'Subscriptions collected ${_fmt(summary.subscriptionCollected)}'
             '  ·  Installation profit ${_fmt(summary.installationProfit)}'
+            '  ·  Product sales profit ${_fmt(summary.productSalesProfit)}'
             '  ·  Expenses ${_fmt(summary.totalExpenses)}',
             style: const TextStyle(fontSize: 14, color: soft),
           ),
@@ -441,6 +454,7 @@ class _ReportsPageState extends State<ReportsPage> {
       children: [
         _buildSubscriptionCard(s),
         _buildInstallationCard(s),
+        _buildProductSalesCard(s),
         _buildExpensesCard(s),
       ],
     );
@@ -567,6 +581,29 @@ class _ReportsPageState extends State<ReportsPage> {
         'Profit',
         _fmt(s.installationProfit),
         color: s.installationProfit >= 0 ? _kGood : _kBad,
+        bold: true,
+      ),
+    ]);
+  }
+
+  Widget _buildProductSalesCard(MonthlyFinancialSummary s) {
+    return _sectionCard('Product Sales', [
+      _row(
+        'Revenue',
+        _fmt(s.productSalesRevenue),
+        note: '${s.productSalesCount} sales · ${s.productSalesUnits} units sold',
+      ),
+      _row(
+        'Cost',
+        _fmt(s.productSalesCost),
+        color: s.productSalesCost > 0 ? _kBad : _kInk,
+        note: 'Cost snapshot at time of sale',
+      ),
+      const Divider(height: 20),
+      _row(
+        'Profit',
+        _fmt(s.productSalesProfit),
+        color: s.productSalesProfit >= 0 ? _kGood : _kBad,
         bold: true,
       ),
     ]);

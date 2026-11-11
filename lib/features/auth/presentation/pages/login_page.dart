@@ -190,27 +190,13 @@ class _LoginPageState extends State<LoginPage>
           // Logo
           Stack(
             children: [
-              Container(
-                width: 68,
-                height: 68,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1D4ED8), Color(0xFF0D9488)],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Center(
-                  child: Text(
-                    'N',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -1,
-                    ),
-                  ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.asset(
+                  'assets/logo.jpg',
+                  width: 68,
+                  height: 68,
+                  fit: BoxFit.cover,
                 ),
               ),
               // Online indicator dot

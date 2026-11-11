@@ -5,7 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_theme.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/core/utils/whatsapp_launcher.dart';
+import 'package:nasr_isp/features/customers/data/models/customer_model.dart';
+import 'package:nasr_isp/features/customers/domain/services/renewal_reminder.dart';
 import 'package:nasr_isp/features/customers/presentation/bloc/customers_bloc.dart';
+import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_card_list.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_details_side_sheet.dart';
 import 'package:nasr_isp/features/customers/presentation/widgets/customer_filter_panel.dart';
@@ -16,6 +20,7 @@ import 'package:nasr_isp/features/customers/presentation/widgets/renew_subscript
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
+import 'package:nasr_isp/features/settings/utils/load_app_settings.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
@@ -231,6 +236,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                     getPackageName: _getPackageName,
                                     onDelete: _confirmDelete,
                                     onRenew: _renew,
+                                    onRemind: _remind,
                                     onToggleStatus: _toggleStatus,
                                   ),
                                   desktop: CustomerTable(
@@ -242,6 +248,7 @@ class _CustomersPageState extends State<CustomersPage> {
                                     onView: (c) =>
                                         _showDetails(c, authState.user.isAdmin),
                                     onRenew: _renew,
+                                    onRemind: _remind,
                                     onEdit: (c) => context.go(
                                       '${RoutePaths.customers}/${c.id}/edit',
                                     ),
@@ -403,6 +410,37 @@ class _CustomersPageState extends State<CustomersPage> {
         onCancel: () => Navigator.of(ctx).pop(),
       ),
     );
+  }
+
+  /// Opens WhatsApp with a prefilled renewal reminder. Nothing is sent until
+  /// the operator presses send there.
+  Future<void> _remind(CustomerModel customer) async {
+    final settings = await loadAppSettings(context);
+    if (!mounted) return;
+    final text = RenewalReminder.message(
+      customer: customer,
+      now: DateTime.now(),
+      packageName: _getPackageName(customer.packageId),
+      companyName: settings.companyName,
+      companyPhone: settings.companyPhone,
+    );
+    if (text == null) return;
+
+    final opened = await WhatsAppLauncher.send(
+      phone: customer.phone,
+      message: text,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            WhatsAppLauncher.normalizePhone(customer.phone) == null
+                ? "${customer.name}'s phone number looks invalid. Edit the customer and fix it."
+                : 'Could not open WhatsApp.',
+          ),
+        ),
+      );
+    }
   }
 
   void _renew(CustomerModel customer) {
