@@ -49,6 +49,7 @@ class RoutePaths {
   static const String expenses = '/expenses';
   static const String employees = '/employees';
   static const String installations = '/installations';
+  static const String complaints = '/complaints';
   static const String settings = '/settings';
   static const String inventory = '/inventory';
   static const String reports = '/reports';
@@ -333,3 +334,82 @@ enum PaymentMethod {
     );
   }
 }
+
+/// Complaint type
+enum ComplaintType {
+  noConnection,
+  slowSpeed,
+  intermittent,
+  billing,
+  deviceProblem,
+  relocation,
+  other;
+
+  String get label {
+    switch (this) {
+      case ComplaintType.noConnection:
+        return 'No Connection';
+      case ComplaintType.slowSpeed:
+        return 'Slow Speed';
+      case ComplaintType.intermittent:
+        return 'Intermittent';
+      case ComplaintType.billing:
+        return 'Billing';
+      case ComplaintType.deviceProblem:
+        return 'Device Problem';
+      case ComplaintType.relocation:
+        return 'Relocation';
+      case ComplaintType.other:
+        return 'Other';
+    }
+  }
+
+  String get displayName => label;
+}
+
+/// Complaint priority
+enum ComplaintPriority {
+  low,
+  medium,
+  high,
+  urgent;
+
+  String get label {
+    switch (this) {
+      case ComplaintPriority.low:
+        return 'Low';
+      case ComplaintPriority.medium:
+        return 'Medium';
+      case ComplaintPriority.high:
+        return 'High';
+      case ComplaintPriority.urgent:
+        return 'Urgent';
+    }
+  }
+
+  String get displayName => label;
+}
+
+/// Complaint status
+enum ComplaintStatus {
+  open,
+  inProgress,
+  resolved,
+  closed;
+
+  String get label {
+    switch (this) {
+      case ComplaintStatus.open:
+        return 'Open';
+      case ComplaintStatus.inProgress:
+        return 'In Progress';
+      case ComplaintStatus.resolved:
+        return 'Resolved';
+      case ComplaintStatus.closed:
+        return 'Closed';
+    }
+  }
+
+  String get displayName => label;
+}
+

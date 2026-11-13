@@ -75,6 +75,15 @@ import 'package:nasr_isp/features/installations/domain/usecases/get_installation
 import 'package:nasr_isp/features/installations/domain/usecases/get_installations_by_customer.dart';
 import 'package:nasr_isp/features/installations/domain/usecases/update_installation.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/complaints/data/datasources/complaint_remote_data_source.dart';
+import 'package:nasr_isp/features/complaints/data/repositories/complaint_repository_impl.dart';
+import 'package:nasr_isp/features/complaints/domain/repositories/complaint_repository.dart';
+import 'package:nasr_isp/features/complaints/domain/usecases/create_complaint.dart';
+import 'package:nasr_isp/features/complaints/domain/usecases/delete_complaint.dart';
+import 'package:nasr_isp/features/complaints/domain/usecases/get_complaints.dart';
+import 'package:nasr_isp/features/complaints/domain/usecases/get_complaints_by_customer.dart';
+import 'package:nasr_isp/features/complaints/domain/usecases/update_complaint.dart';
+import 'package:nasr_isp/features/complaints/presentation/bloc/complaint_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_available_report_months.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
@@ -278,6 +287,29 @@ void setupServiceLocator() {
     ),
   );
 
+  // Complaints clean architecture stack
+  getIt.registerLazySingleton<ComplaintRemoteDataSource>(
+    () => ComplaintRemoteDataSourceImpl(firestore: getIt()),
+  );
+  getIt.registerLazySingleton<ComplaintRepository>(
+    () => ComplaintRepositoryImpl(remoteDataSource: getIt()),
+  );
+  getIt.registerLazySingleton(() => CreateComplaint(getIt()));
+  getIt.registerLazySingleton(() => UpdateComplaint(getIt()));
+  getIt.registerLazySingleton(() => GetComplaints(getIt()));
+  getIt.registerLazySingleton(() => GetComplaintsByCustomer(getIt()));
+  getIt.registerLazySingleton(() => DeleteComplaint(getIt()));
+
+  getIt.registerFactory<ComplaintBloc>(
+    () => ComplaintBloc(
+      getComplaints: getIt(),
+      createComplaint: getIt(),
+      updateComplaint: getIt(),
+      deleteComplaint: getIt(),
+      getComplaintsByCustomer: getIt(),
+    ),
+  );
+
   // Reports usecases
   getIt.registerLazySingleton(
     () => GetMonthlyFinancialSummary(
@@ -402,6 +434,7 @@ void setupServiceLocator() {
       getPackages: getIt<GetPackages>(),
       getStockIssues: getIt<GetStockIssues>(),
       getMonthlyFinancialSummary: getIt<GetMonthlyFinancialSummary>(),
+      getComplaints: getIt<GetComplaints>(),
     ),
   );
 

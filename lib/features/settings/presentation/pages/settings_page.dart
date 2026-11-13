@@ -14,6 +14,7 @@ import 'package:nasr_isp/features/settings/presentation/widgets/user_table.dart'
 import 'package:nasr_isp/features/auth/data/models/user_model.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
 import 'package:nasr_isp/shared/widgets/shared_widgets.dart';
+import 'dart:async';
 
 // Colours for the redesigned screen, private to this file.
 const Color _kPageBg = Color(0xFFF6F7F9);
@@ -30,10 +31,12 @@ class SettingsPage extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<SettingsBloc>(
-          create: (context) => getIt<SettingsBloc>()..add(const LoadSettingsEvent()),
+          create: (context) =>
+              getIt<SettingsBloc>()..add(const LoadSettingsEvent()),
         ),
         BlocProvider<UserManagementBloc>(
-          create: (context) => getIt<UserManagementBloc>()..add(const LoadUsersEvent()),
+          create: (context) =>
+              getIt<UserManagementBloc>()..add(const LoadUsersEvent()),
         ),
       ],
       child: const SettingsPageContent(),
@@ -107,8 +110,10 @@ class _SettingsPageContentState extends State<SettingsPageContent>
       companyPhone: _companyPhoneController.text.trim(),
       companyEmail: _companyEmailController.text.trim(),
       currencySymbol: _currencySymbolController.text.trim(),
-      dueReminderDays: int.tryParse(_dueReminderDaysController.text.trim()) ?? 5,
-      lateFeeAmount: double.tryParse(_lateFeeAmountController.text.trim()) ?? 0.0,
+      dueReminderDays:
+          int.tryParse(_dueReminderDaysController.text.trim()) ?? 5,
+      lateFeeAmount:
+          double.tryParse(_lateFeeAmountController.text.trim()) ?? 0.0,
       invoicePrefix: _invoicePrefixController.text.trim(),
     );
 
@@ -235,10 +240,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                 builder: (context, _) {
                   return IndexedStack(
                     index: _tabController.index,
-                    children: [
-                      _buildGeneralTab(),
-                      _buildUserManagementTab(),
-                    ],
+                    children: [_buildGeneralTab(), _buildUserManagementTab()],
                   );
                 },
               ),
@@ -291,9 +293,7 @@ class _SettingsPageContentState extends State<SettingsPageContent>
             ],
           );
         }
-        return Column(
-          children: [first, const SizedBox(height: 20), second],
-        );
+        return Column(children: [first, const SizedBox(height: 20), second]);
       },
     );
   }
@@ -323,14 +323,16 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     label: 'Company Name',
                     controller: _companyNameController,
                     isRequired: true,
-                    validator: (val) => ValidationUtils.validateRequired(val, 'Company Name'),
+                    validator: (val) =>
+                        ValidationUtils.validateRequired(val, 'Company Name'),
                   ),
                   AppFormField(
                     label: 'Helpline / Phone',
                     controller: _companyPhoneController,
                     isRequired: true,
                     keyboardType: TextInputType.phone,
-                    validator: (val) => ValidationUtils.validateRequired(val, 'Helpline'),
+                    validator: (val) =>
+                        ValidationUtils.validateRequired(val, 'Helpline'),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -346,7 +348,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     label: 'Company Address',
                     controller: _companyAddressController,
                     isRequired: true,
-                    validator: (val) => ValidationUtils.validateRequired(val, 'Address'),
+                    validator: (val) =>
+                        ValidationUtils.validateRequired(val, 'Address'),
                   ),
                 ),
               ]),
@@ -357,7 +360,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     label: 'Currency Symbol',
                     controller: _currencySymbolController,
                     isRequired: true,
-                    validator: (val) => ValidationUtils.validateRequired(val, 'Currency'),
+                    validator: (val) =>
+                        ValidationUtils.validateRequired(val, 'Currency'),
                   ),
                   AppFormField(
                     label: 'Due Reminder (Days before)',
@@ -365,7 +369,10 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     isRequired: true,
                     keyboardType: TextInputType.number,
                     inputFormatters: AppInputFormatters.integer,
-                    validator: (val) => ValidationUtils.validateInteger(val, fieldName: 'Reminder Days'),
+                    validator: (val) => ValidationUtils.validateInteger(
+                      val,
+                      fieldName: 'Reminder Days',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -374,15 +381,22 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     label: 'Late Fee Amount',
                     controller: _lateFeeAmountController,
                     isRequired: true,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: AppInputFormatters.decimal,
-                    validator: (val) => ValidationUtils.validateAmount(val, fieldName: 'Late Fee', allowZero: true),
+                    validator: (val) => ValidationUtils.validateAmount(
+                      val,
+                      fieldName: 'Late Fee',
+                      allowZero: true,
+                    ),
                   ),
                   AppFormField(
                     label: 'Invoice Number Prefix',
                     controller: _invoicePrefixController,
                     isRequired: true,
-                    validator: (val) => ValidationUtils.validateRequired(val, 'Invoice Prefix'),
+                    validator: (val) =>
+                        ValidationUtils.validateRequired(val, 'Invoice Prefix'),
                   ),
                 ),
               ]),
@@ -414,16 +428,23 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(Icons.save_rounded, size: 18),
-                      label: Text(isSaving ? 'Saving settings...' : 'Save settings'),
+                      label: Text(
+                        isSaving ? 'Saving settings...' : 'Save settings',
+                      ),
                     );
                     if (deviceType == DeviceType.mobile) {
                       return SizedBox(width: double.infinity, child: button);
                     }
-                    return Align(alignment: Alignment.centerRight, child: button);
+                    return Align(
+                      alignment: Alignment.centerRight,
+                      child: button,
+                    );
                   },
                 ),
               ),
@@ -447,7 +468,9 @@ class _SettingsPageContentState extends State<SettingsPageContent>
         }
 
         final authState = context.watch<AuthBloc>().state;
-        final currentUser = authState is AuthAuthenticated ? authState.user : null;
+        final currentUser = authState is AuthAuthenticated
+            ? authState.user
+            : null;
 
         List<UserModel> users = [];
         if (state is UserManagementLoaded) {
@@ -557,11 +580,17 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                       children: [
                         Text(
                           user.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           user.email,
-                          style: const TextStyle(color: AppColors.darkGray, fontSize: 12),
+                          style: const TextStyle(
+                            color: AppColors.darkGray,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -574,11 +603,16 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                         height: 8,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: user.isActive ? AppColors.successGreen : AppColors.errorRed,
+                          color: user.isActive
+                              ? AppColors.successGreen
+                              : AppColors.errorRed,
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text(user.isActive ? 'Active' : 'Inactive', style: const TextStyle(fontSize: 12)),
+                      Text(
+                        user.isActive ? 'Active' : 'Inactive',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ],
                   ),
                 ],
@@ -592,8 +626,14 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                         isExpanded: true,
                         value: user.role == 'admin' ? 'admin' : 'employee',
                         items: const [
-                          DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                          DropdownMenuItem(value: 'employee', child: Text('Employee')),
+                          DropdownMenuItem(
+                            value: 'admin',
+                            child: Text('Admin'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'employee',
+                            child: Text('Employee'),
+                          ),
                         ],
                         onChanged: isSelf
                             ? null // Disable changing your own role
@@ -640,8 +680,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
     );
     if (confirmed == true && context.mounted) {
       context.read<UserManagementBloc>().add(
-            UpdateUserRoleEvent(uid: user.id, role: newRole),
-          );
+        UpdateUserRoleEvent(uid: user.id, role: newRole),
+      );
     }
   }
 
@@ -665,8 +705,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
     );
     if (confirmed == true && context.mounted) {
       context.read<UserManagementBloc>().add(
-            ToggleUserStatusEvent(uid: user.id, isActive: newActive),
-          );
+        ToggleUserStatusEvent(uid: user.id, isActive: newActive),
+      );
     }
   }
 
@@ -690,19 +730,35 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                 setState(() => isSaving = true);
                 final bloc = context.read<UserManagementBloc>();
                 bloc.add(
-                      CreateUserEvent(
-                        name: nameController.text.trim(),
-                        email: emailController.text.trim(),
-                        password: passwordController.text,
-                        role: selectedRole,
-                      ),
-                    );
-
-                final result = await bloc.stream.firstWhere(
-                  (s) =>
-                      s is UserManagementUserCreatedNeedsReauth ||
-                      s is UserManagementError,
+                  CreateUserEvent(
+                    name: nameController.text.trim(),
+                    email: emailController.text.trim(),
+                    password: passwordController.text,
+                    role: selectedRole,
+                  ),
                 );
+
+                final UserManagementState result;
+                try {
+                  result = await bloc.stream
+                      .firstWhere(
+                        (s) =>
+                            s is UserManagementSuccess ||
+                            s is UserManagementError,
+                      )
+                      .timeout(const Duration(seconds: 40));
+                } on TimeoutException {
+                  if (!dialogContext.mounted) return;
+                  setState(() => isSaving = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Timed out creating the user. Please try again.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
 
                 if (!dialogContext.mounted) return;
 
@@ -726,7 +782,8 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                   label: 'Name',
                   controller: nameController,
                   isRequired: true,
-                  validator: (val) => ValidationUtils.validateRequired(val, 'Name'),
+                  validator: (val) =>
+                      ValidationUtils.validateRequired(val, 'Name'),
                 ),
                 const SizedBox(height: 16),
                 AppFormField(
@@ -756,14 +813,14 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                 DropdownButtonFormField<String>(
                   value: selectedRole,
                   decoration: const InputDecoration(
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     border: OutlineInputBorder(),
                   ),
                   items: const [
-                    DropdownMenuItem(
-                      value: 'admin',
-                      child: Text('Admin'),
-                    ),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
                     DropdownMenuItem(
                       value: 'employee',
                       child: Text('Employee'),
@@ -784,7 +841,9 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.white,
+                      ),
                     ),
                   )
                 : const Text('Create User');
@@ -796,7 +855,9 @@ class _SettingsPageContentState extends State<SettingsPageContent>
                     title: const Text('Add User Account'),
                     leading: IconButton(
                       icon: const Icon(Icons.close),
-                      onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                      onPressed: isSaving
+                          ? null
+                          : () => Navigator.pop(dialogContext),
                     ),
                   ),
                   body: SingleChildScrollView(
@@ -829,7 +890,9 @@ class _SettingsPageContentState extends State<SettingsPageContent>
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                  onPressed: isSaving
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(

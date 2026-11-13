@@ -13,6 +13,7 @@ import 'package:nasr_isp/features/dashboard/presentation/bloc/dashboard_bloc.dar
 import 'package:nasr_isp/features/employees/presentation/bloc/employees_bloc.dart';
 import 'package:nasr_isp/features/expenses/presentation/bloc/expenses_bloc.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/complaints/presentation/bloc/complaint_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/bloc/payments_bloc.dart';
 import 'package:nasr_isp/features/reports/presentation/bloc/reports_bloc.dart';
 import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
@@ -43,6 +44,9 @@ class MyApp extends StatelessWidget {
         BlocProvider<EmployeeBloc>(create: (_) => getIt<EmployeeBloc>()),
         BlocProvider<InstallationBloc>(
           create: (_) => getIt<InstallationBloc>(),
+        ),
+        BlocProvider<ComplaintBloc>(
+          create: (_) => getIt<ComplaintBloc>(),
         ),
         BlocProvider<SettingsBloc>(create: (_) => getIt<SettingsBloc>()),
         BlocProvider<SupplierBloc>(create: (_) => getIt<SupplierBloc>()),

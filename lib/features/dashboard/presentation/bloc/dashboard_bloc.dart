@@ -12,6 +12,8 @@ import 'package:nasr_isp/features/inventory/domain/usecases/get_stock_issues.dar
 import 'package:nasr_isp/features/packages/domain/entities/package_entity.dart';
 import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
 import 'package:nasr_isp/features/reports/domain/usecases/get_monthly_financial_summary.dart';
+import 'package:nasr_isp/features/complaints/domain/entities/complaint_entity.dart';
+import 'package:nasr_isp/features/complaints/domain/usecases/get_complaints.dart';
 
 // Dashboard Events
 abstract class DashboardEvent extends Equatable {
@@ -22,11 +24,26 @@ abstract class DashboardEvent extends Equatable {
 }
 
 class LoadDashboardEvent extends DashboardEvent {
-  const LoadDashboardEvent();
+  /// Expenses are admin-only in Firestore, so non-admins must not request them.
+  final bool isAdmin;
+
+  /// Used to load the signed-in employee's own complaints.
+  final String? userId;
+
+  const LoadDashboardEvent({this.isAdmin = true, this.userId});
+
+  @override
+  List<Object?> get props => [isAdmin, userId];
 }
 
 class RefreshDashboardEvent extends DashboardEvent {
-  const RefreshDashboardEvent();
+  final bool isAdmin;
+  final String? userId;
+
+  const RefreshDashboardEvent({this.isAdmin = true, this.userId});
+
+  @override
+  List<Object?> get props => [isAdmin, userId];
 }
 
 // Dashboard States
@@ -58,6 +75,10 @@ class DashboardLoaded extends DashboardState {
   final Map<String, int> connectionTypeDist; // {'wireless': X, 'fiber': Y}
   final Map<String, double> paymentByMethod; // {'cash': X, 'bank': Y, etc}
 
+  /// Open / in-progress complaints assigned to the signed-in employee.
+  /// null = not applicable (admin) or could not be loaded.
+  final List<ComplaintEntity>? myOpenComplaints;
+
   const DashboardLoaded({
     required this.stats,
     required this.recentPayments,
@@ -68,6 +89,7 @@ class DashboardLoaded extends DashboardState {
     required this.customerGrowth6,
     required this.connectionTypeDist,
     required this.paymentByMethod,
+    this.myOpenComplaints,
   });
 
   @override
@@ -81,6 +103,7 @@ class DashboardLoaded extends DashboardState {
     customerGrowth6,
     connectionTypeDist,
     paymentByMethod,
+    myOpenComplaints,
   ];
 }
 
@@ -101,6 +124,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final GetPackages getPackages;
   final GetStockIssues getStockIssues;
   final GetMonthlyFinancialSummary getMonthlyFinancialSummary;
+  final GetComplaints getComplaints;
 
   /// Injectable clock so month-boundary aggregation is testable. Production
   /// uses the default; tests pass a fixed instant.
@@ -114,6 +138,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     required this.getPackages,
     required this.getStockIssues,
     required this.getMonthlyFinancialSummary,
+    required this.getComplaints,
     this.clock = DateTime.now,
   }) : super(const DashboardInitial()) {
     on<LoadDashboardEvent>(_onLoadDashboard);
@@ -125,7 +150,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(const DashboardLoading());
-    await _fetchAndEmit(emit);
+    await _fetchAndEmit(emit, isAdmin: event.isAdmin, userId: event.userId);
   }
 
   Future<void> _onRefreshDashboard(
@@ -134,10 +159,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     // Keep the current content on screen (e.g. behind a RefreshIndicator)
     // instead of flashing back to the full-screen loading spinner.
-    await _fetchAndEmit(emit);
+    await _fetchAndEmit(emit, isAdmin: event.isAdmin, userId: event.userId);
   }
 
-  Future<void> _fetchAndEmit(Emitter<DashboardState> emit) async {
+  Future<void> _fetchAndEmit(
+    Emitter<DashboardState> emit, {
+    required bool isAdmin,
+    String? userId,
+  }) async {
     try {
       final now = clock();
 
@@ -150,7 +179,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       final results = await Future.wait([
         getCustomers(),
         getAllPayments(),
-        getExpenses(),
+        // Expenses are admin-only in Firestore; employees skip them.
+        isAdmin ? getExpenses() : Future.value(<ExpenseModel>[]),
         getInstallations(),
         getPackages(),
         getStockIssues(startDate: monthStart, endDate: nextMonthStart),
@@ -418,6 +448,49 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         paymentByMethod[method] = (paymentByMethod[method] ?? 0) + p.paidAmount;
       }
 
+      // Employee-only: their own open complaints. A side widget, so a failure
+      // must not break the whole dashboard (null = unavailable).
+      List<ComplaintEntity>? myOpenComplaints;
+      if (!isAdmin && userId != null && userId.isNotEmpty) {
+        try {
+          final mine = await getComplaints(
+            currentUserId: userId,
+            isAdmin: false,
+          );
+          int rank(ComplaintPriority p) {
+            switch (p.name) {
+              case 'urgent':
+                return 3;
+              case 'high':
+                return 2;
+              case 'medium':
+                return 1;
+              default:
+                return 0;
+            }
+          }
+
+          myOpenComplaints =
+              mine
+                  .where(
+                    (c) =>
+                        c.status == ComplaintStatus.open ||
+                        c.status == ComplaintStatus.inProgress,
+                  )
+                  .toList()
+                ..sort((a, b) {
+                  final byPriority = rank(
+                    b.priority,
+                  ).compareTo(rank(a.priority));
+                  return byPriority != 0
+                      ? byPriority
+                      : a.createdAt.compareTo(b.createdAt); // oldest first
+                });
+        } catch (_) {
+          myOpenComplaints = null;
+        }
+      }
+
       emit(
         DashboardLoaded(
           stats: stats,
@@ -429,6 +502,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           customerGrowth6: customerGrowth6,
           connectionTypeDist: connectionTypeDist,
           paymentByMethod: paymentByMethod,
+          myOpenComplaints: myOpenComplaints,
         ),
       );
     } catch (e) {

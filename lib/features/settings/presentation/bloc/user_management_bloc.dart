@@ -161,20 +161,23 @@ class UserManagementBloc
         name: event.name,
         role: event.role,
       );
-      // Don't try to reload the users list here — the admin's own session
-      // was just invalidated by the sign-out side effect, so that read
-      // would likely fail anyway. Let the page handle a clean re-login.
-      emit(UserManagementUserCreatedNeedsReauth(
-        '"${event.name}" was created successfully. For security reasons, you need to log back in.',
-      ));
     } catch (e) {
       emit(UserManagementError(message: 'Failed to create user: $e'));
-      // Keep existing users if we can
       try {
-        final users = await getUsers();
-        emit(UserManagementLoaded(users));
+        emit(UserManagementLoaded(await getUsers()));
       } catch (_) {}
+      return;
     }
+
+    // The admin stays signed in, so no re-login is needed.
+    emit(
+      UserManagementSuccess(
+        '"${event.name}" was created. They can now sign in.',
+      ),
+    );
+    try {
+      emit(UserManagementLoaded(await getUsers()));
+    } catch (_) {}
   }
 
   Future<void> _onUpdateUserRole(
@@ -203,9 +206,13 @@ class UserManagementBloc
     emit(const UserManagementSaving());
     try {
       await toggleUserStatus(uid: event.uid, isActive: event.isActive);
-      emit(UserManagementSuccess(
-        event.isActive ? 'User activated successfully.' : 'User deactivated successfully.',
-      ));
+      emit(
+        UserManagementSuccess(
+          event.isActive
+              ? 'User activated successfully.'
+              : 'User deactivated successfully.',
+        ),
+      );
       final users = await getUsers();
       emit(UserManagementLoaded(users));
     } catch (e) {

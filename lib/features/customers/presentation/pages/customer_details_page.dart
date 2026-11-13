@@ -13,6 +13,8 @@ import 'package:nasr_isp/features/packages/presentation/bloc/packages_bloc.dart'
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_state.dart';
 import 'package:nasr_isp/features/packages/presentation/bloc/packages_event.dart';
 import 'package:nasr_isp/features/installations/presentation/bloc/installations_bloc.dart';
+import 'package:nasr_isp/features/complaints/presentation/bloc/complaint_bloc.dart';
+import 'package:nasr_isp/features/complaints/presentation/widgets/complaint_card_list.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/layout_widgets.dart';
 import 'package:nasr_isp/shared/utils/responsive.dart';
@@ -43,6 +45,10 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
     // Load installations for this subscriber
     context.read<InstallationBloc>().add(
       LoadCustomerInstallationsEvent(widget.customerId),
+    );
+    // Load complaints for this subscriber
+    context.read<ComplaintBloc>().add(
+      LoadCustomerComplaintsEvent(widget.customerId),
     );
   }
 
@@ -331,6 +337,8 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
         _buildContactDetailsCard(isAdmin),
         const SizedBox(height: 24),
         _buildInstallationHistoryCard(isAdmin),
+        const SizedBox(height: 24),
+        _buildComplaintsHistoryCard(isAdmin),
         if (isAdmin) ...[
           const SizedBox(height: 24),
           _buildPaymentHistoryCard(),
@@ -1106,6 +1114,164 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage> {
                                   fontSize: 11,
                                   fontStyle: FontStyle.italic,
                                   color: AppTheme.mediumGray,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                }
+                return const Text('Initial state');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComplaintsHistoryCard(bool isAdmin) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.lightGray.withValues(alpha: 0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Complaints & Support Tickets',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryColor,
+                  ),
+            ),
+            const Divider(height: 24),
+            BlocBuilder<ComplaintBloc, ComplaintState>(
+              builder: (context, state) {
+                if (state is ComplaintLoading) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (state is ComplaintError) {
+                  return Text('Error loading complaints: ${state.message}');
+                }
+                if (state is ComplaintLoaded) {
+                  final list = state.complaints;
+                  if (list.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12.0),
+                      child: Text(
+                        'No complaint records found for this subscriber.',
+                        style: TextStyle(
+                          color: AppTheme.mediumGray,
+                          fontSize: 13,
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const Divider(height: 16),
+                    itemBuilder: (context, index) {
+                      final c = list[index];
+                      final pColor = complaintPriorityColor(c.priority);
+                      final sColor = complaintStatusColor(c.status);
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '${c.type.label} (${DateTimeUtils.formatDate(c.createdAt)})',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: pColor.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        c.priority.label,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: pColor,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: sColor.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        c.status.label,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: sColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              c.description,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF14213D),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Assigned: ${c.assignedEmployeeName ?? "Unassigned"}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.darkGray,
+                              ),
+                            ),
+                            if (c.resolutionNotes != null &&
+                                c.resolutionNotes!.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Resolution: ${c.resolutionNotes}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: Color(0xFF10B981),
                                 ),
                               ),
                             ],

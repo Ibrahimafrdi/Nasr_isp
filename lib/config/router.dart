@@ -17,6 +17,7 @@ import 'package:nasr_isp/features/dashboard/presentation/pages/dashboard_page.da
 import 'package:nasr_isp/features/employees/presentation/pages/employees_page.dart';
 import 'package:nasr_isp/features/expenses/presentation/pages/expenses_page.dart';
 import 'package:nasr_isp/features/installations/presentation/pages/installations_page.dart';
+import 'package:nasr_isp/features/complaints/presentation/pages/complaints_page.dart';
 import 'package:nasr_isp/features/packages/presentation/pages/packages_page.dart';
 import 'package:nasr_isp/features/payments/presentation/pages/payments_page.dart';
 import 'package:nasr_isp/features/settings/presentation/pages/settings_page.dart';
@@ -102,6 +103,12 @@ GoRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.installations,
             builder: (context, state) => const InstallationsPage(),
+          ),
+
+          // Complaints
+          GoRoute(
+            path: RoutePaths.complaints,
+            builder: (context, state) => const ComplaintsPage(),
           ),
 
           // Expenses (admin-only)

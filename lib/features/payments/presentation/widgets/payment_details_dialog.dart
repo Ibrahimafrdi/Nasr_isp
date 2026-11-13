@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nasr_isp/config/service_locator.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
+import 'package:nasr_isp/features/customers/domain/usecases/get_customers.dart';
+import 'package:nasr_isp/features/packages/domain/usecases/get_packages.dart';
 import 'package:nasr_isp/core/theme/app_spacing.dart';
 import 'package:nasr_isp/core/utils/utils.dart';
 import 'package:nasr_isp/features/payments/data/models/payment_model.dart';
 import 'package:nasr_isp/features/settings/utils/load_app_settings.dart';
 import 'package:nasr_isp/shared/widgets/status_badge.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nasr_isp/features/payments/presentation/utils/payment_receipt_pdf.dart';
-import 'package:nasr_isp/features/settings/domain/entities/app_settings_entity.dart';
-import 'package:nasr_isp/features/settings/presentation/bloc/settings_bloc.dart';
 
 /// Displays a comprehensive, clean receipt slip & metadata modal for a payment.
 Future<void> showPaymentDetailsDialog({
@@ -71,8 +71,33 @@ class _PaymentDetailsContent extends StatelessWidget {
   Future<void> _openPdf(BuildContext context) async {
     final settings = await loadAppSettings(context);
     if (!context.mounted) return;
+    // Look up the customer's User ID and current package for the receipt.
+    // Best-effort: if either lookup fails, the receipt still prints without it.
+    String? userId;
+    String? packageName;
     try {
-      await PaymentReceiptPdf.printOrSave(payment: payment, settings: settings);
+      final customers = await getIt<GetCustomers>()();
+      final customer = customers
+          .where((c) => c.id == payment.customerId)
+          .firstOrNull;
+      userId = customer?.userId;
+      final packageId = customer?.packageId;
+      if (packageId != null && packageId.isNotEmpty) {
+        final packages = await getIt<GetPackages>()();
+        packageName = packages
+            .where((p) => p.id == packageId)
+            .firstOrNull
+            ?.name;
+      }
+    } catch (_) {}
+    if (!context.mounted) return;
+    try {
+      await PaymentReceiptPdf.printOrSave(
+        payment: payment,
+        settings: settings,
+        userId: userId,
+        packageName: packageName,
+      );
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

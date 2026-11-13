@@ -17,29 +17,26 @@ service cloud.firestore {
         && (currentUserDoc().role in ['admin', 'Admin', 'ADMIN'])
         && (!('isActive' in currentUserDoc()) || currentUserDoc().isActive == true);
     }
+    function isActiveUser() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (!('isActive' in currentUserDoc()) || currentUserDoc().isActive == true);
+    }
 
     // ── users: identity + role. This must be locked down first — every
     // isAdmin() check in this file reads from here, so a writable `role`
     // field would make every other admin-only rule below meaningless. ────
-    match /users/{userId} {
+      match /users/{userId} {
       allow read: if isSignedIn() && (isAdmin() || request.auth.uid == userId);
 
-      // The Firebase client SDK signs the browser in as the brand-new user
-      // immediately after createUserWithEmailAndPassword(), so the profile
-      // doc for a newly created account is written under that new user's
-      // own auth context, not the admin's. Rules can't verify "an admin
-      // initiated this" from here, so self-creation is capped to the
-      // 'employee' role and an active account; granting 'admin' must be
-      // done directly in the Firebase console.
-      allow create: if (isAdmin() && request.resource.data.role in ['admin', 'employee'] && request.resource.data.isActive is bool)
-        || (isSignedIn()
-            && request.auth.uid == userId
-            && request.resource.data.role == 'employee'
-            && request.resource.data.isActive == true);
+      // Only an admin creates profiles. Self-registration is closed, so a
+      // stranger who signs up through the public API gets no data access.
+      allow create: if isAdmin()
+        && request.resource.data.role in ['admin', 'employee']
+        && request.resource.data.isActive is bool;
 
-      // Admins may change anything (including promoting/demoting roles and
-      // toggling isActive). A user editing their own doc may not touch
-      // role/isActive on themselves.
+      // Admins may change anything. A user editing their own doc may not
+      // touch role/isActive on themselves.
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == userId
             && request.resource.data.role == resource.data.role
@@ -64,33 +61,41 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ── Core business collections: locked down to active admin accounts. ──
+    // ── Operational collections: any active staff member (admin or
+    // employee) can work with them; sensitive actions stay admin-only. ──
     match /customers/{customerId} {
-      allow read, write: if isAdmin();
+      allow read, create, update: if isActiveUser();
+      allow delete: if isAdmin();
     }
 
     match /installations/{installationId} {
-      allow read, write: if isAdmin();
+      allow read, create, update: if isActiveUser();
+      allow delete: if isAdmin();
     }
 
     match /packages/{packageId} {
-      allow read, write: if isAdmin();
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
     }
 
     match /payments/{paymentId} {
-      allow read, write: if isAdmin();
+      allow read, create: if isActiveUser();
+      allow update, delete: if isAdmin();
     }
 
     match /inventory/{itemId} {
-      allow read, write: if isAdmin();
+      allow read, update: if isActiveUser();
+      allow create, delete: if isAdmin();
 
       match /movements/{movementId} {
-        allow read, write: if isAdmin();
+        allow read, create: if isActiveUser();
+        allow update, delete: if isAdmin();
       }
     }
 
     match /stock_issues/{issueId} {
-      allow read, write: if isAdmin();
+      allow read, create: if isActiveUser();
+      allow update, delete: if isAdmin();
     }
 
     match /expenses/{expenseId} {
@@ -116,6 +121,43 @@ service cloud.firestore {
       // for any signed-in user; further edits require admin.
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
+    }
+
+       match /complaints/{complaintId} {
+
+      function validStatus(s) {
+        return s in ['open', 'inProgress', 'resolved', 'closed'];
+      }
+
+      // Resolving or closing a complaint requires resolution notes.
+      function resolvedHasNotes() {
+        return !(request.resource.data.status in ['resolved', 'closed'])
+          || (request.resource.data.resolutionNotes is string
+              && request.resource.data.resolutionNotes.size() > 0);
+      }
+
+      // Admin sees everything. An active employee sees only complaints
+      // assigned to them.
+      allow read: if isAdmin()
+        || (isActiveUser()
+            && resource.data.get('assignedEmployeeId', null) == request.auth.uid);
+
+      // Only admins create complaints.
+      allow create: if isAdmin() && validStatus(request.resource.data.status);
+
+      // Admin can edit everything. The assigned employee can change only
+      // status, resolution notes and timestamps.
+      allow update: if (isAdmin()
+            && validStatus(request.resource.data.status)
+            && resolvedHasNotes())
+        || (isActiveUser()
+            && resource.data.get('assignedEmployeeId', null) == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'resolutionNotes', 'resolvedAt', 'updatedAt'])
+            && validStatus(request.resource.data.status)
+            && resolvedHasNotes());
+
+      allow delete: if isAdmin();
     }
 
     // Deny anything not explicitly matched above.

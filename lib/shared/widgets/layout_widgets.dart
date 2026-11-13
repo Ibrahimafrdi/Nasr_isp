@@ -100,6 +100,11 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
             route: RoutePaths.installations,
           ),
           const SidebarItem(
+            icon: Icons.support_agent_rounded,
+            label: 'Complaints',
+            route: RoutePaths.complaints,
+          ),
+          const SidebarItem(
             icon: Icons.speed_outlined,
             label: 'Packages',
             route: RoutePaths.packages,

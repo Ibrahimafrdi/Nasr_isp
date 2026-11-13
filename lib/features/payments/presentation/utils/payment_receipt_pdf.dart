@@ -97,6 +97,8 @@ class PaymentReceiptPdf {
     required PaymentEntity payment,
     required AppSettingsEntity settings,
     PdfPageFormat format = PdfPageFormat.a5,
+    String? userId,
+    String? packageName,
   }) async {
     final number = receiptNumber(payment, settings);
     final companyName = settings.companyName.trim().isEmpty
@@ -170,6 +172,10 @@ class PaymentReceiptPdf {
 
         // Customer + what it was for
         _row('Received from', payment.customerName, bold: true),
+        if (userId != null && userId.trim().isNotEmpty)
+          _row('User ID', userId.trim()),
+        if (packageName != null && packageName.trim().isNotEmpty)
+          _row('Current package', packageName.trim()),
         _row('Description', _description(payment)),
         if (payment.periodEnd != null)
           _row('Service valid until', _date(payment.periodEnd!)),
@@ -254,12 +260,19 @@ class PaymentReceiptPdf {
   static Future<void> printOrSave({
     required PaymentEntity payment,
     required AppSettingsEntity settings,
+    String? userId,
+    String? packageName,
   }) async {
     await Printing.layoutPdf(
       name: 'Receipt-${receiptNumber(payment, settings)}.pdf',
       format: PdfPageFormat.a5,
-      onLayout: (format) =>
-          build(payment: payment, settings: settings, format: format),
+      onLayout: (format) => build(
+        payment: payment,
+        settings: settings,
+        format: format,
+        userId: userId,
+        packageName: packageName,
+      ),
     );
   }
 }

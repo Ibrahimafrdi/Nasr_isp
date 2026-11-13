@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nasr_isp/core/constants/app_constants.dart';
 import 'package:nasr_isp/core/theme/app_colors.dart';
 import 'package:nasr_isp/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:nasr_isp/features/complaints/domain/entities/complaint_entity.dart';
 import 'package:nasr_isp/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:nasr_isp/shared/models/models.dart';
 import 'package:nasr_isp/shared/widgets/premium_data_table.dart';
@@ -25,15 +26,29 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  /// Expenses are admin-only in Firestore, so the dashboard must know the role
+  /// before it decides what to load.
+  bool get _isAdmin {
+    final s = context.read<AuthBloc>().state;
+    return s is! AuthAuthenticated || s.user.isAdmin;
+  }
+
+  String? get _userId {
+    final s = context.read<AuthBloc>().state;
+    return s is AuthAuthenticated ? s.user.id : null;
+  }
+
   @override
   void initState() {
     super.initState();
-    context.read<DashboardBloc>().add(const LoadDashboardEvent());
+    context.read<DashboardBloc>().add(
+      LoadDashboardEvent(isAdmin: _isAdmin, userId: _userId),
+    );
   }
 
   Future<void> _onRefresh() async {
     final bloc = context.read<DashboardBloc>();
-    bloc.add(const RefreshDashboardEvent());
+    bloc.add(RefreshDashboardEvent(isAdmin: _isAdmin, userId: _userId));
     await bloc.stream.firstWhere(
       (s) => s is DashboardLoaded || s is DashboardError,
     );
@@ -79,7 +94,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => context.read<DashboardBloc>().add(
-                        const LoadDashboardEvent(),
+                        LoadDashboardEvent(isAdmin: isAdmin, userId: user.id),
                       ),
                       child: const Text('Retry'),
                     ),
@@ -120,36 +135,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        // ===== HEADER + QUICK ACTIONS =====
-                        Column(
-                          children: [
-                            Text(
-                              'Good ${_getGreeting()}, ${user.name}',
-                              style: GoogleFonts.inter(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w700,
-                                color: _kInk,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              isAdmin
-                                  ? 'Here is how your internet business is doing this month.'
-                                  : 'Employee Performance Metrics',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: _kMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(),
-                        const SizedBox(width: 16),
-                        _buildQuickActions(context),
-                      ],
-                    ),
+                    // ===== HEADER + QUICK ACTIONS =====
+                    _buildHeader(context, user.name, isAdmin),
 
                     const SizedBox(height: 24),
 
@@ -162,8 +149,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     if (isAdmin) ...[
                       const _SectionTitle('Money this month'),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 4),
                       _buildNetProfit(stats),
+                      const SizedBox(height: 16),
                       _cardGrid([
                         _StatCard(
                           label: 'Monthly revenue',
@@ -207,41 +195,82 @@ class _DashboardPageState extends State<DashboardPage> {
                         label: 'Total customers',
                         value: stats.totalCustomers.toString(),
                       ),
+                      if (!isAdmin)
+                        _StatCard(
+                          label: 'Active customers',
+                          value: stats.activeCustomers.toString(),
+                          valueColor: _kAccent,
+                        ),
                       _StatCard(
                         label: 'Expiring in 7 days',
                         value: stats.expiringsoon.toString(),
                         valueColor: AppColors.warningOrange,
                       ),
-                      if (isAdmin) ...[
-                        _StatCard(
-                          label: 'Expired, not renewed',
-                          value: stats.expiredCustomersDueCount.toString(),
-                          valueColor: AppColors.errorRed,
-                          note: '${stats.expiredCustomers} expired in total',
-                        ),
+                      _StatCard(
+                        label: 'Expired, not renewed',
+                        value: stats.expiredCustomersDueCount.toString(),
+                        valueColor: AppColors.errorRed,
+                        note: '${stats.expiredCustomers} expired in total',
+                      ),
+                      if (isAdmin)
                         _StatCard(
                           label: 'Waiting to be paid',
                           value: _rs(stats.pendingThisMonth),
                           valueColor: AppColors.errorRed,
                           note: _pendingSubtitle(stats),
                         ),
-                      ],
                     ]),
                     const SizedBox(height: 32),
 
-                    // ===== TABLES (admin) =====
-                    if (isAdmin) ...[
+                    // ===== INSTALLATIONS (employee) =====
+                    if (!isAdmin) ...[
                       _SectionTitle(
-                        'Renew soon (next 7 days)',
-                        actionLabel: 'See all customers',
-                        onAction: () => context.go(RoutePaths.customers),
+                        'Installations',
+                        actionLabel: 'Open installations',
+                        onAction: () => context.go(RoutePaths.installations),
                       ),
-                      _buildExpiringTable(
-                        (loaded?.expiringCustomers ?? <CustomerModel>[])
-                            .take(5)
-                            .toList(),
-                      ),
+                      _cardGrid([
+                        _StatCard(
+                          label: 'Pending installations',
+                          value: stats.pendingInstallations.toString(),
+                          valueColor: AppColors.warningOrange,
+                          note: 'Waiting or in progress',
+                        ),
+                        _StatCard(
+                          label: 'Completed installations',
+                          value: stats.completedInstallations.toString(),
+                          valueColor: _kAccent,
+                        ),
+                      ]),
                       const SizedBox(height: 32),
+                    ],
+
+                    // ===== MY OPEN COMPLAINTS (employee) =====
+                    if (!isAdmin) ...[
+                      _SectionTitle(
+                        'My open complaints',
+                        actionLabel: 'See all',
+                        onAction: () => context.go(RoutePaths.complaints),
+                      ),
+                      _buildMyComplaints(context, loaded?.myOpenComplaints),
+                      const SizedBox(height: 32),
+                    ],
+
+                    // ===== RENEW SOON (everyone; no money columns) =====
+                    _SectionTitle(
+                      'Renew soon (next 7 days)',
+                      actionLabel: 'See all customers',
+                      onAction: () => context.go(RoutePaths.customers),
+                    ),
+                    _buildExpiringTable(
+                      (loaded?.expiringCustomers ?? <CustomerModel>[])
+                          .take(5)
+                          .toList(),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // ===== RECENT PAYMENTS (admin) =====
+                    if (isAdmin) ...[
                       _SectionTitle(
                         'Recent payments',
                         actionLabel: 'See all payments',
@@ -252,8 +281,8 @@ class _DashboardPageState extends State<DashboardPage> {
                             .take(5)
                             .toList(),
                       ),
-                      const SizedBox(height: 24),
                     ],
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -351,8 +380,60 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  // ===== HEADER =====
+  // Wide screens: greeting on the left, buttons on the right.
+  // Phones and small screens: greeting first, buttons underneath.
+  Widget _buildHeader(BuildContext context, String name, bool isAdmin) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final isWide = c.maxWidth >= 1000;
+
+        final greeting = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Good ${_getGreeting()}, $name',
+              style: GoogleFonts.inter(
+                fontSize: isWide ? 26 : 22,
+                fontWeight: FontWeight.w700,
+                color: _kInk,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isAdmin
+                  ? 'Here is how your internet business is doing this month.'
+                  : 'Here is what needs your attention today.',
+              style: GoogleFonts.inter(fontSize: 14, color: _kMuted),
+            ),
+          ],
+        );
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: greeting),
+              const SizedBox(width: 16),
+              _buildQuickActions(context, isAdmin),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            greeting,
+            const SizedBox(height: 16),
+            _buildQuickActions(context, isAdmin),
+          ],
+        );
+      },
+    );
+  }
+
   // ===== QUICK ACTIONS =====
-  Widget _buildQuickActions(BuildContext context) {
+  Widget _buildQuickActions(BuildContext context, bool isAdmin) {
     final outlined = OutlinedButton.styleFrom(
       minimumSize: const Size(0, 44),
       foregroundColor: _kInk,
@@ -360,6 +441,15 @@ class _DashboardPageState extends State<DashboardPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
     );
+    final primary = ElevatedButton.styleFrom(
+      minimumSize: const Size(0, 44),
+      backgroundColor: _kAccent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+    );
+
     return Wrap(
       spacing: 10,
       runSpacing: 10,
@@ -370,32 +460,33 @@ class _DashboardPageState extends State<DashboardPage> {
           child: const Text('Add customer'),
         ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            backgroundColor: _kAccent,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            textStyle: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
+          style: primary,
           onPressed: () => context.go(RoutePaths.payments),
           child: const Text('Collect payment'),
         ),
-        OutlinedButton(
-          style: outlined,
-          onPressed: () => context.go(RoutePaths.expenses),
-          child: const Text('Add expense'),
-        ),
-        OutlinedButton(
-          style: outlined,
-          onPressed: () => context.go(RoutePaths.inventory),
-          child: const Text('Add stock'),
-        ),
+        if (isAdmin) ...[
+          OutlinedButton(
+            style: outlined,
+            onPressed: () => context.go(RoutePaths.expenses),
+            child: const Text('Add expense'),
+          ),
+          OutlinedButton(
+            style: outlined,
+            onPressed: () => context.go(RoutePaths.inventory),
+            child: const Text('Add stock'),
+          ),
+        ] else ...[
+          OutlinedButton(
+            style: outlined,
+            onPressed: () => context.go(RoutePaths.installations),
+            child: const Text('Installations'),
+          ),
+          OutlinedButton(
+            style: outlined,
+            onPressed: () => context.go(RoutePaths.complaints),
+            child: const Text('My complaints'),
+          ),
+        ],
       ],
     );
   }
@@ -701,6 +792,129 @@ class _DashboardPageState extends State<DashboardPage> {
           },
         );
       },
+    );
+  }
+
+  // ===== MY OPEN COMPLAINTS (employee) =====
+  Widget _buildMyComplaints(
+    BuildContext context,
+    List<ComplaintEntity>? complaints,
+  ) {
+    if (complaints == null) {
+      return _emptyCard('Complaints could not be loaded right now.');
+    }
+    if (complaints.isEmpty) {
+      return _emptyCard('No open complaints assigned to you. Nice work!');
+    }
+
+    final open = complaints
+        .where((c) => c.status == ComplaintStatus.open)
+        .length;
+    final inProgress = complaints.length - open;
+    final urgent = complaints
+        .where((c) => c.priority == ComplaintPriority.urgent)
+        .length;
+
+    Color priorityColor(ComplaintPriority p) {
+      switch (p.name) {
+        case 'urgent':
+          return AppColors.errorRed;
+        case 'high':
+          return AppColors.warningOrange;
+        default:
+          return _kMuted;
+      }
+    }
+
+    String age(DateTime created) {
+      final days = DateTime.now().difference(created).inDays;
+      if (days <= 0) return 'Today';
+      return days == 1 ? '1 day ago' : '$days days ago';
+    }
+
+    final shown = complaints.take(4).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _cardGrid([
+          _StatCard(
+            label: 'Open',
+            value: open.toString(),
+            valueColor: _kAccent,
+            note: 'Not started yet',
+          ),
+          _StatCard(
+            label: 'In progress',
+            value: inProgress.toString(),
+            valueColor: AppColors.warningOrange,
+          ),
+          _StatCard(
+            label: 'Urgent',
+            value: urgent.toString(),
+            valueColor: AppColors.errorRed,
+            note: 'Handle these first',
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < shown.length; i++) ...[
+                if (i > 0) const Divider(height: 1, color: _kBorder),
+                InkWell(
+                  onTap: () => context.go(RoutePaths.complaints),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                shown[i].customerName,
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                  color: _kInk,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${shown[i].type.label} · ${age(shown[i].createdAt)}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12.5,
+                                  color: _kMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          shown[i].priority.label,
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: priorityColor(shown[i].priority),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 

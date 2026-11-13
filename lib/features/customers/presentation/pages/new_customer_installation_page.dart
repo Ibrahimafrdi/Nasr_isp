@@ -144,9 +144,20 @@ class _NewCustomerInstallationPageState
         sum + ((row['qty'] as int? ?? 0) * (row['unitCost'] as double? ?? 0.0)),
   );
 
-  /// Installation Net Profit / Loss = Installation Fee Billed - Material Cost - Labour Cost
+  // /// Installation Net Profit / Loss = Installation Fee Billed - Material Cost - Labour Cost
+  // double get _installationProfit =>
+  //     _previewCharges - _previewMaterialCost - _previewLabor;
+  /// Upstream cost of the selected package (0 when none is selected or it
+  /// has no cost price).
+  double get _previewPackageCost => _selectedPackageCost() ?? 0.0;
+
+  /// Setup Net Profit / Loss =
+  /// Installation Fee Billed - Package Cost - Material Cost - Labour Cost
   double get _installationProfit =>
-      _previewCharges - _previewMaterialCost - _previewLabor;
+      _previewCharges -
+      _previewPackageCost -
+      _previewMaterialCost -
+      _previewLabor;
 
   double get _previewMonthlyPackageRate =>
       double.tryParse(_monthlyBillController.text.trim()) ?? 0.0;
@@ -620,10 +631,9 @@ class _NewCustomerInstallationPageState
                         );
                       },
                     ),
-                    bottomNavigationBar:
-                        constraintsIsMobile(context)
-                            ? _buildMobileBottomBar()
-                            : null,
+                    bottomNavigationBar: constraintsIsMobile(context)
+                        ? _buildMobileBottomBar()
+                        : null,
                   ),
                 );
               },
@@ -897,10 +907,8 @@ class _NewCustomerInstallationPageState
             controller: _monthlyBillController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: AppInputFormatters.decimal,
-            validator: (v) => ValidationUtils.validateAmount(
-              v,
-              fieldName: 'Monthly Rate',
-            ),
+            validator: (v) =>
+                ValidationUtils.validateAmount(v, fieldName: 'Monthly Rate'),
           ),
         ],
       ),
@@ -1067,8 +1075,7 @@ class _NewCustomerInstallationPageState
       color: Colors.white,
       child: ExpansionTile(
         initiallyExpanded: _isSummaryExpandedMobile,
-        onExpansionChanged: (v) =>
-            setState(() => _isSummaryExpandedMobile = v),
+        onExpansionChanged: (v) => setState(() => _isSummaryExpandedMobile = v),
         title: const Text(
           'Installation & Financial Summary',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
@@ -1576,7 +1583,11 @@ class _StockBadge extends StatelessWidget {
       ),
       child: Text(
         isOut ? 'Out of Stock' : 'In stock: $stock',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: text),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: text,
+        ),
       ),
     );
   }
@@ -1963,6 +1974,12 @@ class _InstallationSummaryContent extends StatelessWidget {
         if (isAdmin) ...[
           const SizedBox(height: 8),
           _summaryRow(
+            label: 'Package Cost Price',
+            value: '- ${DateTimeUtils.formatCurrency(pkg?.costPrice ?? 0)}',
+            valueColor: AppColors.errorRed,
+          ),
+          const SizedBox(height: 8),
+          _summaryRow(
             label: 'Material Stock Cost',
             value: '- ${DateTimeUtils.formatCurrency(previewMaterialCost)}',
             valueColor: AppColors.errorRed,
@@ -1991,7 +2008,7 @@ class _InstallationSummaryContent extends StatelessWidget {
                     ),
                   ),
                   const Text(
-                    '(Fee − Materials − Labour)',
+                    '(Fee − Package − Materials − Labour)',
                     style: TextStyle(fontSize: 10, color: AppColors.darkGray),
                   ),
                 ],
@@ -2001,9 +2018,7 @@ class _InstallationSummaryContent extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isProfit
-                      ? AppTheme.successColor
-                      : AppColors.errorRed,
+                  color: isProfit ? AppTheme.successColor : AppColors.errorRed,
                 ),
               ),
             ],

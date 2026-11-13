@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:http/http.dart' as http;
 import 'package:nasr_isp/features/auth/data/models/user_model.dart';
 
 abstract class UserManagementRemoteDataSource {
@@ -22,16 +26,14 @@ class UserManagementRemoteDataSourceImpl
   UserManagementRemoteDataSourceImpl({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance;
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference get _usersCol => _firestore.collection('users');
 
   @override
   Future<List<UserModel>> getUsers() async {
     final snapshot = await _usersCol.get();
-    return snapshot.docs
-        .map((doc) => UserModel.fromFirestore(doc))
-        .toList();
+    return snapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList();
   }
 
   @override
@@ -41,54 +43,77 @@ class UserManagementRemoteDataSourceImpl
     String name,
     String role,
   ) async {
-    final String tempAppName = 'temp_create_user_${DateTime.now().microsecondsSinceEpoch}';
-    FirebaseApp? secondaryApp;
+    // Create the login through the Auth REST API. Unlike
+    // createUserWithEmailAndPassword, this never signs the browser in as the
+    // new user, so the admin's session stays intact.
+    final uri = Uri.https(
+      'identitytoolkit.googleapis.com',
+      '/v1/accounts:signUp',
+      {'key': Firebase.app().options.apiKey},
+    );
+
+    final http.Response response;
     try {
-      secondaryApp = await Firebase.initializeApp(
-        name: tempAppName,
-        options: Firebase.app().options,
-      );
-      final authForSecondary = FirebaseAuth.instanceFor(app: secondaryApp);
-      final userCredential = await authForSecondary.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      final user = userCredential.user;
-      if (user == null) {
-        throw Exception('Failed to create Firebase Auth user.');
+      response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email.trim(),
+              'password': password,
+              'returnSecureToken': false,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      throw Exception('Timed out reaching Firebase. Check your connection.');
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      final code = ((body['error'] as Map?)?['message'] as String?) ?? '';
+      if (code.startsWith('EMAIL_EXISTS')) {
+        throw Exception(
+          'The email address is already in use by another account.',
+        );
       }
-
-      final model = UserModel(
-        id: user.uid,
-        name: name,
-        email: email.trim(),
-        phone: '', // Default/empty since not provided on creation
-        role: role,
-        isActive: true,
-        createdAt: DateTime.now(),
-      );
-
-      // Save profile doc using primary Firestore instance
-      await _usersCol.doc(user.uid).set(model.toMap());
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        throw Exception('The email address is already in use by another account.');
-      } else if (e.code == 'weak-password') {
-        throw Exception('The password provided is too weak.');
-      } else if (e.code == 'invalid-email') {
+      if (code.startsWith('WEAK_PASSWORD')) {
+        throw Exception(
+          'The password provided is too weak (minimum 6 characters).',
+        );
+      }
+      if (code.startsWith('INVALID_EMAIL')) {
         throw Exception('Please enter a valid email address.');
       }
-      throw Exception(e.message ?? 'Failed to create user.');
-    } finally {
-      if (secondaryApp != null) {
-        try {
-          await FirebaseAuth.instanceFor(app: secondaryApp).signOut();
-        } catch (_) {}
-        try {
-          await secondaryApp.delete();
-        } catch (_) {}
+      if (code.startsWith('OPERATION_NOT_ALLOWED')) {
+        throw Exception(
+          'Email/password sign-in is turned off in Firebase Authentication.',
+        );
       }
+      throw Exception(code.isEmpty ? 'Failed to create user.' : code);
     }
+
+    final uid = body['localId'] as String?;
+    if (uid == null || uid.isEmpty) {
+      throw Exception('Failed to create Firebase Auth user.');
+    }
+
+    final model = UserModel(
+      id: uid,
+      name: name,
+      email: email.trim(),
+      phone: '',
+      role: role,
+      isActive: true,
+      createdAt: DateTime.now(),
+    );
+
+    // Written with the admin's own session, so the existing admin-only
+    // rule for creating users applies.
+    await _usersCol
+        .doc(uid)
+        .set(model.toMap())
+        .timeout(const Duration(seconds: 15));
   }
 
   @override
